@@ -1,0 +1,18 @@
+.relevant-file-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.relevant-file-item {
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.relevance-reason {
+    margin-left: 8px;
+    color: #666;
+    font-style: italic;
+    font-size: 0.9em;
+}

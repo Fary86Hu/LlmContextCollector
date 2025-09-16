@@ -1,0 +1,490 @@
+using LlmContextCollector.Models;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+
+namespace LlmContextCollector.Services
+{
+    public class AppState : INotifyPropertyChanged
+    {
+        private readonly PromptService _promptService;
+
+        public AppState(PromptService promptService)
+        {
+            _promptService = promptService;
+        }
+
+        // PROJECT AND FILE STATE
+        private string _projectRoot = string.Empty;
+        public string ProjectRoot
+        {
+            get => _projectRoot;
+            set => SetField(ref _projectRoot, value);
+        }
+
+        private bool _isGitRepository = false;
+        public bool IsGitRepository
+        {
+            get => _isGitRepository;
+            set => SetField(ref _isGitRepository, value);
+        }
+
+        private string _currentGitBranch = string.Empty;
+        public string CurrentGitBranch
+        {
+            get => _currentGitBranch;
+            set => SetField(ref _currentGitBranch, value);
+        }
+
+        private List<FileNode> _fileTree = new();
+        public List<FileNode> FileTree => _fileTree;
+        public ObservableCollection<string> SelectedFilesForContext { get; } = new();
+
+
+        // FILTERS AND SEARCH STATE
+        public Dictionary<string, bool> ExtensionFilters { get; } = new()
+        {
+            { ".razor", true }, { ".cs", true }, { ".js", true }, { ".css", true },
+            { ".html", true }, { ".cshtml", true }, { ".json", true }, { ".xml", true },
+            { ".txt", true }, { ".md", true }
+        };
+
+        private string _ignorePatternsRaw = string.Join("\n", new[]
+        {
+            "node_modules", "vendor", "dist", "build", "target", "__pycache__",
+            "bin", "obj", ".git", ".svn", ".hg", ".idea", ".vscode",
+            "*.pyc", "*.pyo", "*.class", "*.o", "*.obj", "*.dll", "*.so", "*.exe", ".DS_Store"
+        });
+        public string IgnorePatternsRaw
+        {
+            get => _ignorePatternsRaw;
+            set => SetField(ref _ignorePatternsRaw, value);
+        }
+
+        private string _searchTerm = string.Empty;
+        public string SearchTerm
+        {
+            get => _searchTerm;
+            set => SetField(ref _searchTerm, value);
+        }
+
+        private bool _searchInContent = false;
+        public bool SearchInContent
+        {
+            get => _searchInContent;
+            set => SetField(ref _searchInContent, value);
+        }
+
+        private int _referenceSearchDepth = 1;
+        public int ReferenceSearchDepth
+        {
+            get => _referenceSearchDepth;
+            set => SetField(ref _referenceSearchDepth, value);
+        }
+
+        // PROMPT STATE
+        private string _promptText = string.Empty;
+        public string PromptText
+        {
+            get => _promptText;
+            set => SetField(ref _promptText, value);
+        }
+
+        private Guid _selectedPromptTemplateId;
+        public Guid SelectedPromptTemplateId
+        {
+            get => _selectedPromptTemplateId;
+            set => SetField(ref _selectedPromptTemplateId, value);
+        }
+        public List<PromptTemplate> PromptTemplates { get; set; } = new();
+        public async Task LoadPromptsAsync()
+        {
+            PromptTemplates = await _promptService.GetPromptsAsync();
+            NotifyStateChanged(nameof(PromptTemplates));
+        }
+        public void UpdatePromptTextFromTemplate()
+        {
+            var selectedTemplate = PromptTemplates.FirstOrDefault(p => p.Id == SelectedPromptTemplateId);
+            PromptText = selectedTemplate?.Content ?? string.Empty;
+        }
+
+        #region Groq Settings
+        private string _groqApiKey = string.Empty;
+        public string GroqApiKey
+        {
+            get => _groqApiKey;
+            set => SetField(ref _groqApiKey, value);
+        }
+
+        private string _groqModel = "llama-3.3-70b-versatile";
+        public string GroqModel
+        {
+            get => _groqModel;
+            set => SetField(ref _groqModel, value);
+        }
+
+        private int _groqMaxOutputTokens = 2048;
+        public int GroqMaxOutputTokens
+        {
+            get => _groqMaxOutputTokens;
+            set => SetField(ref _groqMaxOutputTokens, value);
+        }
+        
+        private string _groqApiUrl = "https://api.groq.com/openai/v1/";
+        public string GroqApiUrl
+        {
+            get => _groqApiUrl;
+            set => SetField(ref _groqApiUrl, value);
+        }
+        #endregion
+
+
+        // HISTORY STATE
+        public List<HistoryEntry> HistoryEntries { get; set; } = new();
+
+        #region Azure DevOps State
+        private string _azureDevOpsOrganizationUrl = "";
+        public string AzureDevOpsOrganizationUrl { get => _azureDevOpsOrganizationUrl; set => SetField(ref _azureDevOpsOrganizationUrl, value); }
+
+        private string _azureDevOpsProject = "";
+        public string AzureDevOpsProject { get => _azureDevOpsProject; set => SetField(ref _azureDevOpsProject, value); }
+
+        private string _azureDevOpsRepository = "";
+        public string AzureDevOpsRepository { get => _azureDevOpsRepository; set => SetField(ref _azureDevOpsRepository, value); }
+
+        private string _azureDevOpsIterationPath = "";
+        public string AzureDevOpsIterationPath { get => _azureDevOpsIterationPath; set => SetField(ref _azureDevOpsIterationPath, value); }
+
+        private string _azureDevOpsPat = "";
+        public string AzureDevOpsPat { get => _azureDevOpsPat; set => SetField(ref _azureDevOpsPat, value); }
+
+        private string _adoDocsPath = string.Empty;
+        public string AdoDocsPath { get => _adoDocsPath; private set => SetField(ref _adoDocsPath, value); }
+        private bool _adoDocsExist = false;
+        public bool AdoDocsExist { get => _adoDocsExist; private set => SetField(ref _adoDocsExist, value); }
+        #endregion
+
+        // LLM CONTEXT STATE
+        public string LastLlmGlobalExplanation { get; set; } = string.Empty;
+
+        // DIFF DIALOG STATE
+        private bool _isDiffDialogVisible = false;
+        public bool IsDiffDialogVisible
+        {
+            get => _isDiffDialogVisible;
+            set => SetField(ref _isDiffDialogVisible, value);
+        }
+        public string DiffGlobalExplanation { get; set; } = string.Empty;
+        public List<DiffResult> DiffResults { get; set; } = new();
+
+        // STATUS BAR STATE
+        private string _statusText = "Készen áll.";
+        public string StatusText
+        {
+            get => _statusText;
+            set => SetField(ref _statusText, value);
+        }
+
+        // LOADING INDICATOR STATE
+        private bool _isLoading = false;
+        public bool IsLoading
+        {
+            get => _isLoading;
+            set => SetField(ref _isLoading, value);
+        }
+
+        private bool _isSemanticIndexBuilding = false;
+        public bool IsSemanticIndexBuilding
+        {
+            get => _isSemanticIndexBuilding;
+            set => SetField(ref _isSemanticIndexBuilding, value);
+        }
+
+        private string _loadingText = string.Empty;
+        public string LoadingText
+        {
+            get => _loadingText;
+            set => SetField(ref _loadingText, value);
+        }
+
+        // UNDO/REDO STATE
+        private List<List<string>> _contextListHistory = new();
+        private int _contextListHistoryIndex = -1;
+        public bool CanUndo => _contextListHistoryIndex > 0;
+        public bool CanRedo => _contextListHistoryIndex < _contextListHistory.Count - 1;
+
+        // PANEL RESIZING STATE
+        private double _leftPanelFlex = 30;
+        public double LeftPanelFlex { get => _leftPanelFlex; set => SetField(ref _leftPanelFlex, value); }
+
+        private double _middlePanelFlex = 20;
+        public double MiddlePanelFlex { get => _middlePanelFlex; set => SetField(ref _middlePanelFlex, value); }
+
+        private double _rightPanelFlex = 50;
+        public double RightPanelFlex { get => _rightPanelFlex; set => SetField(ref _rightPanelFlex, value); }
+
+        private double _rightTopPanelFlex = 30;
+        public double RightTopPanelFlex { get => _rightTopPanelFlex; set => SetField(ref _rightTopPanelFlex, value); }
+
+        private double _rightMiddlePanelFlex = 40;
+        public double RightMiddlePanelFlex { get => _rightMiddlePanelFlex; set => SetField(ref _rightMiddlePanelFlex, value); }
+
+        private double _rightBottomPanelFlex = 30;
+        public double RightBottomPanelFlex { get => _rightBottomPanelFlex; set => SetField(ref _rightBottomPanelFlex, value); }
+
+        public void SaveContextListState()
+        {
+            var currentState = SelectedFilesForContext.ToList();
+            if (_contextListHistoryIndex < _contextListHistory.Count - 1)
+            {
+                _contextListHistory.RemoveRange(_contextListHistoryIndex + 1, _contextListHistory.Count - (_contextListHistoryIndex + 1));
+            }
+            // Csak akkor ments, ha változott az állapot
+            if (!_contextListHistory.Any() || !_contextListHistory.Last().SequenceEqual(currentState))
+            {
+                _contextListHistory.Add(currentState);
+                _contextListHistoryIndex = _contextListHistory.Count - 1;
+            }
+            NotifyStateChanged(nameof(CanUndo));
+            NotifyStateChanged(nameof(CanRedo));
+        }
+
+        public void UndoContextListChange()
+        {
+            if (!CanUndo) return;
+            _contextListHistoryIndex--;
+            RestoreContextListFromHistory();
+            StatusText = "Visszavonva.";
+        }
+
+        public void RedoContextListChange()
+        {
+            if (!CanRedo) return;
+            _contextListHistoryIndex++;
+            RestoreContextListFromHistory();
+            StatusText = "Ismételve.";
+        }
+
+        public void ResetContextListHistory()
+        {
+            _contextListHistory.Clear();
+            _contextListHistory.Add(new List<string>()); // Kezdeti üres állapot
+            _contextListHistoryIndex = 0;
+        }
+
+        private void RestoreContextListFromHistory()
+        {
+            var stateToRestore = _contextListHistory[_contextListHistoryIndex];
+            SelectedFilesForContext.Clear();
+            foreach (var item in stateToRestore)
+            {
+                SelectedFilesForContext.Add(item);
+            }
+            NotifyStateChanged(nameof(CanUndo));
+            NotifyStateChanged(nameof(CanRedo));
+            NotifyStateChanged(nameof(SelectedFilesForContext));
+        }
+
+
+        // --- State Management and Notifications ---
+
+        public void ShowLoading(string text)
+        {
+            LoadingText = text;
+            IsLoading = true;
+        }
+
+        public void HideLoading()
+        {
+            IsLoading = false;
+            LoadingText = string.Empty;
+        }
+
+        public void SetFileTree(List<FileNode> tree)
+        {
+            _fileTree = tree;
+            NotifyStateChanged(nameof(FileTree));
+        }
+
+        public void AddExtensionFilter(string extension)
+        {
+            if (!ExtensionFilters.ContainsKey(extension))
+            {
+                ExtensionFilters[extension] = true;
+                NotifyStateChanged(nameof(ExtensionFilters));
+            }
+        }
+        
+        public void UpdateAdoPaths(string projectRoot)
+        {
+            if (string.IsNullOrWhiteSpace(projectRoot) || !Directory.Exists(projectRoot))
+            {
+                AdoDocsPath = string.Empty;
+                AdoDocsExist = false;
+                return;
+            }
+
+            var projectFolderName = new DirectoryInfo(projectRoot).Name;
+            var newPath = Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory, projectFolderName, "ado");
+            var newExist = Directory.Exists(newPath) && Directory.EnumerateFiles(newPath, "*.txt").Any();
+
+            AdoDocsPath = newPath;
+            AdoDocsExist = newExist;
+        }
+
+        public FileNode? FindNodeByPath(string fullPath)
+        {
+            FileNode? Find(IEnumerable<FileNode> nodes)
+            {
+                foreach (var node in nodes)
+                {
+                    if (node.FullPath.Equals(fullPath, StringComparison.OrdinalIgnoreCase)) return node;
+                    if (node.IsDirectory)
+                    {
+                        var found = Find(node.Children);
+                        if (found != null) return found;
+                    }
+                }
+                return null;
+            }
+            return Find(this.FileTree);
+        }
+
+        public void ExpandNodeParents(FileNode? node)
+        {
+            if (node?.Parent == null) return;
+            var parent = node.Parent;
+            while (parent != null)
+            {
+                parent.IsExpanded = true;
+                parent = parent.Parent;
+            }
+        }
+
+        public async Task FilterFileTreeAsync()
+        {
+            var term = SearchTerm.ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(term))
+            {
+                ClearFileTreeFilter();
+                return;
+            }
+
+            ShowLoading($"Keresés: '{term}'...");
+            await Task.Delay(1); 
+            try
+            {
+                var matchedNodes = new HashSet<FileNode>();
+
+                async Task SearchNodes(IEnumerable<FileNode> nodes)
+                {
+                    foreach (var node in nodes)
+                    {
+                        bool isPathMatch = node.Name.ToLowerInvariant().Contains(term);
+                        bool isContentMatch = false;
+
+                        if (isPathMatch)
+                        {
+                            node.IsPathMatch = true;
+                        }
+
+                        if (SearchInContent && !node.IsDirectory)
+                        {
+                            try
+                            {
+                                var content = await File.ReadAllTextAsync(node.FullPath);
+                                if (content.ToLowerInvariant().Contains(term))
+                                {
+                                    isContentMatch = true;
+                                    node.IsContentMatch = true;
+                                }
+                            }
+                            catch { /* ignore read errors */ }
+                        }
+
+                        if (isPathMatch || isContentMatch)
+                        {
+                            matchedNodes.Add(node);
+                            var current = node.Parent;
+                            while (current != null)
+                            {
+                                matchedNodes.Add(current);
+                                current = current.Parent;
+                            }
+                        }
+
+                        if (node.IsDirectory)
+                        {
+                            await SearchNodes(node.Children);
+                        }
+                    }
+                }
+
+                await SearchNodes(_fileTree);
+
+                void UpdateVisibility(IEnumerable<FileNode> nodes)
+                {
+                    foreach (var node in nodes)
+                    {
+                        node.IsVisible = matchedNodes.Contains(node);
+                        if (node.IsVisible && node.IsDirectory && !string.IsNullOrWhiteSpace(SearchTerm))
+                        {
+                            node.IsExpanded = true;
+                        }
+                        if (node.IsDirectory)
+                        {
+                            UpdateVisibility(node.Children);
+                        }
+                    }
+                }
+                UpdateVisibility(_fileTree);
+                var fileMatchCount = matchedNodes.Count(n => !n.IsDirectory);
+                StatusText = $"{fileMatchCount} fájl található.";
+            }
+            finally
+            {
+                HideLoading();
+            }
+        }
+
+        public void ClearFileTreeFilter()
+        {
+            void UpdateVisibility(IEnumerable<FileNode> nodes)
+            {
+                foreach (var node in nodes)
+                {
+                    node.IsVisible = true;
+                    node.IsExpanded = false;
+                    node.IsContentMatch = false;
+                    node.IsPathMatch = false;
+                    if (node.IsDirectory)
+                    {
+                        UpdateVisibility(node.Children);
+                    }
+                }
+            }
+            UpdateVisibility(_fileTree);
+            StatusText = "Keresés törölve, fa nézet visszaállítva.";
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        public void NotifyStateChanged([CallerMemberName] string? propertyName = null)
+        {
+            OnPropertyChanged(propertyName);
+        }
+
+        protected bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+            field = value;
+            OnPropertyChanged(propertyName);
+            return true;
+        }
+    }
+}

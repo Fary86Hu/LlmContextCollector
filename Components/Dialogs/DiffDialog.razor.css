@@ -1,0 +1,217 @@
+.diff-dialog {
+    width: 90vw;
+}
+
+.diff-body {
+    display: flex;
+    gap: 15px;
+}
+
+.diff-left-pane {
+    width: 35%;
+    display: flex;
+    flex-direction: column;
+}
+
+.diff-right-pane {
+    width: 65%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0; /* Fontos a flexbox gyermekek megfelelő viselkedéséhez */
+}
+
+.suggestion-box {
+    background-color: #f0f8ff;
+    border: 1px solid #cce5ff;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+}
+
+    .suggestion-box strong {
+        display: block;
+        margin-bottom: 8px;
+    }
+
+.suggestion-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    margin-bottom: 5px;
+}
+
+    .suggestion-item label {
+        font-weight: bold;
+        width: 60px;
+        padding-top: 5px;
+    }
+
+    .suggestion-item input, .suggestion-item textarea {
+        flex-grow: 1;
+        font-family: Consolas, monospace;
+        font-size: var(--font-size-sm);
+        background-color: #fff;
+    }
+
+    .suggestion-item textarea {
+        resize: vertical;
+    }
+
+    .suggestion-item button {
+        flex-shrink: 0;
+        align-self: center;
+    }
+
+.diff-global-explanation {
+    background-color: #fff;
+    border: 1px solid #eee;
+    padding: 10px;
+    margin-bottom: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+    .diff-global-explanation pre {
+        white-space: pre-wrap;
+        margin: 0;
+    }
+
+.diff-file-list {
+    flex-grow: 1;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    background-color: var(--panel-bg);
+}
+
+.diff-file-item {
+    padding: 5px 8px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+    .diff-file-item.selected {
+        background-color: #e5f1fb;
+    }
+
+    .diff-file-item:hover {
+        background-color: #f5f5f5;
+    }
+
+    .diff-file-item.selected:hover {
+        background-color: #d8ecfa;
+    }
+
+.status-badge {
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: bold;
+    color: white;
+    text-transform: uppercase;
+}
+
+    .status-badge.new {
+        background-color: #2a9d8f;
+    }
+
+    .status-badge.modified {
+        background-color: #e9c46a;
+    }
+    
+    .status-badge.deleted {
+        background-color: #e76f51;
+    }
+
+    .status-badge.accepted {
+        background-color: #4caf50;
+    }
+
+    .status-badge.error {
+        background-color: #e76f51;
+    }
+
+.diff-view-switcher {
+    margin-bottom: 10px;
+}
+
+    .diff-view-switcher label {
+        margin-right: 15px;
+    }
+
+.diff-content-wrapper {
+    position: relative;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0; /* Biztosítja, hogy ne nyúljon túl a szülőn */
+}
+
+
+pre.diff-content {
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    padding: 10px;
+    margin: 0;
+    flex-grow: 1;
+    overflow: auto;
+    font-family: Consolas, monospace;
+}
+
+::deep .diff-del, ::deep .sbs-del {
+    background-color: #ffe0e0;
+}
+
+::deep .diff-add, ::deep .sbs-add {
+    background-color: #e0ffe0;
+}
+
+.sbs-diff-container {
+    display: flex;
+    gap: 10px;
+    flex-grow: 1;
+    min-height: 0;
+}
+
+.sbs-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.diff-scrollbar-track {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 15px;
+    height: 100%;
+    pointer-events: none;
+}
+
+.diff-marker {
+    position: absolute;
+    width: 100%;
+    height: 2px;
+    opacity: 0.7;
+}
+
+.diff-marker.add {
+    background-color: #2a9d8f;
+}
+
+.diff-marker.del {
+    background-color: #e76f51;
+}
+
+.diff-marker.replace {
+    background-color: #e9c46a;
+}
+
+button.commit-btn {
+    background-color: #2a9d8f;
+}
+    button.commit-btn:hover {
+        background-color: #248a7f;
+    }

@@ -1,0 +1,90 @@
+@using LlmContextCollector.Models
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop">
+        <div class="modal-dialog relevant-files-dialog">
+            <div class="modal-header">
+                <h3>Releváns Fájl Javaslatok</h3>
+                <button class="close-btn" @onclick="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                @if (Results == null || !Results.Any())
+                {
+                    <div class="editor-placeholder">Nincsenek javaslatok.</div>
+                }
+                else
+                {
+                    <div class="relevant-file-list">
+                        @foreach (var result in Results)
+                        {
+                            <div class="relevant-file-item">
+                                <input type="checkbox" @bind="_selectionState[result.FilePath]" />
+                                <span>
+                                    @result.FilePath (Relevancia: @result.Score.ToString("F2"))
+                                    @if (!string.IsNullOrEmpty(result.SimilarTo))
+                                    {
+                                        <span class="relevance-reason">(hasonló ehhez: @result.SimilarTo)</span>
+                                    }
+                                </span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <span>@($"{_selectionState.Count(kv => kv.Value)} fájl kijelölve")</span>
+                <button @onclick="Close">Mégsem</button>
+                <button class="primary" @onclick="Accept" disabled="@(!_selectionState.Any(kv => kv.Value))">
+                    Kijelöltek Hozzáadása
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public List<RelevanceResult>? Results { get; set; }
+
+    [Parameter]
+    public EventCallback<List<string>> OnAccept { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private Dictionary<string, bool> _selectionState = new();
+
+    protected override void OnParametersSet()
+    {
+        if (IsVisible && Results != null)
+        {
+            _selectionState = Results.ToDictionary(r => r.FilePath, r => true);
+        }
+        else
+        {
+            _selectionState.Clear();
+        }
+    }
+
+    private async Task Accept()
+    {
+        var selectedFiles = _selectionState
+            .Where(kv => kv.Value)
+            .Select(kv => kv.Key)
+            .ToList();
+        
+        if (selectedFiles.Any())
+        {
+            await OnAccept.InvokeAsync(selectedFiles);
+        }
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+}

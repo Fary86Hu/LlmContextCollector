@@ -1,0 +1,38 @@
+.tree-node {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+    .tree-node:hover {
+        background-color: #e5f1fb;
+    }
+
+.node-expander {
+    padding: 2px 5px;
+    font-size: 10px;
+}
+
+.node-name.folder {
+    font-weight: bold;
+}
+
+.node-name.file {
+    font-weight: normal;
+}
+
+.ref-match {
+    color: #888;
+    font-style: italic;
+}
+
+.tree-node.selected {
+    background-color: #0078d7;
+    color: white;
+}
+
+    .tree-node.selected .node-name,
+    .tree-node.selected .node-expander span {
+        color: white;
+    }

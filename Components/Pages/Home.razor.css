@@ -1,0 +1,114 @@
+.main-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    user-select: none;
+}
+
+.content-wrapper {
+    display: flex;
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+::deep .panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    box-sizing: border-box;
+    background-color: var(--panel-bg);
+    min-width: 0;
+    min-height: 0;
+}
+
+::deep .panel-left {
+    flex: var(--left-flex);
+    min-width: 300px;
+    border-right: 1px solid var(--border-color);
+}
+
+::deep .panel-middle {
+    flex: var(--middle-flex);
+    min-width: 220px;
+    padding: 10px;
+    background-color: var(--bg-color);
+    border-right: 1px solid var(--border-color);
+}
+
+::deep .panel-right {
+    flex: var(--right-flex);
+    min-width: 350px;
+}
+
+.vertical-splitter {
+    width: 5px;
+    background-color: var(--bg-color);
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    cursor: col-resize;
+    flex-shrink: 0;
+}
+.vertical-splitter:hover {
+     background-color: var(--accent-color);
+}
+
+
+.context-menu {
+    position: fixed;
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    min-width: 200px;
+    z-index: 1000;
+    padding: 5px 0;
+    border-radius: 3px;
+    user-select: none;
+}
+
+.context-menu-item {
+    padding: 8px 15px;
+    cursor: pointer;
+}
+
+    .context-menu-item:hover {
+        background-color: #e5f1fb;
+    }
+
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0,0,0,0.5);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+.loading-spinner {
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid var(--accent-color);
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+}
+
+.loading-text {
+    margin-top: 20px;
+    font-size: 1.2em;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}

@@ -1,0 +1,76 @@
+.prompt-manager-container {
+    display: flex;
+    gap: 15px;
+    min-height: 400px;
+}
+
+.prompt-list-pane {
+    width: 30%;
+    display: flex;
+    flex-direction: column;
+}
+
+.prompt-editor-pane {
+    width: 70%;
+    display: flex;
+    flex-direction: column;
+}
+
+.prompt-list {
+    flex-grow: 1;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    background-color: var(--panel-bg);
+    margin-bottom: 10px;
+}
+
+.prompt-list-item {
+    padding: 8px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+    .prompt-list-item:hover {
+        background-color: #f5f5f5;
+    }
+
+    .prompt-list-item.selected {
+        background-color: #e5f1fb;
+    }
+
+.prompt-list-actions {
+    display: flex;
+    gap: 5px;
+}
+
+    .prompt-list-actions button {
+        flex-grow: 1;
+    }
+
+.prompt-editor-pane input, .prompt-editor-pane textarea {
+    width: 100%;
+}
+
+.prompt-editor-pane textarea {
+    flex-grow: 1;
+    resize: none;
+}
+
+.prompt-editor-pane label {
+    margin-top: 10px;
+    margin-bottom: 2px;
+    display: block;
+}
+
+    .prompt-editor-pane label:first-child {
+        margin-top: 0;
+    }
+
+.global-prefix-editor {
+    margin-top: 20px;
+}
+
+    .global-prefix-editor textarea {
+        width: 100%;
+        resize: vertical;
+    }

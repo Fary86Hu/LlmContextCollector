@@ -1,0 +1,392 @@
+@using LlmContextCollector.Models
+@using LlmContextCollector.Utils
+@inject IClipboard Clipboard
+@inject AppState AppState
+@implements IDisposable
+
+@if (IsVisible && DiffResults != null)
+{
+    <div class="modal-backdrop">
+        <div class="modal-dialog diff-dialog">
+            <div class="modal-header">
+                <h3>Változások Elemzése és Elfogadása</h3>
+                <button class="close-btn" @onclick="Close">&times;</button>
+            </div>
+            <div class="modal-body diff-body">
+                <div class="diff-left-pane">
+                    <div class="suggestion-box">
+                        <strong>@(_hasSuggestions ? "Javaslatok:" : "Git Műveletek")</strong>
+                        <div class="suggestion-item">
+                            <label>Branch:</label>
+                            <input type="text" @bind="_suggestedBranch" placeholder="pl. feature/uj-funkcio" />
+                            @if (_hasSuggestions)
+                            {
+                                <button @onclick="() => CopyToClipboard(_suggestedBranch)">Másol</button>
+                            }
+                        </div>
+                        <div class="suggestion-item">
+                            <label>Commit:</label>
+                            <textarea rows="5" @bind="_suggestedCommit" placeholder="pl. feat: Új funkció implementálása..."></textarea>
+                            @if (_hasSuggestions)
+                            {
+                                <button @onclick="() => CopyToClipboard(_suggestedCommit)">Másol</button>
+                            }
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_globalExplanationText))
+                    {
+                        <div class="diff-global-explanation">
+                            <strong>Globális Magyarázat:</strong>
+                            <pre>@_globalExplanationText</pre>
+                        </div>
+                    }
+                    <strong>Feldolgozott fájlok:</strong>
+                    <div class="diff-file-list">
+                        @foreach (var result in DiffResults)
+                        {
+                            <div @key="result.Path"
+                                 class="diff-file-item @GetStatusClass(result) @(_selectedResult != null && _selectedResult.Path == result.Path ? "selected" : "")"
+                                 @onclick="() => SelectResult(result)">
+                                <input type="checkbox" @bind="result.IsSelectedForAccept" @onclick:stopPropagation />
+                                <span class="status-badge @GetStatusClass(result)">@GetStatusText(result)</span>
+                                <span>@result.Path</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="diff-right-pane">
+                    @if (_selectedResult != null)
+                    {
+                        <div class="diff-view-switcher">
+                            <label>
+                                <input type="radio" name="diff-view" value="unified" checked="@(_viewMode == "unified")" @onchange="@(() => SetViewMode("unified"))" />
+                                Egységes nézet
+                            </label>
+                            <label>
+                                <input type="radio" name="diff-view" value="sbs" checked="@(_viewMode == "sbs")" @onchange="@(() => SetViewMode("sbs"))" />
+                                Side-by-Side
+                            </label>
+                        </div>
+                        <div class="diff-content-wrapper">
+                            @if (_viewMode == "unified")
+                            {
+                                <pre class="diff-content unified-diff"><code>@_unifiedDiffMarkup</code></pre>
+                            }
+                            else
+                            {
+                                <div class="sbs-diff-container">
+                                    <div class="sbs-pane">
+                                        <strong>Eredeti</strong>
+                                        <pre class="diff-content"><code>@_sbsLeftMarkup</code></pre>
+                                    </div>
+                                    <div class="sbs-pane">
+                                        <strong>Módosított</strong>
+                                        <pre class="diff-content"><code>@_sbsRightMarkup</code></pre>
+                                    </div>
+                                </div>
+                            }
+                            <div class="diff-scrollbar-track">
+                                @foreach (var marker in _diffMarkers)
+                                {
+                                    <div class="diff-marker @marker.Type" style="top: @marker.TopPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%"></div>
+                                }
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="editor-placeholder">Válassz egy fájlt a változások megtekintéséhez.</div>
+                    }
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <span>@($"{DiffResults.Count(r => r.IsSelectedForAccept)} fájl kijelölve")</span>
+                <button @onclick="Close">Bezárás</button>
+                <button class="primary" @onclick="AcceptSelectedChanges" disabled="@(!DiffResults.Any(r => r.IsSelectedForAccept))">
+                    Kijelöltek elfogadása
+                </button>
+                @{
+                    var onCorrectBranch = !string.IsNullOrWhiteSpace(_suggestedBranch) && AppState.CurrentGitBranch == _suggestedBranch;
+                }
+                <button class="primary" @onclick="CreateBranch" disabled="@(string.IsNullOrWhiteSpace(_suggestedBranch) || onCorrectBranch)">
+                    Branch Létrehozása
+                </button>
+                <button class="primary" @onclick="Commit" disabled="@(string.IsNullOrWhiteSpace(_suggestedCommit) || !DiffResults.Any(r => r.IsSelectedForAccept))">
+                    Commit
+                </button>
+                <button class="primary commit-btn" @onclick="Push" disabled="@(string.IsNullOrWhiteSpace(_suggestedBranch) || !onCorrectBranch)">
+                    Push
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public string GlobalExplanation { get; set; } = string.Empty;
+
+    [Parameter]
+    public List<DiffResult>? DiffResults { get; set; }
+
+    [Parameter]
+    public EventCallback<List<DiffResult>> OnAccept { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnCreateBranch { get; set; }
+
+    [Parameter]
+    public EventCallback<CommitAndPushArgs> OnCommit { get; set; }
+    
+    [Parameter]
+    public EventCallback<CommitAndPushArgs> OnPush { get; set; }
+
+    private DiffResult? _selectedResult;
+    private string _viewMode = "unified";
+    private MarkupString _unifiedDiffMarkup;
+    private MarkupString _sbsLeftMarkup;
+    private MarkupString _sbsRightMarkup;
+
+    private record DiffMarkerInfo(string Type, double TopPercent);
+    private List<DiffMarkerInfo> _diffMarkers = new();
+    
+    private string _suggestedBranch = string.Empty;
+    private string _suggestedCommit = string.Empty;
+    private string _globalExplanationText = string.Empty;
+    private bool _hasSuggestions = false;
+
+    protected override void OnInitialized()
+    {
+        AppState.PropertyChanged += OnAppStateChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (IsVisible && DiffResults != null && DiffResults.Any())
+        {
+            ParseGlobalExplanation();
+            if (_selectedResult == null || !DiffResults.Any(d => d.Path == _selectedResult.Path))
+            {
+                SelectResult(DiffResults.FirstOrDefault());
+            }
+        }
+    }
+    
+    private async void OnAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppState.CurrentGitBranch))
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose()
+    {
+        AppState.PropertyChanged -= OnAppStateChanged;
+    }
+
+    private void ParseGlobalExplanation()
+    {
+        _hasSuggestions = false;
+        _suggestedBranch = string.Empty;
+        _suggestedCommit = string.Empty;
+        _globalExplanationText = GlobalExplanation;
+
+        if (string.IsNullOrEmpty(GlobalExplanation)) return;
+
+        var branchMatch = System.Text.RegularExpressions.Regex.Match(GlobalExplanation, @"\[BRANCH_SUGGESTION\]([\s\S]*?)\[/BRANCH_SUGGESTION\]");
+        var commitMatch = System.Text.RegularExpressions.Regex.Match(GlobalExplanation, @"\[COMMIT_SUGGESTION\]([\s\S]*?)\[/COMMIT_SUGGESTION\]");
+
+        if (branchMatch.Success && commitMatch.Success)
+        {
+            _hasSuggestions = true;
+            _suggestedBranch = branchMatch.Groups[1].Value.Trim();
+            _suggestedCommit = commitMatch.Groups[1].Value.Trim();
+            // Eltávolítjuk a javaslat részt a magyarázatból, hogy ne jelenjen meg kétszer
+            _globalExplanationText = System.Text.RegularExpressions.Regex.Replace(GlobalExplanation, @"\[BRANCH_SUGGESTION\][\s\S]*?\[/COMMIT_SUGGESTION\]\s*", "").Trim();
+        }
+    }
+
+    private async Task CopyToClipboard(string text)
+    {
+        if (!string.IsNullOrEmpty(text))
+        {
+            await Clipboard.SetTextAsync(text);
+        }
+    }
+
+    private void SelectResult(DiffResult? result)
+    {
+        _selectedResult = result;
+        _viewMode = "unified";
+        
+        if (_selectedResult != null)
+        {
+            var (unified, sbsLeft, sbsRight) = DiffUtility.GenerateDiffMarkup(_selectedResult.OldContent, _selectedResult.NewContent);
+            _unifiedDiffMarkup = unified;
+            _sbsLeftMarkup = sbsLeft;
+            _sbsRightMarkup = sbsRight;
+            GenerateDiffMarkers();
+        }
+        else
+        {
+            _diffMarkers.Clear();
+        }
+    }
+
+    private void SetViewMode(string newMode)
+    {
+        if (_viewMode == newMode) return;
+        _viewMode = newMode;
+        if (_selectedResult != null)
+        {
+            GenerateDiffMarkers();
+        }
+    }
+
+    private void GenerateDiffMarkers()
+    {
+        _diffMarkers.Clear();
+        if (_selectedResult == null) return;
+        
+        var oldText = _selectedResult.OldContent;
+        var newText = _selectedResult.NewContent;
+
+        var oldLines = oldText.Replace("\r\n", "\n").Split('\n');
+        var newLines = newText.Replace("\r\n", "\n").Split('\n');
+        var opcodes = DiffUtility.GetOpcodes(oldLines, newLines);
+
+        double totalLines = 0;
+        if (_viewMode == "unified")
+        {
+            totalLines = opcodes.Sum(op => op.Tag switch {
+                'e' => op.I2 - op.I1,
+                'd' => op.I2 - op.I1,
+                'i' => op.J2 - op.J1,
+                'r' => (op.I2 - op.I1) + (op.J2 - op.J1),
+                _ => 0
+            });
+        }
+        else // sbs
+        {
+            totalLines = opcodes.Sum(op => op.Tag switch {
+                'e' => op.I2 - op.I1,
+                'd' => op.I2 - op.I1,
+                'i' => op.J2 - op.J1,
+                'r' => Math.Max(op.I2 - op.I1, op.J2 - op.J1),
+                _ => 0
+            });
+        }
+
+        if (totalLines < 1) return;
+
+        double currentLine = 0;
+        foreach (var op in opcodes)
+        {
+            double linesInOp = 0;
+            string? markerType = null;
+
+            if (_viewMode == "unified")
+            {
+                switch (op.Tag)
+                {
+                    case 'e': linesInOp = op.I2 - op.I1; break;
+                    case 'd': linesInOp = op.I2 - op.I1; markerType = "del"; break;
+                    case 'i': linesInOp = op.J2 - op.J1; markerType = "add"; break;
+                    case 'r': linesInOp = (op.I2 - op.I1) + (op.J2 - op.J1); markerType = "replace"; break;
+                }
+            }
+            else // sbs
+            {
+                switch (op.Tag)
+                {
+                    case 'e': linesInOp = op.I2 - op.I1; break;
+                    case 'd': linesInOp = op.I2 - op.I1; markerType = "del"; break;
+                    case 'i': linesInOp = op.J2 - op.J1; markerType = "add"; break;
+                    case 'r': linesInOp = Math.Max(op.I2 - op.I1, op.J2 - op.J1); markerType = "replace"; break;
+                }
+            }
+            
+            if (markerType != null)
+            {
+                _diffMarkers.Add(new DiffMarkerInfo(markerType, (currentLine / totalLines) * 100));
+            }
+            currentLine += linesInOp;
+        }
+    }
+
+
+    private async Task AcceptSelectedChanges()
+    {
+        var accepted = DiffResults?.Where(r => r.IsSelectedForAccept).ToList();
+        if (accepted != null && accepted.Any())
+        {
+            await OnAccept.InvokeAsync(accepted);
+        }
+    }
+    
+    private async Task CreateBranch()
+    {
+        if (!string.IsNullOrWhiteSpace(_suggestedBranch))
+        {
+            await OnCreateBranch.InvokeAsync(_suggestedBranch);
+        }
+    }
+
+    private async Task Commit()
+    {
+        var accepted = DiffResults?.Where(r => r.IsSelectedForAccept).ToList();
+        if (accepted != null && accepted.Any() && !string.IsNullOrWhiteSpace(_suggestedCommit))
+        {
+            var args = new CommitAndPushArgs(_suggestedBranch, _suggestedCommit, accepted);
+            await OnCommit.InvokeAsync(args);
+        }
+    }
+
+    private async Task Push()
+    {
+        if (!string.IsNullOrWhiteSpace(_suggestedBranch))
+        {
+            var accepted = DiffResults?.Where(r => r.IsSelectedForAccept).ToList() ?? new List<DiffResult>();
+            var args = new CommitAndPushArgs(_suggestedBranch, _suggestedCommit, accepted);
+            await OnPush.InvokeAsync(args);
+        }
+    }
+
+    private string GetStatusText(DiffResult result)
+    {
+        return result.Status switch
+        {
+            DiffStatus.NewFromModified => "ÚJ (módosítottként jelölve)",
+            DiffStatus.Deleted => "TÖRÖLT",
+            _ => result.Status.ToString().ToUpper()
+        };
+    }
+
+    private string GetStatusClass(DiffResult result)
+    {
+        return result.Status switch
+        {
+            DiffStatus.New => "new",
+            DiffStatus.Modified => "modified",
+            DiffStatus.Deleted => "deleted",
+            DiffStatus.Accepted => "accepted",
+            DiffStatus.Error => "error",
+            DiffStatus.NewFromModified => "new",
+            _ => ""
+        };
+    }
+
+    private async Task Close()
+    {
+        _selectedResult = null;
+        await OnClose.InvokeAsync();
+    }
+}

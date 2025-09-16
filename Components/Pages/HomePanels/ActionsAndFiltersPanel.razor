@@ -1,0 +1,103 @@
+@inject AppState AppState
+@implements IDisposable
+@using System.ComponentModel
+
+<div class="panel panel-middle">
+    <div class="middle-buttons">
+        <button @onclick="OnAddSelectedToContext">&gt;&gt; Hozzáadás</button>
+        <button @onclick="OnExcludeSelected">Kizárás</button>
+        <button @onclick="OnRemoveSelectedFromContext">&lt;&lt; Eltávolítás</button>
+        <div class="ref-finder">
+            <label for="ref-depth">Ref. mélység:</label>
+            <input type="number" id="ref-depth" min="0" max="5" @bind="AppState.ReferenceSearchDepth" />
+        </div>
+    </div>
+
+    <div class="filters-box">
+        <h4>Szűrők</h4>
+
+        <div class="filter-section">
+            <strong>Aktív fájltípusok:</strong>
+            <div class="extensions-list">
+                @foreach (var ext in AppState.ExtensionFilters.Keys.OrderBy(k => k))
+                {
+                    var currentExt = ext; // Capture loop variable
+                                          <div>
+                                              <input type="checkbox" id="@($"ext-{currentExt}")" @bind="AppState.ExtensionFilters[currentExt]" />
+                                              <label for="@($"ext-{currentExt}")">@currentExt</label>
+                                          </div>
+                }
+            </div>
+            <div class="add-extension-form">
+                <input @bind="_newExtension" @bind:event="oninput" @onkeyup="HandleNewExtensionKeyup" placeholder=".ext" />
+                <button @onclick="AddNewExtensionFilter">+</button>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <strong>Kizárások:</strong>
+            <textarea class="ignore-patterns" @bind="AppState.IgnorePatternsRaw" @bind:event="oninput"></textarea>
+        </div>
+
+        <button class="apply-filters-btn" @onclick="OnApplyFilters">Alkalmaz és Újratölt</button>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback OnAddSelectedToContext { get; set; }
+
+    [Parameter]
+    public EventCallback OnExcludeSelected { get; set; }
+
+    [Parameter]
+    public EventCallback OnRemoveSelectedFromContext { get; set; }
+
+    [Parameter]
+    public EventCallback OnApplyFilters { get; set; }
+
+
+    private string _newExtension = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        AppState.PropertyChanged += OnAppStateChanged;
+    }
+
+    private async void OnAppStateChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // This panel binds to several AppState properties.
+        // We need to trigger a re-render if they change from an external source (like loading history).
+        if (e.PropertyName == nameof(AppState.IgnorePatternsRaw) ||
+            e.PropertyName == nameof(AppState.ExtensionFilters) ||
+            e.PropertyName == nameof(AppState.ReferenceSearchDepth))
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void HandleNewExtensionKeyup(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            AddNewExtensionFilter();
+        }
+    }
+
+    private void AddNewExtensionFilter()
+    {
+        if (string.IsNullOrWhiteSpace(_newExtension)) return;
+        var ext = _newExtension.Trim().ToLower();
+        if (!ext.StartsWith("."))
+        {
+            ext = "." + ext;
+        }
+        AppState.AddExtensionFilter(ext);
+        _newExtension = string.Empty;
+    }
+
+    public void Dispose()
+    {
+        AppState.PropertyChanged -= OnAppStateChanged;
+    }
+}

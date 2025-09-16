@@ -1,0 +1,39 @@
+@inject AppState AppState
+@inject HistoryService HistoryService
+@inject IFolderPickerService FolderPickerService
+
+<div class="panel panel-left">
+    <div class="toolbar">
+        <button @onclick="SelectProjectFolder">Projekt Mappa...</button>
+        <input type="text" class="path-display" placeholder="Nincs mappa kiválasztva" @bind="AppState.ProjectRoot" @bind:event="oninput" />
+    </div>
+    <div class="toolbar">
+        <label for="history-select" style="white-space: nowrap; margin-right: 5px;">Előzmények:</label>
+        <select id="history-select" @onchange="LoadSelectedHistory" style="flex-grow: 1;">
+            <option value="-1" selected>Válassz egy előzményt...</option>
+            @foreach (var (entry, index) in AppState.HistoryEntries.Select((entry, index) => (entry, index)))
+            {
+                <option value="@index">@FormatHistoryEntry(entry)</option>
+            }
+        </select>
+    </div>
+    <div class="toolbar">
+        <input type="text" placeholder="Keresés..." style="flex-grow: 1;" @bind="AppState.SearchTerm" @bind:event="oninput" @onkeyup="HandleSearchKeyup" />
+        <label style="font-size: 0.8em; margin: 0 5px;"><input type="checkbox" @bind="AppState.SearchInContent" /> Tartalomban</label>
+        <button @onclick="FilterTree">Keresés</button>
+        <button @onclick="ClearSearch">Törlés</button>
+    </div>
+    <div class="tree-view-container" @oncontextmenu="e => OnShowTreeContextMenu.InvokeAsync(e)" @oncontextmenu:preventDefault>
+        @if (AppState.FileTree.Any())
+        {
+            foreach (var node in AppState.FileTree)
+            {
+                <FileTreeNodeView Node="node" OnNodeClick="HandleNodeClick" />
+            }
+        }
+        else
+        {
+            <div style="padding: 10px; color: #888;">Nincs megjeleníthető fájl. Válasszon mappát és alkalmazza a szűrőket.</div>
+        }
+    </div>
+</div>

@@ -1,0 +1,66 @@
+@inject AppState AppState
+@inject SettingsService SettingsService
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>Beállítások</h3>
+                <button class="close-btn" @onclick="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h4>Groq LLM Beállítások</h4>
+                <div class="ado-dialog-body">
+                    <div class="ado-form-group">
+                        <label for="groq-apiurl">API URL:</label>
+                        <input id="groq-apiurl" type="text" @bind="AppState.GroqApiUrl" placeholder="https://api.groq.com/openai/v1/"/>
+                    </div>
+                    <div class="ado-form-group">
+                        <label for="groq-model">Modell:</label>
+                        <input id="groq-model" type="text" @bind="AppState.GroqModel" />
+                    </div>
+                    <div class="ado-form-group">
+                        <label for="groq-apikey">API Kulcs:</label>
+                        <input id="groq-apikey" type="password" @bind="AppState.GroqApiKey" placeholder="gsk_..."/>
+                    </div>
+                    <div class="ado-form-group">
+                        <label for="groq-maxtokens">Max. kimeneti token:</label>
+                        <input id="groq-maxtokens" type="number" min="64" max="8192" @bind="AppState.GroqMaxOutputTokens" />
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button @onclick="Close">Mégsem</button>
+                <button class="primary" @onclick="SaveChanges">Mentés</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private async Task SaveChanges()
+    {
+        var settings = new Settings
+        {
+            GroqApiKey = AppState.GroqApiKey,
+            GroqModel = AppState.GroqModel,
+            GroqMaxOutputTokens = AppState.GroqMaxOutputTokens,
+            GroqApiUrl = AppState.GroqApiUrl
+        };
+        await SettingsService.SaveSettingsAsync(settings);
+        AppState.StatusText = "Beállítások mentve.";
+        await Close();
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+}

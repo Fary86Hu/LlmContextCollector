@@ -1,0 +1,25 @@
+.ado-dialog-body {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.ado-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.ado-form-group label {
+    font-weight: bold;
+}
+
+.ado-form-group input {
+    width: 100%;
+}
+
+.ado-dialog-body p {
+    font-size: var(--font-size-sm);
+    color: var(--text-color-light);
+    margin: 0;
+}

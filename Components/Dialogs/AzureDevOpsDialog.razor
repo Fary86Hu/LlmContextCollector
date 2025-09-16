@@ -1,0 +1,65 @@
+@inject AppState AppState
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>Azure DevOps Work Items Letöltése</h3>
+                <button class="close-btn" @onclick="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="ado-dialog-body">
+                    <p>
+                        Add meg a csatlakozási adatokat a work item-ek (User Story, Bug, stb.) letöltéséhez.
+                        A letöltött elemek a projekt mappán belül egy `.ado_workitems` könyvtárba kerülnek.
+                    </p>
+                    <div class="ado-form-group">
+                        <label for="ado-org">Szervezet URL:</label>
+                        <input id="ado-org" type="text" placeholder="https://dev.azure.com/your-organization" @bind="AppState.AzureDevOpsOrganizationUrl" />
+                    </div>
+                    <div class="ado-form-group">
+                        <label for="ado-project">Projekt Név:</label>
+                        <input id="ado-project" type="text" placeholder="YourProject" @bind="AppState.AzureDevOpsProject" />
+                    </div>
+                    <div class="ado-form-group">
+                        <label for="ado-iteration">Iteration Path (opcionális):</label>
+                        <input id="ado-iteration" type="text" placeholder="pl. DmsSolutions\ePostaláda\2025\13" @bind="AppState.AzureDevOpsIterationPath" />
+                    </div>
+                    <div class="ado-form-group">
+                        <label for="ado-pat">Personal Access Token (PAT):</label>
+                        <input id="ado-pat" type="password" @bind="AppState.AzureDevOpsPat" />
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button @onclick="Close">Mégsem</button>
+                <button class="primary" @onclick="StartDownload"
+                        disabled="@(string.IsNullOrWhiteSpace(AppState.AzureDevOpsOrganizationUrl) || string.IsNullOrWhiteSpace(AppState.AzureDevOpsProject) || string.IsNullOrWhiteSpace(AppState.AzureDevOpsPat))">
+                    Letöltés
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback OnDownload { get; set; }
+
+    private async Task StartDownload()
+    {
+        await OnDownload.InvokeAsync();
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+}

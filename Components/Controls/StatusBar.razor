@@ -1,0 +1,32 @@
+@inject AppState AppState
+@implements IDisposable
+
+<div class="status-bar">
+    <span>@AppState.StatusText</span>
+    @if (AppState.IsGitRepository && !string.IsNullOrEmpty(AppState.CurrentGitBranch))
+    {
+        <span class="git-branch-info">Branch: @AppState.CurrentGitBranch</span>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        AppState.PropertyChanged += OnAppStateChanged;
+    }
+
+    private async void OnAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppState.StatusText) || 
+            e.PropertyName == nameof(AppState.CurrentGitBranch) ||
+            e.PropertyName == nameof(AppState.IsGitRepository))
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose()
+    {
+        AppState.PropertyChanged -= OnAppStateChanged;
+    }
+}

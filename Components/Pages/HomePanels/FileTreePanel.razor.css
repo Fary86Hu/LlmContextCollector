@@ -1,0 +1,10 @@
+.path-display {
+    flex-grow: 1;
+    background-color: #eee;
+}
+
+.tree-view-container {
+    flex-grow: 1;
+    overflow: auto;
+    padding: 5px;
+}

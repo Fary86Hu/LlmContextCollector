@@ -1,0 +1,102 @@
+@inject AppState AppState
+@inject PromptService PromptService
+@inject RelevanceFinderService RelevanceFinder
+@inject IClipboard Clipboard
+@inject IJSRuntime JSRuntime
+
+<!-- JOBB OLDALI PANEL: KONTEXTUS ÉS ELŐNÉZET -->
+<div class="panel panel-right" style="--right-top-flex:@(AppState.RightTopPanelFlex); --right-middle-flex:@(AppState.RightMiddlePanelFlex); --right-bottom-flex:@(AppState.RightBottomPanelFlex);">
+    <div class="right-top-section">
+        <div class="toolbar" style="align-items: center;">
+            <label for="prompt-template" style="margin-right: 5px;">Prompt Sablon:</label>
+            <select id="prompt-template" style="flex-grow: 1;" @bind="AppState.SelectedPromptTemplateId">
+                <option value="@Guid.Empty">(Nincs)</option>
+                @foreach (var prompt in AppState.PromptTemplates)
+                {
+                    <option value="@prompt.Id">@prompt.Title</option>
+                }
+            </select>
+            <button @onclick="CopyPromptOnly" title="Csak a prompt másolása" style="margin: 0 5px;">📋</button>
+            <button @onclick="OnShowPromptManager">Szerkesztés...</button>
+            <button @onclick="OnShowSettingsDialog" title="Beállítások" style="margin: 0 5px;">⚙️</button>
+        </div>
+        <textarea class="prompt-editor" placeholder="Írja ide a promptot..." @bind="AppState.PromptText" @bind:event="oninput"></textarea>
+    </div>
+
+    <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightTop"))'></div>
+
+    <div class="right-middle-section">
+        <div class="context-list-header">
+            <h4>Kiválasztott Fájlok (Kontextushoz)</h4>
+        </div>
+        <div class="context-table-container" @onkeydown="HandleListKeyDown" tabindex="0">
+            <table class="context-table">
+                <thead>
+                    <tr>
+                        <th class="sortable @GetSortClass("path")" @onclick='() => SortBy("path")'>Elérési út</th>
+                        <th class="sortable @GetSortClass("name")" @onclick='() => SortBy("name")'>Fájlnév</th>
+                        <th class="sortable @GetSortClass("size")" @onclick='() => SortBy("size")'>Méret</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var fileInfo in _sortedFiles)
+                    {
+                        <tr @key="fileInfo.RelativePath"
+                            class="@(SelectedItems.Contains(fileInfo.RelativePath) ? "selected" : "")"
+                            @onclick="(e) => OnFileRowClick(e, fileInfo.RelativePath)"
+                            @oncontextmenu="(e) => ShowContextMenuForRow(e, fileInfo.RelativePath)" @oncontextmenu:preventDefault>
+                            <td>@fileInfo.DisplayPath</td>
+                            <td>@fileInfo.FileName</td>
+                            <td style="text-align: right;">@fileInfo.Size.ToString("N0")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="toolbar">
+            <button title="Visszavonás" @onclick="AppState.UndoContextListChange" disabled="@(!AppState.CanUndo)">⮌</button>
+            <button title="Újra" @onclick="AppState.RedoContextListChange" disabled="@(!AppState.CanRedo)">⮍</button>
+            
+            <button @onclick="OnAzureDevOpsAttach" title="Azure DevOps Work Item-ek letöltése" style="margin-left: 10px;">ADO Letöltés</button>
+
+            @if (AppState.IsSemanticIndexBuilding)
+            {
+                <button style="margin: 0 5px;" disabled>Indexelés folyamatban...</button>
+            }
+            else
+            {
+                <button @onclick="StartManualIndexing" style="margin: 0 2px;">Index (Kód)</button>
+                @if (AppState.AdoDocsExist)
+                {
+                     <button @onclick="StartIndexingAdo" style="margin: 0 2px;">Index (ADO)</button>
+                }
+            }
+            @if (IsIndexReady)
+            {
+                <button style="margin: 0 5px;" @onclick="FindRelevantFiles" disabled="@AppState.IsSemanticIndexBuilding">Releváns keresés</button>
+            }
+            
+            <span style="margin-left:auto;"></span>
+            <span class="char-counter">@_charCount.ToString("N0") kar.</span>
+            <span class="char-counter">~@_tokenCount.ToString("N0") tok.</span>
+            <button @onclick="ClearSelectionList">Lista ürítése</button>
+        </div>
+    </div>
+
+    <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightMiddle"))'></div>
+
+    <div class="right-bottom-section">
+        <h4>Fájl Előnézet</h4>
+        <textarea readonly class="preview-box">@_previewContent</textarea>
+    </div>
+
+    <div class="bottom-actions">
+        <button @onclick="ProcessGitDiffAsync" disabled="@(!AppState.IsGitRepository)">Git Különbségek</button>
+        <button @onclick="ProcessChangesFromClipboardAsync">Változások Vágólapról</button>
+        <div>
+            <label><input type="checkbox" @bind="_includePromptInCopy" />Prompt</label>
+            <label><input type="checkbox" @bind="_includeGlobalPrefixInCopy" />Globális</label>
+            <button class="copy-button" @onclick="CopyToClipboard">Másolás vágólapra</button>
+        </div>
+    </div>
+</div>

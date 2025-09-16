@@ -1,0 +1,50 @@
+﻿@if (Node != null && Node.IsVisible)
+{
+    <div class="tree-node @(Node.IsSelectedInTree ? "selected" : "")" style="@($"padding-left: {Level * 20}px")" @onclick="(e) => OnNodeClick.InvokeAsync((Node, e))">
+        <span @onclick="ToggleExpand" @onclick:stopPropagation class="node-expander">
+            @if (Node.IsDirectory)
+            {
+                <span>@(Node.IsExpanded ? "▼" : "▶")</span>
+            }
+            else
+            {
+                <span style="width: 1em; display: inline-block;"></span>
+            }
+
+        </span>
+        <span class="node-name @(Node.IsDirectory ? "folder" : "file")">
+            @if (Node.IsContentMatch && !Node.IsPathMatch)
+            {
+                <span class="ref-match">[REF] </span>
+            }
+            @Node.Name
+        </span>
+    </div>
+
+    @if (Node.IsExpanded && Node.Children.Any())
+    {
+        foreach (var child in Node.Children)
+        {
+            <FileTreeNodeView Node="child" Level="Level + 1" OnNodeClick="OnNodeClick" />
+        }
+    }
+}
+
+@code {
+    [Parameter]
+    public FileNode Node { get; set; } = null!;
+
+    [Parameter]
+    public int Level { get; set; }
+
+    [Parameter]
+    public EventCallback<(FileNode Node, MouseEventArgs Args)> OnNodeClick { get; set; }
+
+    private void ToggleExpand()
+    {
+        if (Node.IsDirectory)
+        {
+            Node.IsExpanded = !Node.IsExpanded;
+        }
+    }
+}

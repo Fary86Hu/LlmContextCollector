@@ -1,0 +1,79 @@
+@page "/"
+@using LlmContextCollector.Components.Pages.HomePanels
+@inject AppState AppState
+@inject FileSystemService FileService
+@inject HistoryService HistoryService
+@inject ReferenceFinderService ReferenceFinder
+@inject IClipboard Clipboard
+
+<div class="main-container" @onclick="HideContextMenus" @onmousemove="OnMouseMove" @onmouseup="StopResize" @onmouseleave="StopResize">
+    <div class="content-wrapper" style="--left-flex:@(AppState.LeftPanelFlex); --middle-flex:@(AppState.MiddlePanelFlex); --right-flex:@(AppState.RightPanelFlex)">
+
+        <FileTreePanel OnRequestApplyFiltersAndReload="() => ApplyFiltersAndReload(true)"
+                       OnLoadHistoryEntry="LoadHistoryEntry"
+                       OnShowTreeContextMenu="ShowTreeContextMenu"
+                       OnNodeClick="HandleNodeClick" />
+
+        <div class="vertical-splitter" @onmousedown="@(e => StartResize(e, "LeftMiddle"))"></div>
+
+        <ActionsAndFiltersPanel OnAddSelectedToContext="AddSelectedFilesToContext"
+                                OnExcludeSelected="ExcludeSelectedFromTree"
+                                OnRemoveSelectedFromContext="RemoveSelectedFilesFromContext"
+                                OnApplyFilters="() => ApplyFiltersAndReload(true)" />
+
+        <div class="vertical-splitter" @onmousedown="@(e => StartResize(e, "MiddleRight"))"></div>
+
+        <ContextPanel @ref="_contextPanelRef"
+                      OnShowListContextMenu="ShowListContextMenu"
+                      SelectedItems="_selectedInContextList"
+                      SelectedItemsChanged="HandleContextSelectionChanged"
+                      OnShowPromptManager="() => isPromptManagerVisible = true"
+                      OnShowSettingsDialog="ShowSettingsDialog"
+                      OnShowRelevanceDialog="ShowRelevanceDialog"
+                      OnShowDiffDialog="ShowDiffDialog"
+                      OnRequestRemoveSelected="RemoveSelectedFilesFromContext"
+                      OnHistorySaveRequested="() => HistoryService.SaveCurrentStateAsync()"
+                      OnStartIndexingRequested="StartManualIndexing"
+                      OnAzureDevOpsAttach="() => _isAzureDevOpsDialogVisible = true"
+                      OnSplitterMouseDown="args => StartResize(args.Item1, args.Item2)" />
+    </div>
+    <StatusBar />
+</div>
+
+@if (AppState.IsLoading)
+{
+    <div class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">@AppState.LoadingText</div>
+    </div>
+}
+
+@if (_showTreeContextMenu)
+{
+    <div class="context-menu" style="@($"top: {_contextMenuY}px; left: {_contextMenuX}px;")" @onclick:stopPropagation>
+        <div class="context-menu-item" @onclick="AddSelectedFilesToContext">Hozzáadás a kontextushoz</div>
+        <div class="context-menu-item" @onclick="ExcludeSelectedFromTree">Kijelöltek kizárása</div>
+        <div class="context-menu-item" @onclick="CopySelectedNodeName">Név másolása</div>
+        <div class="context-menu-item" @onclick="CopySelectedNodePath">Elérési út másolása</div>
+    </div>
+}
+
+@if (_showListContextMenu)
+{
+    <div class="context-menu" style="@($"top: {_contextMenuY}px; left: {_contextMenuX}px;")" @onclick:stopPropagation>
+        <div class="context-menu-item" @onclick="RemoveSelectedFilesFromContext">Eltávolítás</div>
+    </div>
+}
+
+<PromptManagerDialog IsVisible="isPromptManagerVisible" OnClose="OnPromptManagerClose" />
+<SettingsDialog IsVisible="_isSettingsDialogVisible" OnClose="OnSettingsDialogClose" />
+<RelevantFilesDialog IsVisible="_isRelevanceDialogVisible" Results="_relevanceResults" OnClose="OnRelevanceDialogClose" OnAccept="AddRelevantFiles" />
+<AzureDevOpsDialog IsVisible="_isAzureDevOpsDialogVisible" OnClose="OnAzureDevOpsDialogClose" OnDownload="HandleDownloadWorkItemsAsync" />
+<DiffDialog IsVisible="AppState.IsDiffDialogVisible"
+            GlobalExplanation="@AppState.DiffGlobalExplanation"
+            DiffResults="AppState.DiffResults"
+            OnClose="OnDiffDialogClose"
+            OnAccept="HandleAcceptChanges"
+            OnCreateBranch="HandleCreateBranchAsync"
+            OnCommit="HandleCommitAsync"
+            OnPush="HandlePushAsync" />
