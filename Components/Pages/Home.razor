@@ -1,10 +1,5 @@
 @page "/"
 @using LlmContextCollector.Components.Pages.HomePanels
-@inject AppState AppState
-@inject FileSystemService FileService
-@inject HistoryService HistoryService
-@inject ReferenceFinderService ReferenceFinder
-@inject IClipboard Clipboard
 
 <div class="main-container" @onclick="HideContextMenus" @onmousemove="OnMouseMove" @onmouseup="StopResize" @onmouseleave="StopResize">
     <div class="content-wrapper" style="--left-flex:@(AppState.LeftPanelFlex); --middle-flex:@(AppState.MiddlePanelFlex); --right-flex:@(AppState.RightPanelFlex)">

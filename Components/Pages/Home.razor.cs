@@ -12,6 +12,14 @@ namespace LlmContextCollector.Components.Pages
     public partial class Home : ComponentBase, IDisposable
     {
         [Inject]
+        private AppState AppState { get; set; } = null!;
+        [Inject]
+        private HistoryService HistoryService { get; set; } = null!;
+        [Inject]
+        private ReferenceFinderService ReferenceFinder { get; set; } = null!;
+        [Inject]
+        private IClipboard Clipboard { get; set; } = null!;
+        [Inject]
         private EmbeddingIndexService EmbeddingIndexService { get; set; } = null!;
         [Inject]
         private GitService GitService { get; set; } = null!;
@@ -21,6 +29,13 @@ namespace LlmContextCollector.Components.Pages
         private SettingsService SettingsService { get; set; } = null!;
         [Inject]
         private IJSRuntime JSRuntime { get; set; } = null!;
+        [Inject]
+        private GitWorkflowService GitWorkflowService { get; set; } = null!;
+        [Inject]
+        private ProjectService ProjectService { get; set; } = null!;
+        [Inject]
+        private HistoryManagerService HistoryManagerService { get; set; } = null!;
+
 
         private ContextPanel? _contextPanelRef;
         private List<string> _selectedInContextList = new();
@@ -65,12 +80,6 @@ namespace LlmContextCollector.Components.Pages
 
         private async Task ApplyFiltersAndReload(bool preserveSelection = true, bool showIndicator = true)
         {
-            if (string.IsNullOrWhiteSpace(AppState.ProjectRoot) || !Directory.Exists(AppState.ProjectRoot))
-            {
-                AppState.StatusText = "Érvénytelen vagy nem létező mappa.";
-                return;
-            }
-
             if (showIndicator)
             {
                 AppState.ShowLoading("Projektfájlok keresése és szűrése...");
@@ -83,68 +92,13 @@ namespace LlmContextCollector.Components.Pages
 
             try
             {
-                EmbeddingIndexService.CancelIndexing();
-                var filesToPreserve = preserveSelection ? AppState.SelectedFilesForContext.ToList() : new List<string>();
-                AppState.SelectedFilesForContext.Clear();
-                AppState.ResetContextListHistory();
-                EmbeddingIndexService.ClearIndex();
-
-                var tree = await FileService.ScanDirectoryAsync(AppState.ProjectRoot);
-                AppState.SetFileTree(tree);
-
-                var gitDir = Path.Combine(AppState.ProjectRoot, ".git");
-                AppState.IsGitRepository = Directory.Exists(gitDir);
-                if (AppState.IsGitRepository)
-                {
-                    var (branchName, success, _) = await GitService.GetCurrentBranchAsync();
-                    if (success) AppState.CurrentGitBranch = branchName;
-                }
-                else
-                {
-                    AppState.CurrentGitBranch = string.Empty;
-                }
-                
-                AppState.UpdateAdoPaths(AppState.ProjectRoot);
-
-                var allFileNodes = new List<FileNode>();
-                GetAllFileNodes(AppState.FileTree, allFileNodes);
-
-
-                var allFilePaths = new HashSet<string>();
-                GetAllFilePaths(AppState.FileTree, allFilePaths, AppState.ProjectRoot);
-
-                AppState.SelectedFilesForContext.Clear();
-                foreach (var file in filesToPreserve)
-                {
-                    // ADO fájlokat mindig megőrzünk
-                    if (file.StartsWith("[ADO]") || allFilePaths.Contains(file))
-                    {
-                        AppState.SelectedFilesForContext.Add(file);
-                    }
-                }
-                AppState.SaveContextListState();
-                AppState.StatusText = $"Szkennelés befejezve. {allFilePaths.Count} fájl található a fa nézetben.";
+                await ProjectService.ReloadProjectAsync(preserveSelection);
             }
             finally
             {
                 if (showIndicator)
                 {
                     AppState.HideLoading();
-                }
-            }
-        }
-
-        private void GetAllFilePaths(IEnumerable<FileNode> nodes, HashSet<string> paths, string root)
-        {
-            foreach (var node in nodes)
-            {
-                if (node.IsDirectory)
-                {
-                    GetAllFilePaths(node.Children, paths, root);
-                }
-                else
-                {
-                    paths.Add(Path.GetRelativePath(root, node.FullPath).Replace('\\', '/'));
                 }
             }
         }
@@ -514,55 +468,7 @@ namespace LlmContextCollector.Components.Pages
 
         private async Task LoadHistoryEntry(HistoryEntry entry)
         {
-            AppState.ShowLoading($"Előzmény betöltése: {Path.GetFileName(entry.RootFolder)}...");
-            await Task.Delay(1);
-            try
-            {
-                AppState.ProjectRoot = entry.RootFolder;
-                AppState.IgnorePatternsRaw = entry.IgnoreFilter;
-
-                var extensions = entry.ExtensionsFilter.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(e => e.Trim()).ToHashSet();
-
-                foreach (var ext in extensions)
-                {
-                    AppState.AddExtensionFilter(ext);
-                }
-
-                var currentExts = AppState.ExtensionFilters.Keys.ToList();
-                var extensionStateChanged = false;
-                foreach (var key in currentExts)
-                {
-                    var shouldBeEnabled = extensions.Contains(key);
-                    if (AppState.ExtensionFilters[key] != shouldBeEnabled)
-                    {
-                        AppState.ExtensionFilters[key] = shouldBeEnabled;
-                        extensionStateChanged = true;
-                    }
-                }
-                if (extensionStateChanged)
-                {
-                    AppState.NotifyStateChanged(nameof(AppState.ExtensionFilters));
-                }
-
-                await ApplyFiltersAndReload(preserveSelection: false, showIndicator: false);
-
-                AppState.SelectedFilesForContext.Clear();
-                foreach (var file in entry.SelectedFiles)
-                {
-                    AppState.SelectedFilesForContext.Add(file);
-                }
-                AppState.ResetContextListHistory();
-                AppState.SaveContextListState();
-
-                AppState.PromptText = entry.PromptText;
-                var matchingTemplate = AppState.PromptTemplates.FirstOrDefault(p => p.Title == entry.SelectedTemplateTitle);
-                AppState.SelectedPromptTemplateId = matchingTemplate?.Id ?? Guid.Empty;
-                AppState.StatusText = $"Előzmény betöltve: {Path.GetFileName(entry.RootFolder)}";
-            }
-            finally
-            {
-                AppState.HideLoading();
-            }
+            await HistoryManagerService.ApplyHistoryEntryAsync(entry);
         }
 
         #endregion
@@ -637,7 +543,7 @@ namespace LlmContextCollector.Components.Pages
                     AppState.AzureDevOpsIterationPath,
                     AppState.ProjectRoot);
                     
-                AppState.UpdateAdoPaths(AppState.ProjectRoot);
+                AzureDevOpsService.UpdateAdoPaths(AppState.ProjectRoot);
 
                 AppState.StatusText = "Azure DevOps work item-ek sikeresen letöltve.";
             }
@@ -686,39 +592,7 @@ namespace LlmContextCollector.Components.Pages
 
         private async Task HandleAcceptChanges(List<DiffResult> acceptedResults)
         {
-            int acceptedCount = 0;
-            int errorCount = 0;
-            foreach (var result in acceptedResults)
-            {
-                try
-                {
-                    var fullPath = Path.Combine(AppState.ProjectRoot, result.Path.Replace('/', Path.DirectorySeparatorChar));
-
-                    if (result.Status == DiffStatus.Deleted)
-                    {
-                        if (File.Exists(fullPath))
-                        {
-                            File.Delete(fullPath);
-                        }
-                    }
-                    else
-                    {
-                        var dir = Path.GetDirectoryName(fullPath);
-                        if (dir != null && !Directory.Exists(dir))
-                        {
-                            Directory.CreateDirectory(dir);
-                        }
-                        await File.WriteAllTextAsync(fullPath, result.NewContent);
-                    }
-                    result.Status = DiffStatus.Accepted;
-                    acceptedCount++;
-                }
-                catch
-                {
-                    result.Status = DiffStatus.Error;
-                    errorCount++;
-                }
-            }
+            var (acceptedCount, errorCount) = await GitWorkflowService.AcceptChangesAsync(acceptedResults);
             AppState.StatusText = $"Változások elfogadása befejezve. Elfogadva: {acceptedCount}, Hiba: {errorCount}.";
             StateHasChanged();
         }
@@ -734,9 +608,7 @@ namespace LlmContextCollector.Components.Pages
             AppState.ShowLoading($"'{branchName}' branch létrehozása...");
             try
             {
-                await GitService.CreateAndCheckoutBranchAsync(branchName);
-                AppState.CurrentGitBranch = branchName;
-                AppState.StatusText = $"Átváltva a(z) '{branchName}' branch-re.";
+                await GitWorkflowService.CreateAndCheckoutBranchAsync(branchName);
             }
             catch (Exception ex)
             {
@@ -757,32 +629,11 @@ namespace LlmContextCollector.Components.Pages
                 return;
             }
 
-            string commitBranch = AppState.CurrentGitBranch;
-            string loadingMessage;
-
-            if (AppState.CurrentGitBranch != args.BranchName)
-            {
-                loadingMessage = $"Nincs új branch létrehozva. Commit a(z) '{commitBranch}' branch-re...";
-            }
-            else
-            {
-                loadingMessage = $"Változások commitolása a(z) '{commitBranch}' branch-re...";
-            }
-
+            string loadingMessage = $"Változások commitolása a(z) '{args.BranchName}' branch-re...";
             AppState.ShowLoading(loadingMessage);
             try
             {
-                await HandleAcceptChanges(args.AcceptedFiles);
-                AppState.StatusText = "Fájlok mentve. Fájlok stage-elése...";
-                await Task.Delay(1);
-
-                var filePathsToStage = args.AcceptedFiles.Select(f => f.Path);
-                await GitService.StageFilesAsync(filePathsToStage);
-                AppState.StatusText = "Fájlok stage-elve. Commit létrehozása...";
-                await Task.Delay(1);
-
-                await GitService.CommitAsync(args.CommitMessage);
-                AppState.StatusText = "Commit sikeres. A változások push-olhatók.";
+                await GitWorkflowService.CommitChangesAsync(args);
             }
             catch (Exception ex)
             {
@@ -806,8 +657,7 @@ namespace LlmContextCollector.Components.Pages
             AppState.ShowLoading($"Változások pusholása a(z) '{args.BranchName}' branch-re...");
             try
             {
-                await GitService.PushAsync(args.BranchName);
-                AppState.StatusText = $"Sikeres push a(z) '{args.BranchName}' branch-re!";
+                await GitWorkflowService.PushChangesAsync(args.BranchName);
                 await OnDiffDialogClose();
             }
             catch (Exception ex)

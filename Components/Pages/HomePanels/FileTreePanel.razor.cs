@@ -1,12 +1,23 @@
 using LlmContextCollector.Models;
+using LlmContextCollector.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using System.ComponentModel;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace LlmContextCollector.Components.Pages.HomePanels
 {
     public partial class FileTreePanel : ComponentBase, IDisposable
     {
+        [Inject]
+        private AppState AppState { get; set; } = null!;
+        [Inject]
+        private IFolderPickerService FolderPickerService { get; set; } = null!;
+        [Inject]
+        private FileTreeFilterService FileTreeFilterService { get; set; } = null!;
+
         [Parameter]
         public EventCallback OnRequestApplyFiltersAndReload { get; set; }
 
@@ -67,7 +78,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         
         private async Task FilterTree()
         {
-            await AppState.FilterFileTreeAsync();
+            await FileTreeFilterService.FilterFileTreeAsync();
             StateHasChanged();
         }
 
@@ -75,7 +86,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         {
             AppState.SearchTerm = "";
             AppState.SearchInContent = false;
-            AppState.ClearFileTreeFilter();
+            FileTreeFilterService.ClearFileTreeFilter();
             StateHasChanged();
         }
         

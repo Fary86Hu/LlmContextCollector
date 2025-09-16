@@ -9,17 +9,32 @@ using System.Text.RegularExpressions;
 using LlmContextCollector.Services;
 using System.IO;
 using System.ComponentModel;
+using System.Linq;
 
 namespace LlmContextCollector.Components.Pages.HomePanels
 {
     public partial class ContextPanel : ComponentBase, IDisposable
     {
         [Inject]
+        private AppState AppState { get; set; } = null!;
+        [Inject]
+        private PromptService PromptService { get; set; } = null!;
+        [Inject]
+        private RelevanceFinderService RelevanceFinder { get; set; } = null!;
+        [Inject]
+        private IClipboard Clipboard { get; set; } = null!;
+        [Inject]
+        private IJSRuntime JSRuntime { get; set; } = null!;
+        [Inject]
         private EmbeddingIndexService EmbeddingIndexService { get; set; } = null!;
         [Inject]
         private GitSuggestionService GitSuggestionService { get; set; } = null!;
         [Inject]
         private GitService GitService { get; set; } = null!;
+        [Inject]
+        private GitWorkflowService GitWorkflowService { get; set; } = null!;
+        [Inject]
+        private ContextProcessingService ContextProcessingService { get; set; } = null!;
 
         [Parameter]
         public EventCallback<MouseEventArgs> OnShowListContextMenu { get; set; }
@@ -340,66 +355,15 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 AppState.StatusText = "A kontextus lista törölve.";
             }
         }
-
-        private async Task<string> GetFinalOutputAsync()
-        {
-            var sb = new StringBuilder();
-            if (_includePromptInCopy && !string.IsNullOrWhiteSpace(AppState.PromptText))
-            {
-                sb.AppendLine(AppState.PromptText);
-            }
-
-            if (_includeGlobalPrefixInCopy)
-            {
-                var globalPrefix = await PromptService.GetGlobalPrefixAsync();
-                if (!string.IsNullOrEmpty(globalPrefix))
-                {
-                    sb.AppendLine(globalPrefix);
-                }
-            }
-
-            if (AppState.SelectedFilesForContext.Any())
-            {
-                if (sb.Length > 0)
-                {
-                    sb.AppendLine("\n\n// --- Kód Kontextus alább --- \n");
-                }
-                foreach (var fileInfo in _sortedFiles)
-                {
-                    var fileRelPath = fileInfo.RelativePath;
-                    string fullPath;
-                    string header;
-
-                    if (fileRelPath.StartsWith(AdoFilePrefix))
-                    {
-                        var fileName = fileRelPath.Substring(AdoFilePrefix.Length);
-                        fullPath = Path.Combine(AppState.AdoDocsPath, fileName);
-                        header = $"// --- Dokumentum: {fileName} ---";
-                    }
-                    else if (!string.IsNullOrEmpty(AppState.ProjectRoot))
-                    {
-                        fullPath = Path.Combine(AppState.ProjectRoot, fileRelPath.Replace('/', Path.DirectorySeparatorChar));
-                        header = $"// --- Fájl: {fileRelPath.Replace('\\', '/')} ---";
-                    }
-                    else
-                    {
-                        continue;
-                    }
-
-                    if (File.Exists(fullPath))
-                    {
-                        sb.AppendLine(header);
-                        sb.AppendLine(await File.ReadAllTextAsync(fullPath));
-                        sb.AppendLine();
-                    }
-                }
-            }
-            return sb.ToString().Trim();
-        }
-
+        
         private async Task CopyToClipboard()
         {
-            var content = await GetFinalOutputAsync();
+            var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
+            var content = await ContextProcessingService.BuildContextForClipboardAsync(
+                _includePromptInCopy, 
+                _includeGlobalPrefixInCopy, 
+                sortedPaths);
+
             if (string.IsNullOrWhiteSpace(content))
             {
                 AppState.StatusText = "Nincs másolható tartalom (se fájl, se prompt).";
@@ -440,84 +404,11 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
             try
             {
-                var diffResults = new List<DiffResult>();
-
-                // Tracked changes
-                var (trackedSuccess, trackedDiff, trackedError) = await GitService.RunGitCommandAsync("diff --name-status HEAD --no-color");
-                if (!trackedSuccess) throw new InvalidOperationException(trackedError);
-
-                var trackedLines = trackedDiff.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
-                foreach (var line in trackedLines)
+                var diffArgs = await GitWorkflowService.PrepareGitDiffForReviewAsync();
+                if (diffArgs.DiffResults.Any())
                 {
-                    var parts = line.Split('\t');
-                    if (parts.Length < 2) continue;
-                    var statusChar = parts[0][0];
-                    var path = parts[1];
-                    if (statusChar == 'R' && parts.Length > 2)
-                    {
-                        path = parts[2];
-                        statusChar = 'M';
-                    }
-
-                    var result = new DiffResult { Path = path.Replace('\\', '/') };
-                    var fullPath = Path.Combine(AppState.ProjectRoot, path);
-
-                    switch (statusChar)
-                    {
-                        case 'M':
-                            result.Status = DiffStatus.Modified;
-                            result.OldContent = (await GitService.RunGitCommandAsync($"show HEAD:\"{path}\"")).output;
-                            if (File.Exists(fullPath)) result.NewContent = await File.ReadAllTextAsync(fullPath);
-                            break;
-                        case 'D':
-                            result.Status = DiffStatus.Deleted;
-                            result.OldContent = (await GitService.RunGitCommandAsync($"show HEAD:\"{path}\"")).output;
-                            result.NewContent = "";
-                            break;
-                        default:
-                            continue;
-                    }
-                    diffResults.Add(result);
+                    await OnShowDiffDialog.InvokeAsync(diffArgs);
                 }
-
-                // Untracked files
-                var (untrackedSuccess, untrackedFiles, untrackedError) = await GitService.RunGitCommandAsync("ls-files --others --exclude-standard");
-                if (!untrackedSuccess) throw new InvalidOperationException(untrackedError);
-
-                var untrackedLines = untrackedFiles.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
-                foreach (var path in untrackedLines)
-                {
-                    var cleanPath = path.Replace('\\', '/').Trim();
-                    var result = new DiffResult { Path = cleanPath, Status = DiffStatus.New, OldContent = "" };
-                    var fullPath = Path.Combine(AppState.ProjectRoot, cleanPath);
-                    if (File.Exists(fullPath)) result.NewContent = await File.ReadAllTextAsync(fullPath);
-                    diffResults.Add(result);
-                }
-
-
-                if (!diffResults.Any())
-                {
-                    AppState.StatusText = "Nincs változás a legutóbbi commit óta.";
-                    AppState.HideLoading();
-                    return;
-                }
-
-                AppState.ShowLoading("Javaslatok generálása...");
-                var (branch, commit) = await GitSuggestionService.GetSuggestionsAsync(diffResults, AppState.LastLlmGlobalExplanation);
-
-                string explanation;
-                if (branch != null && commit != null)
-                {
-                    explanation = $"[BRANCH_SUGGESTION]{branch}[/BRANCH_SUGGESTION]\n[COMMIT_SUGGESTION]{commit}[/COMMIT_SUGGESTION]";
-                    AppState.StatusText = $"{diffResults.Count} változott fájl betöltve a Git-ből.";
-                }
-                else
-                {
-                    explanation = "Hiba: A javaslatok generálása nem sikerült. A nyelvi modell nem érhető el vagy hibát adott.";
-                    AppState.StatusText = "Figyelem: LLM hiba, nincsenek Git javaslatok.";
-                }
-
-                await OnShowDiffDialog.InvokeAsync(new DiffResultArgs(explanation, diffResults));
             }
             catch (Exception ex)
             {
@@ -549,88 +440,22 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             await Task.Delay(1);
             try
             {
-                var (explanation, parsedFiles) = ParseLlmResponse(clipboardText);
-                AppState.LastLlmGlobalExplanation = explanation;
-                if (!parsedFiles.Any())
+                var diffArgs = await ContextProcessingService.ProcessChangesFromClipboardAsync(clipboardText);
+
+                if (!diffArgs.DiffResults.Any())
                 {
                     await JSRuntime.InvokeVoidAsync("alert", "Nem sikerült fájl-változásokat találni a vágólap tartalmában.");
                     AppState.StatusText = "Kész. Nem található feldolgozható fájlblokk.";
                     return;
                 }
-
-                var diffResults = new List<DiffResult>();
-                foreach (var fileData in parsedFiles)
-                {
-                    var fullPath = Path.Combine(AppState.ProjectRoot, fileData.Path.Replace('/', Path.DirectorySeparatorChar));
-                    var status = fileData.Status;
-                    string oldContent = "";
-
-                    if (status == DiffStatus.Modified)
-                    {
-                        if (File.Exists(fullPath))
-                        {
-                            oldContent = await File.ReadAllTextAsync(fullPath);
-                        }
-                        else
-                        {
-                            status = DiffStatus.NewFromModified;
-                        }
-                    }
-
-                    diffResults.Add(new DiffResult
-                    {
-                        Path = fileData.Path,
-                        OldContent = oldContent,
-                        NewContent = fileData.NewContent,
-                        Status = status
-                    });
-                }
-                await OnShowDiffDialog.InvokeAsync(new DiffResultArgs(explanation, diffResults));
-                AppState.StatusText = $"{parsedFiles.Count} fájl feldolgozva. Változások ablak megnyitva.";
+                
+                await OnShowDiffDialog.InvokeAsync(diffArgs);
+                AppState.StatusText = $"{diffArgs.DiffResults.Count} fájl feldolgozva. Változások ablak megnyitva.";
             }
             finally
             {
                 AppState.HideLoading();
             }
-        }
-
-        private (string GlobalExplanation, List<ParsedFile> ParsedFiles) ParseLlmResponse(string text)
-        {
-            var parsedFiles = new List<ParsedFile>();
-            var fileBlockRegex = new Regex(
-                @"^(?:Új Fájl|Fájl):\s*(?<path>[^\r\n]+)\s*```[a-zA-Z]*\r?\n(?<code>.*?)\r?\n?```\s*$",
-                RegexOptions.Singleline | RegexOptions.Multiline | RegexOptions.IgnoreCase);
-
-            var firstMatch = fileBlockRegex.Match(text);
-            string globalExplanation = firstMatch.Success ? text.Substring(0, firstMatch.Index).Trim() : string.Empty;
-            if (string.IsNullOrWhiteSpace(globalExplanation) && !firstMatch.Success)
-            {
-                globalExplanation = text; // Assume everything is explanation if no code blocks found
-            }
-
-            var contentToParse = firstMatch.Success ? text.Substring(firstMatch.Index) : text;
-
-            var matches = fileBlockRegex.Matches(contentToParse);
-            foreach (Match match in matches.Cast<Match>())
-            {
-                parsedFiles.Add(new ParsedFile
-                {
-                    Path = match.Groups["path"].Value.Trim().Replace('\\', '/'),
-                    NewContent = match.Groups["code"].Value.Trim(),
-                    Status = match.Value.TrimStart().StartsWith("Új", StringComparison.OrdinalIgnoreCase)
-                                 ? DiffStatus.New
-                                 : DiffStatus.Modified
-                });
-            }
-
-            return (globalExplanation, parsedFiles);
-        }
-
-        internal class ParsedFile
-        {
-            public string Path { get; set; } = "";
-            public string NewContent { get; set; } = "";
-            public DiffStatus Status { get; set; }
         }
 
         #endregion

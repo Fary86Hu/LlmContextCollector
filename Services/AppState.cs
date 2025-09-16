@@ -2,6 +2,11 @@ using LlmContextCollector.Models;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Linq;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using System.IO;
+using System;
 
 namespace LlmContextCollector.Services
 {
@@ -159,9 +164,9 @@ namespace LlmContextCollector.Services
         public string AzureDevOpsPat { get => _azureDevOpsPat; set => SetField(ref _azureDevOpsPat, value); }
 
         private string _adoDocsPath = string.Empty;
-        public string AdoDocsPath { get => _adoDocsPath; private set => SetField(ref _adoDocsPath, value); }
+        public string AdoDocsPath { get => _adoDocsPath; set => SetField(ref _adoDocsPath, value); }
         private bool _adoDocsExist = false;
-        public bool AdoDocsExist { get => _adoDocsExist; private set => SetField(ref _adoDocsExist, value); }
+        public bool AdoDocsExist { get => _adoDocsExist; set => SetField(ref _adoDocsExist, value); }
         #endregion
 
         // LLM CONTEXT STATE
@@ -315,23 +320,6 @@ namespace LlmContextCollector.Services
             }
         }
         
-        public void UpdateAdoPaths(string projectRoot)
-        {
-            if (string.IsNullOrWhiteSpace(projectRoot) || !Directory.Exists(projectRoot))
-            {
-                AdoDocsPath = string.Empty;
-                AdoDocsExist = false;
-                return;
-            }
-
-            var projectFolderName = new DirectoryInfo(projectRoot).Name;
-            var newPath = Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory, projectFolderName, "ado");
-            var newExist = Directory.Exists(newPath) && Directory.EnumerateFiles(newPath, "*.txt").Any();
-
-            AdoDocsPath = newPath;
-            AdoDocsExist = newExist;
-        }
-
         public FileNode? FindNodeByPath(string fullPath)
         {
             FileNode? Find(IEnumerable<FileNode> nodes)
@@ -359,112 +347,6 @@ namespace LlmContextCollector.Services
                 parent.IsExpanded = true;
                 parent = parent.Parent;
             }
-        }
-
-        public async Task FilterFileTreeAsync()
-        {
-            var term = SearchTerm.ToLowerInvariant();
-            if (string.IsNullOrWhiteSpace(term))
-            {
-                ClearFileTreeFilter();
-                return;
-            }
-
-            ShowLoading($"Keresés: '{term}'...");
-            await Task.Delay(1); 
-            try
-            {
-                var matchedNodes = new HashSet<FileNode>();
-
-                async Task SearchNodes(IEnumerable<FileNode> nodes)
-                {
-                    foreach (var node in nodes)
-                    {
-                        bool isPathMatch = node.Name.ToLowerInvariant().Contains(term);
-                        bool isContentMatch = false;
-
-                        if (isPathMatch)
-                        {
-                            node.IsPathMatch = true;
-                        }
-
-                        if (SearchInContent && !node.IsDirectory)
-                        {
-                            try
-                            {
-                                var content = await File.ReadAllTextAsync(node.FullPath);
-                                if (content.ToLowerInvariant().Contains(term))
-                                {
-                                    isContentMatch = true;
-                                    node.IsContentMatch = true;
-                                }
-                            }
-                            catch { /* ignore read errors */ }
-                        }
-
-                        if (isPathMatch || isContentMatch)
-                        {
-                            matchedNodes.Add(node);
-                            var current = node.Parent;
-                            while (current != null)
-                            {
-                                matchedNodes.Add(current);
-                                current = current.Parent;
-                            }
-                        }
-
-                        if (node.IsDirectory)
-                        {
-                            await SearchNodes(node.Children);
-                        }
-                    }
-                }
-
-                await SearchNodes(_fileTree);
-
-                void UpdateVisibility(IEnumerable<FileNode> nodes)
-                {
-                    foreach (var node in nodes)
-                    {
-                        node.IsVisible = matchedNodes.Contains(node);
-                        if (node.IsVisible && node.IsDirectory && !string.IsNullOrWhiteSpace(SearchTerm))
-                        {
-                            node.IsExpanded = true;
-                        }
-                        if (node.IsDirectory)
-                        {
-                            UpdateVisibility(node.Children);
-                        }
-                    }
-                }
-                UpdateVisibility(_fileTree);
-                var fileMatchCount = matchedNodes.Count(n => !n.IsDirectory);
-                StatusText = $"{fileMatchCount} fájl található.";
-            }
-            finally
-            {
-                HideLoading();
-            }
-        }
-
-        public void ClearFileTreeFilter()
-        {
-            void UpdateVisibility(IEnumerable<FileNode> nodes)
-            {
-                foreach (var node in nodes)
-                {
-                    node.IsVisible = true;
-                    node.IsExpanded = false;
-                    node.IsContentMatch = false;
-                    node.IsPathMatch = false;
-                    if (node.IsDirectory)
-                    {
-                        UpdateVisibility(node.Children);
-                    }
-                }
-            }
-            UpdateVisibility(_fileTree);
-            StatusText = "Keresés törölve, fa nézet visszaállítva.";
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;

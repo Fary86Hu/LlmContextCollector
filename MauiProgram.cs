@@ -34,9 +34,11 @@ namespace LlmContextCollector
             builder.Services.AddSingleton<AppState>();
             builder.Services.AddSingleton<JsonStorageService>();
             builder.Services.AddSingleton<HistoryService>();
+            builder.Services.AddSingleton<HistoryManagerService>();
             builder.Services.AddSingleton<PromptService>();
             builder.Services.AddSingleton<SettingsService>();
             builder.Services.AddTransient<FileSystemService>();
+            builder.Services.AddTransient<FileTreeFilterService>();
             builder.Services.AddTransient<ReferenceFinderService>();
             builder.Services.AddSingleton<EmbeddingIndexService>();
             builder.Services.AddTransient<RelevanceFinderService>();
@@ -44,6 +46,11 @@ namespace LlmContextCollector
             builder.Services.AddSingleton<GitService>();
             builder.Services.AddTransient<CodeStructureExtractor>();
             builder.Services.AddSingleton<AzureDevOpsService>();
+            builder.Services.AddTransient<LlmResponseParserService>();
+            builder.Services.AddTransient<ContextProcessingService>();
+            builder.Services.AddSingleton<GitWorkflowService>();
+            builder.Services.AddTransient<ProjectService>();
+
 
 #if WINDOWS
             builder.Services.AddSingleton<IFolderPickerService, FolderPickerService>();

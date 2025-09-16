@@ -11,11 +11,30 @@ namespace LlmContextCollector.Services
     public class AzureDevOpsService
     {
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly AppState _appState;
         private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-        public AzureDevOpsService(IHttpClientFactory httpClientFactory)
+        public AzureDevOpsService(IHttpClientFactory httpClientFactory, AppState appState)
         {
             _httpClientFactory = httpClientFactory;
+            _appState = appState;
+        }
+
+        public void UpdateAdoPaths(string projectRoot)
+        {
+            if (string.IsNullOrWhiteSpace(projectRoot) || !Directory.Exists(projectRoot))
+            {
+                _appState.AdoDocsPath = string.Empty;
+                _appState.AdoDocsExist = false;
+                return;
+            }
+
+            var projectFolderName = new DirectoryInfo(projectRoot).Name;
+            var newPath = Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory, projectFolderName, "ado");
+            var newExist = Directory.Exists(newPath) && Directory.EnumerateFiles(newPath, "*.txt").Any();
+
+            _appState.AdoDocsPath = newPath;
+            _appState.AdoDocsExist = newExist;
         }
 
         public async Task DownloadWorkItemsAsync(string orgUrl, string project, string pat, string repoName, string iterationPath, string projectRoot)
