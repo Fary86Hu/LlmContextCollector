@@ -56,7 +56,8 @@ namespace LlmContextCollector.Services
             {
                 _appState.CurrentGitBranch = string.Empty;
             }
-            
+
+            await _azureDevOpsService.LoadSettingsForCurrentProjectAsync();
             _azureDevOpsService.UpdateAdoPaths(_appState.ProjectRoot);
             
             var allFilePaths = new HashSet<string>();

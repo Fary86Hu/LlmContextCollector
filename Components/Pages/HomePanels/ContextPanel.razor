@@ -51,20 +51,6 @@
             <button title="Visszavonás" @onclick="AppState.UndoContextListChange" disabled="@(!AppState.CanUndo)">⮌</button>
             <button title="Újra" @onclick="AppState.RedoContextListChange" disabled="@(!AppState.CanRedo)">⮍</button>
             
-            <button @onclick="OnAzureDevOpsAttach" title="Azure DevOps Work Item-ek letöltése" style="margin-left: 10px;">ADO Letöltés</button>
-
-            @if (AppState.IsSemanticIndexBuilding)
-            {
-                <button style="margin: 0 5px;" disabled>Indexelés folyamatban...</button>
-            }
-            else
-            {
-                <button @onclick="StartManualIndexing" style="margin: 0 2px;">Index (Kód)</button>
-                @if (AppState.AdoDocsExist)
-                {
-                     <button @onclick="StartIndexingAdo" style="margin: 0 2px;">Index (ADO)</button>
-                }
-            }
             @if (IsIndexReady)
             {
                 <button style="margin: 0 5px;" @onclick="FindRelevantFiles" disabled="@AppState.IsSemanticIndexBuilding">Releváns keresés</button>

@@ -20,6 +20,61 @@ namespace LlmContextCollector.Services
             _appState = appState;
         }
 
+        private string? GetSettingsPathForProject(string projectRoot)
+        {
+            if (string.IsNullOrWhiteSpace(projectRoot) || !Directory.Exists(projectRoot)) return null;
+            var projectFolderName = new DirectoryInfo(projectRoot).Name;
+            var settingsDir = Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory, projectFolderName);
+            Directory.CreateDirectory(settingsDir);
+            return Path.Combine(settingsDir, "ado_settings.json");
+        }
+
+        public async Task LoadSettingsForCurrentProjectAsync()
+        {
+            var path = GetSettingsPathForProject(_appState.ProjectRoot);
+            AdoProjectSettings? settings = null;
+            if (path != null && File.Exists(path))
+            {
+                try
+                {
+                    var json = await File.ReadAllTextAsync(path);
+                    settings = JsonSerializer.Deserialize<AdoProjectSettings>(json);
+                }
+                catch { /* Ignore deserialization errors */ }
+            }
+            settings ??= new AdoProjectSettings();
+
+            _appState.AzureDevOpsOrganizationUrl = settings.OrganizationUrl;
+            _appState.AzureDevOpsProject = settings.Project;
+            _appState.AzureDevOpsRepository = settings.Repository;
+            _appState.AzureDevOpsIterationPath = settings.IterationPath;
+            _appState.AzureDevOpsPat = settings.Pat;
+            _appState.AdoLastDownloadDate = settings.LastFullDownloadUtc;
+        }
+
+        public async Task SaveSettingsForCurrentProjectAsync(DateTime? newDownloadTimestamp = null)
+        {
+            var path = GetSettingsPathForProject(_appState.ProjectRoot);
+            if (path == null) return;
+
+            var settings = new AdoProjectSettings
+            {
+                OrganizationUrl = _appState.AzureDevOpsOrganizationUrl,
+                Project = _appState.AzureDevOpsProject,
+                Repository = _appState.AzureDevOpsRepository,
+                IterationPath = _appState.AzureDevOpsIterationPath,
+                Pat = _appState.AzureDevOpsPat,
+                LastFullDownloadUtc = newDownloadTimestamp ?? _appState.AdoLastDownloadDate
+            };
+            var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(path, json);
+
+            if (newDownloadTimestamp.HasValue)
+            {
+                _appState.AdoLastDownloadDate = newDownloadTimestamp;
+            }
+        }
+
         public void UpdateAdoPaths(string projectRoot)
         {
             if (string.IsNullOrWhiteSpace(projectRoot) || !Directory.Exists(projectRoot))
@@ -37,7 +92,7 @@ namespace LlmContextCollector.Services
             _appState.AdoDocsExist = newExist;
         }
 
-        public async Task DownloadWorkItemsAsync(string orgUrl, string project, string pat, string repoName, string iterationPath, string projectRoot)
+        public async Task DownloadWorkItemsAsync(string orgUrl, string project, string pat, string repoName, string iterationPath, string projectRoot, bool isIncremental)
         {
             if (string.IsNullOrWhiteSpace(projectRoot) || !Directory.Exists(projectRoot))
             {
@@ -62,9 +117,8 @@ namespace LlmContextCollector.Services
             var projectFolderName = new DirectoryInfo(projectRoot).Name;
             var targetDir = Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory, projectFolderName, "ado");
 
-            if (Directory.Exists(targetDir))
+            if (!isIncremental && Directory.Exists(targetDir))
             {
-                // Próbáljuk meg a meglévő fájlokat törölni, de ne álljon le hibával, ha nem sikerül
                 try
                 {
                     Directory.Delete(targetDir, true);
@@ -98,6 +152,11 @@ namespace LlmContextCollector.Services
                 {
                     var escapedIterationPath = iterationPath.Replace("'", "''");
                     queryBuilder.Append($" AND [System.IterationPath] UNDER '{escapedIterationPath}'");
+                }
+                
+                if (isIncremental && _appState.AdoLastDownloadDate.HasValue)
+                {
+                    queryBuilder.Append($" AND [System.ChangedDate] > '{_appState.AdoLastDownloadDate.Value:o}'");
                 }
 
                 var wiqlQuery = new

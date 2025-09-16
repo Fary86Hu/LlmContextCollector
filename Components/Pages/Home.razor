@@ -7,7 +7,10 @@
         <FileTreePanel OnRequestApplyFiltersAndReload="() => ApplyFiltersAndReload(true)"
                        OnLoadHistoryEntry="LoadHistoryEntry"
                        OnShowTreeContextMenu="ShowTreeContextMenu"
-                       OnNodeClick="HandleNodeClick" />
+                       OnNodeClick="HandleNodeClick"
+                       OnAzureDevOpsAttach="() => _isAzureDevOpsDialogVisible = true"
+                       OnStartIndexingCode="StartManualIndexing"
+                       OnStartIndexingAdo="StartIndexingAdo" />
 
         <div class="vertical-splitter" @onmousedown="@(e => StartResize(e, "LeftMiddle"))"></div>
 
@@ -28,8 +31,6 @@
                       OnShowDiffDialog="ShowDiffDialog"
                       OnRequestRemoveSelected="RemoveSelectedFilesFromContext"
                       OnHistorySaveRequested="() => HistoryService.SaveCurrentStateAsync()"
-                      OnStartIndexingRequested="StartManualIndexing"
-                      OnAzureDevOpsAttach="() => _isAzureDevOpsDialogVisible = true"
                       OnSplitterMouseDown="args => StartResize(args.Item1, args.Item2)" />
     </div>
     <StatusBar />

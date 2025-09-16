@@ -425,7 +425,7 @@ namespace LlmContextCollector.Components.Pages
             StateHasChanged();
         }
 
-        private async Task HandleDownloadWorkItemsAsync()
+        private async Task HandleDownloadWorkItemsAsync(bool isIncremental)
         {
             _isAzureDevOpsDialogVisible = false;
             if (string.IsNullOrWhiteSpace(AppState.ProjectRoot))
@@ -437,14 +437,20 @@ namespace LlmContextCollector.Components.Pages
             AppState.ShowLoading("Azure DevOps work item-ek letöltése...");
             try
             {
+                // Mentsük a beállításokat a letöltés előtt.
+                await AzureDevOpsService.SaveSettingsForCurrentProjectAsync();
+
                 await AzureDevOpsService.DownloadWorkItemsAsync(
                     AppState.AzureDevOpsOrganizationUrl,
                     AppState.AzureDevOpsProject,
                     AppState.AzureDevOpsPat,
                     AppState.AzureDevOpsRepository,
                     AppState.AzureDevOpsIterationPath,
-                    AppState.ProjectRoot);
-                    
+                    AppState.ProjectRoot,
+                    isIncremental);
+
+                // Mentsük a beállításokat a letöltés utáni új időbélyeggel.
+                await AzureDevOpsService.SaveSettingsForCurrentProjectAsync(DateTime.UtcNow);
                 AzureDevOpsService.UpdateAdoPaths(AppState.ProjectRoot);
 
                 AppState.StatusText = "Azure DevOps work item-ek sikeresen letöltve.";
@@ -580,6 +586,11 @@ namespace LlmContextCollector.Components.Pages
             var allFileNodes = new List<FileNode>();
             GetAllFileNodes(AppState.FileTree, allFileNodes);
             EmbeddingIndexService.StartBuildingIndex(allFileNodes);
+        }
+
+        private void StartIndexingAdo()
+        {
+            EmbeddingIndexService.StartBuildingAdoIndex();
         }
 
         #region Panel Resizing

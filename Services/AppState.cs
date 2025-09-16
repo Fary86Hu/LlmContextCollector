@@ -167,6 +167,9 @@ namespace LlmContextCollector.Services
         public string AdoDocsPath { get => _adoDocsPath; set => SetField(ref _adoDocsPath, value); }
         private bool _adoDocsExist = false;
         public bool AdoDocsExist { get => _adoDocsExist; set => SetField(ref _adoDocsExist, value); }
+        
+        private DateTime? _adoLastDownloadDate;
+        public DateTime? AdoLastDownloadDate { get => _adoLastDownloadDate; set => SetField(ref _adoLastDownloadDate, value); }
         #endregion
 
         // LLM CONTEXT STATE

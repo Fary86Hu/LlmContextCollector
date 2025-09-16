@@ -62,12 +62,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         [Parameter]
         public EventCallback OnHistorySaveRequested { get; set; }
-
-        [Parameter]
-        public EventCallback OnStartIndexingRequested { get; set; }
-        
-        [Parameter]
-        public EventCallback OnAzureDevOpsAttach { get; set; }
         
         [Parameter]
         public EventCallback<(MouseEventArgs, string)> OnSplitterMouseDown { get; set; }
@@ -461,17 +455,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         #endregion
 
         #region Relevance Finder
-
-        private async Task StartManualIndexing()
-        {
-            await OnStartIndexingRequested.InvokeAsync();
-        }
-
-        private void StartIndexingAdo()
-        {
-            EmbeddingIndexService.StartBuildingAdoIndex();
-        }
-
         private async Task FindRelevantFiles()
         {
             if (string.IsNullOrWhiteSpace(AppState.ProjectRoot))

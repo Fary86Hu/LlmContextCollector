@@ -29,6 +29,15 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         [Parameter]
         public EventCallback<(FileNode Node, MouseEventArgs Args)> OnNodeClick { get; set; }
+        
+        [Parameter]
+        public EventCallback OnAzureDevOpsAttach { get; set; }
+
+        [Parameter]
+        public EventCallback OnStartIndexingCode { get; set; }
+
+        [Parameter]
+        public EventCallback OnStartIndexingAdo { get; set; }
 
         protected override void OnInitialized()
         {

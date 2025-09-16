@@ -30,14 +30,27 @@
                         <label for="ado-pat">Personal Access Token (PAT):</label>
                         <input id="ado-pat" type="password" @bind="AppState.AzureDevOpsPat" />
                     </div>
+
+                    @if (AppState.AdoLastDownloadDate.HasValue)
+                    {
+                        <div class="ado-incremental-info">
+                            <p><strong>Utolsó letöltés:</strong> @AppState.AdoLastDownloadDate.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</p>
+                            <p>Letöltheted csak az ezutáni változásokat, vagy elvégezhetsz egy teljes újraszinkronizálást, ami minden helyi ADO adatot töröl és újra letölti az összeset.</p>
+                        </div>
+                    }
                 </div>
             </div>
             <div class="modal-footer">
                 <button @onclick="Close">Mégsem</button>
-                <button class="primary" @onclick="StartDownload"
-                        disabled="@(string.IsNullOrWhiteSpace(AppState.AzureDevOpsOrganizationUrl) || string.IsNullOrWhiteSpace(AppState.AzureDevOpsProject) || string.IsNullOrWhiteSpace(AppState.AzureDevOpsPat))">
-                    Letöltés
-                </button>
+                @if (AppState.AdoLastDownloadDate.HasValue)
+                {
+                    <button @onclick="() => StartDownload(false)" disabled="@IsDownloadDisabled()">Teljes Újratöltés</button>
+                    <button class="primary" @onclick="() => StartDownload(true)" disabled="@IsDownloadDisabled()">Csak az újak letöltése</button>
+                }
+                else
+                {
+                    <button class="primary" @onclick="() => StartDownload(false)" disabled="@IsDownloadDisabled()">Letöltés</button>
+                }
             </div>
         </div>
     </div>
@@ -51,11 +64,16 @@
     public EventCallback OnClose { get; set; }
 
     [Parameter]
-    public EventCallback OnDownload { get; set; }
+    public EventCallback<bool> OnDownload { get; set; }
 
-    private async Task StartDownload()
+    private bool IsDownloadDisabled() =>
+        string.IsNullOrWhiteSpace(AppState.AzureDevOpsOrganizationUrl) ||
+        string.IsNullOrWhiteSpace(AppState.AzureDevOpsProject) ||
+        string.IsNullOrWhiteSpace(AppState.AzureDevOpsPat);
+
+    private async Task StartDownload(bool isIncremental)
     {
-        await OnDownload.InvokeAsync();
+        await OnDownload.InvokeAsync(isIncremental);
     }
 
     private async Task Close()

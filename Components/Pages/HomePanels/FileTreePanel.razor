@@ -4,6 +4,21 @@
         <input type="text" class="path-display" placeholder="Nincs mappa kiválasztva" @bind="AppState.ProjectRoot" @bind:event="oninput" />
     </div>
     <div class="toolbar">
+        <button @onclick="OnAzureDevOpsAttach" title="Azure DevOps Work Item-ek letöltése/kezelése">ADO Letöltés</button>
+        @if (AppState.IsSemanticIndexBuilding)
+        {
+            <button style="margin: 0 5px;" disabled>Indexelés folyamatban...</button>
+        }
+        else
+        {
+            <button @onclick="OnStartIndexingCode" style="margin: 0 2px;">Index (Kód)</button>
+            @if (AppState.AdoDocsExist)
+            {
+                <button @onclick="OnStartIndexingAdo" style="margin: 0 2px;">Index (ADO)</button>
+            }
+        }
+    </div>
+    <div class="toolbar">
         <label for="history-select" style="white-space: nowrap; margin-right: 5px;">Előzmények:</label>
         <select id="history-select" @onchange="LoadSelectedHistory" style="flex-grow: 1;">
             <option value="-1" selected>Válassz egy előzményt...</option>
