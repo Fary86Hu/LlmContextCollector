@@ -35,6 +35,8 @@ namespace LlmContextCollector.Components.Pages
         private ProjectService ProjectService { get; set; } = null!;
         [Inject]
         private HistoryManagerService HistoryManagerService { get; set; } = null!;
+        [Inject]
+        private FileContextService FileContextService { get; set; } = null!;
 
 
         private ContextPanel? _contextPanelRef;
@@ -220,114 +222,14 @@ namespace LlmContextCollector.Components.Pages
         protected async Task AddSelectedFilesToContext()
         {
             HideContextMenus();
-            var selectedNodes = new List<FileNode>();
-            FindSelectedNodes(AppState.FileTree, selectedNodes);
-
-            if (!selectedNodes.Any())
-            {
-                AppState.StatusText = "Nincs elem kiválasztva a fában a hozzáadáshoz.";
-                return;
-            }
-
-            bool showLoading = AppState.ReferenceSearchDepth > 0;
-
-            try
-            {
-                if (showLoading)
-                {
-                    AppState.ShowLoading("Fájlok hozzáadása és referenciák keresése...");
-                    await Task.Delay(1);
-                }
-
-                var projectRootPath = AppState.ProjectRoot ?? string.Empty;
-                var filesFromSelection = new HashSet<string>();
-
-                foreach (var node in selectedNodes)
-                {
-                    AddNodeAndChildrenToSet(node, projectRootPath, filesFromSelection);
-                    node.IsSelectedInTree = false;
-                }
-
-                var currentFiles = AppState.SelectedFilesForContext.ToHashSet();
-                var initialCount = currentFiles.Count;
-                currentFiles.UnionWith(filesFromSelection);
-
-                if (AppState.ReferenceSearchDepth > 0 && filesFromSelection.Any())
-                {
-                    var foundRefs = await ReferenceFinder.FindReferencesAsync(filesFromSelection.ToList(), AppState.FileTree, projectRootPath, AppState.ReferenceSearchDepth);
-                    var newRefsCount = foundRefs.Count(r => !currentFiles.Contains(r));
-                    if (newRefsCount > 0) AppState.StatusText = $"{newRefsCount} új kapcsolódó fájl hozzáadva referenciák alapján.";
-                    currentFiles.UnionWith(foundRefs);
-                }
-
-                var addedCount = currentFiles.Count - initialCount;
-                if (addedCount > 0)
-                {
-                    AppState.SelectedFilesForContext.Clear();
-                    foreach (var file in currentFiles.OrderBy(f => f))
-                    {
-                        AppState.SelectedFilesForContext.Add(file);
-                    }
-                    AppState.SaveContextListState();
-                    if (!AppState.StatusText.Contains("referenciák"))
-                    {
-                        AppState.StatusText = $"{addedCount} fájl hozzáadva a kontextushoz.";
-                    }
-                }
-                else
-                {
-                    AppState.StatusText = "Nem lett új fájl hozzáadva (már a listán voltak).";
-                }
-            }
-            finally
-            {
-                if (showLoading)
-                {
-                    AppState.HideLoading();
-                }
-            }
-        }
-
-        private void AddNodeAndChildrenToSet(FileNode node, string root, HashSet<string> files)
-        {
-            if (node.IsDirectory && node.IsVisible)
-            {
-                foreach (var child in node.Children)
-                {
-                    AddNodeAndChildrenToSet(child, root, files);
-                }
-            }
-            else if (node.IsVisible && !node.IsDirectory)
-            {
-                var relativePath = Path.GetRelativePath(root, node.FullPath).Replace('\\', '/');
-                files.Add(relativePath);
-            }
+            await FileContextService.AddSelectedTreeNodesToContextAsync();
         }
 
         protected void RemoveSelectedFilesFromContext()
         {
             HideContextMenus();
-            if (!_selectedInContextList.Any())
-            {
-                AppState.StatusText = "Nincs fájl kijelölve az eltávolításhoz.";
-                return;
-            }
-
-            var removedCount = 0;
-            foreach (var selectedFile in _selectedInContextList)
-            {
-                if (AppState.SelectedFilesForContext.Remove(selectedFile))
-                {
-                    removedCount++;
-                }
-            }
+            FileContextService.RemoveFileListSelectionFromContext(_selectedInContextList);
             _selectedInContextList.Clear();
-
-            if (removedCount > 0)
-            {
-                AppState.SaveContextListState();
-                AppState.StatusText = $"{removedCount} fájl eltávolítva a kontextusból.";
-            }
         }
 
         private void FindSelectedNodes(IEnumerable<FileNode> nodes, List<FileNode> selected)
