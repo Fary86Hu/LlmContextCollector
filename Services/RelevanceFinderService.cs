@@ -1,5 +1,5 @@
 using LlmContextCollector.Models;
-using LlmContextCollector.AI.Search;
+using LlmContextCollector.AI;
 using LlmContextCollector.AI.Embeddings;
 
 namespace LlmContextCollector.Services
@@ -9,12 +9,14 @@ namespace LlmContextCollector.Services
         private readonly AppState _appState;
         private readonly EmbeddingIndexService _indexService;
         private readonly IEmbeddingProvider _embeddingProvider;
+        private readonly SemanticSearchService _semanticSearchService;
 
-        public RelevanceFinderService(AppState appState, EmbeddingIndexService indexService, IEmbeddingProvider embeddingProvider)
+        public RelevanceFinderService(AppState appState, EmbeddingIndexService indexService, IEmbeddingProvider embeddingProvider, SemanticSearchService semanticSearchService)
         {
             _appState = appState;
             _indexService = indexService;
             _embeddingProvider = embeddingProvider;
+            _semanticSearchService = semanticSearchService;
         }
 
         public async Task<List<RelevanceResult>> FindRelevantFilesAsync()
@@ -27,19 +29,22 @@ namespace LlmContextCollector.Services
             }
 
             // 1. Kontextus vektorok összegyűjtése (prompt + már kiválasztott fájlok)
-            var contextVectors = new Dictionary<string, float[]>();
+            var contextVectors = new List<float[]>();
 
             if (!string.IsNullOrWhiteSpace(_appState.PromptText))
             {
                 var promptVector = await _embeddingProvider.EmbedAsync(_appState.PromptText);
-                contextVectors["Prompt"] = promptVector;
+                contextVectors.Add(promptVector);
             }
 
             foreach (var fileRelPath in _appState.SelectedFilesForContext)
             {
-                if (embeddingIndex.TryGetValue(fileRelPath, out var vector))
+                var fileVectors = _indexService.GetVectorsForFile(fileRelPath).ToList();
+                if (fileVectors.Any())
                 {
-                    contextVectors[fileRelPath] = vector;
+                    // Average the vectors of all chunks for a file to get a single representative vector
+                    var avgVector = AverageVectors(fileVectors);
+                    contextVectors.Add(avgVector);
                 }
             }
 
@@ -49,52 +54,43 @@ namespace LlmContextCollector.Services
                 return new List<RelevanceResult>();
             }
 
-            // 2. Jelölt fájlok szűrése és pontozása
+            // 2. Súlyozott átlag query vektor létrehozása
+            var queryVector = AverageVectors(contextVectors); // Simple average for now, could be weighted later
+
+            // 3. Jelölt fájlok szűrése és pontozása a SemanticSearchService segítségével
             var contextFileSet = _appState.SelectedFilesForContext.ToHashSet();
-            var candidateFiles = embeddingIndex.Where(kvp => !contextFileSet.Contains(kvp.Key));
+            
+            var results = _semanticSearchService.RankBySimilarity(queryVector, embeddingIndex, 30, filesToExclude: contextFileSet);
 
-            var results = new List<RelevanceResult>();
-
-            foreach (var (candidatePath, candidateVector) in candidateFiles)
-            {
-                double maxScore = 0;
-                string bestMatch = string.Empty;
-
-                foreach (var (contextKey, contextVector) in contextVectors)
-                {
-                    var score = SemanticSearchService.Cosine(candidateVector, contextVector);
-                    if (score > maxScore)
-                    {
-                        maxScore = score;
-                        bestMatch = contextKey;
-                    }
-                }
-
-                if (maxScore > 0) // Vagy egy relevánsabb küszöbérték, pl. 0.3
-                {
-                    results.Add(new RelevanceResult
-                    {
-                        FilePath = candidatePath,
-                        Score = maxScore,
-                        SimilarTo = bestMatch
-                    });
-                }
-            }
-
-            // 3. Eredmények rendezése és szűkítése
-            return results
-                .OrderByDescending(r => r.Score)
-                .Take(30)
-                .ToList();
+            // A 'SimilarTo' mezőt már nem tudjuk egyszerűen kitölteni, mert aggregált lekérdezést használunk.
+            // A relevanciát a teljes kontextushoz képest mérjük.
+            results.ForEach(r => r.SimilarTo = null);
+            
+            return results;
         }
 
-        private void GetAllFileNodes(IEnumerable<FileNode> nodes, List<FileNode> flat)
+        private float[] AverageVectors(List<float[]> vectors)
         {
-            foreach (var n in nodes)
+            if (!vectors.Any()) return Array.Empty<float>();
+            
+            var dimension = vectors.First().Length;
+            var avgVector = new float[dimension];
+
+            foreach (var vector in vectors)
             {
-                if (n.IsDirectory) GetAllFileNodes(n.Children, flat);
-                else flat.Add(n);
+                for (int i = 0; i < dimension; i++)
+                {
+                    avgVector[i] += vector[i];
+                }
             }
+
+            var count = (float)vectors.Count;
+            for (int i = 0; i < dimension; i++)
+            {
+                avgVector[i] /= count;
+            }
+
+            return avgVector;
         }
     }
 }

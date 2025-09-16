@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using LlmContextCollector.Services;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
 using LlmContextCollector.AI.Embeddings;
-using LlmContextCollector.AI.Search;
 using LlmContextCollector.AI;
 using System.Net.Http.Headers;
 

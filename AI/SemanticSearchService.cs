@@ -1,82 +1,103 @@
-﻿using System.Collections.Concurrent;
+using LlmContextCollector.Models;
+using System.Collections.Concurrent;
 using System.Text;
 
-namespace LlmContextCollector.AI.Search;
+namespace LlmContextCollector.AI;
 
 using LlmContextCollector.AI.Embeddings;
 
 public sealed class SemanticSearchService
 {
-    readonly IEmbeddingProvider _provider;
-    readonly JsonEmbeddingCache _cache;
+    private const string ChunkKeySeparator = "::CHUNK::";
 
-    public SemanticSearchService(IEmbeddingProvider provider, JsonEmbeddingCache cache)
+    public static IEnumerable<string> Chunk(string content, int maxChars = 2000, int overlapChars = 200)
     {
-        _provider = provider;
-        _cache = cache;
-    }
+        if (string.IsNullOrWhiteSpace(content)) yield break;
+        if (content.Length <= maxChars)
+        {
+            yield return content;
+            yield break;
+        }
 
-    public static IEnumerable<string> Chunk(string content, int maxChars = 2000)
-    {
-        if (content.Length <= maxChars) { yield return content; yield break; }
-        var lines = content.Split('\n');
         var sb = new StringBuilder();
+        var lines = content.Split('\n');
+
         foreach (var line in lines)
         {
-            if (sb.Length + line.Length + 1 > maxChars) { yield return sb.ToString(); sb.Clear(); }
+            if (sb.Length + line.Length + 1 > maxChars)
+            {
+                yield return sb.ToString();
+                // Overlap logic: keep the last few lines for the next chunk
+                var currentChunk = sb.ToString();
+                var overlapStartIndex = Math.Max(0, currentChunk.Length - overlapChars);
+                var overlapText = currentChunk.Substring(overlapStartIndex);
+                // Find the first full line in the overlap text
+                var firstNewLine = overlapText.IndexOf('\n');
+                if (firstNewLine != -1)
+                {
+                    overlapText = overlapText.Substring(firstNewLine + 1);
+                }
+
+                sb.Clear();
+                sb.Append(overlapText);
+            }
             sb.AppendLine(line);
         }
-        if (sb.Length > 0) yield return sb.ToString();
+
+        if (sb.Length > 0)
+        {
+            yield return sb.ToString();
+        }
     }
 
     public static double Cosine(float[] a, float[] b)
     {
         double dot = 0, na = 0, nb = 0;
         for (int i = 0; i < a.Length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
-        return dot / (Math.Sqrt(na) * Math.Sqrt(nb) + 1e-12);
+        var denominator = Math.Sqrt(na) * Math.Sqrt(nb);
+        if (denominator < 1e-12) return 0; // Avoid division by zero
+        return dot / denominator;
     }
 
-    public async Task<(IReadOnlyList<(string path, double score)> results, Dictionary<string, float[]> vectors)> RankRelevantFilesAsync(
-        string query,
-        IEnumerable<(string path, string content)> corpus,
-        CancellationToken ct = default)
+    public static string CreateChunkKey(string filePath, int chunkIndex) => $"{filePath}{ChunkKeySeparator}{chunkIndex}";
+    public static string GetPathFromChunkKey(string chunkKey)
     {
-        var chunks = new List<(string path, string chunk)>();
-        foreach (var (path, content) in corpus)
-            foreach (var ch in Chunk(content))
-                chunks.Add((path, ch));
+        var separatorIndex = chunkKey.IndexOf(ChunkKeySeparator);
+        return separatorIndex != -1 ? chunkKey.Substring(0, separatorIndex) : chunkKey;
+    }
 
-        var keys = chunks.Select(x => (x.path, x.chunk, key: JsonEmbeddingCache.KeyFor(x.path, x.chunk))).ToList();
+    public List<RelevanceResult> RankBySimilarity(
+        float[] queryVector,
+        IReadOnlyDictionary<string, float[]> index,
+        int topK,
+        double minScoreThreshold = 0.2,
+        HashSet<string>? filesToExclude = null)
+    {
+        var scoresByPath = new Dictionary<string, double>();
 
-        var missing = new List<(string key, string text)>();
-        var vecs = new ConcurrentDictionary<string, float[]>();
-        foreach (var k in keys)
-            if (_cache.TryGet(k.key, out var v)) vecs[k.key] = v; else missing.Add((k.key, k.chunk));
-
-        const int batch = 32;
-        for (int i = 0; i < missing.Count; i += batch)
+        foreach (var (chunkKey, chunkVector) in index)
         {
-            var slice = missing.Skip(i).Take(batch).ToList();
-            var embeds = await _provider.EmbedBatchAsync(slice.Select(s => s.text), ct);
-            for (int j = 0; j < slice.Count; j++)
+            var filePath = GetPathFromChunkKey(chunkKey);
+            if (filesToExclude != null && filesToExclude.Contains(filePath))
             {
-                vecs[slice[j].key] = embeds[j];
-                _cache.Set(slice[j].key, embeds[j]);
+                continue;
+            }
+
+            var score = Cosine(queryVector, chunkVector);
+
+            if (score > minScoreThreshold)
+            {
+                if (!scoresByPath.TryAdd(filePath, score))
+                {
+                    scoresByPath[filePath] = Math.Max(scoresByPath[filePath], score);
+                }
             }
         }
 
-        var q = await _provider.EmbedAsync(query, ct);
-
-        var byPath = new Dictionary<string, double>();
-        for (int i = 0; i < keys.Count; i++)
-        {
-            var k = keys[i];
-            var v = vecs[k.key];
-            var s = Cosine(v, q);
-            if (!byPath.TryAdd(k.path, s)) byPath[k.path] = Math.Max(byPath[k.path], s);
-        }
-
-        var ranked = byPath.OrderByDescending(x => x.Value).Select(x => (x.Key, x.Value)).ToList();
-        return (ranked, vecs.ToDictionary(k => k.Key, v => v.Value));
+        return scoresByPath
+            .Select(kvp => new RelevanceResult { FilePath = kvp.Key, Score = kvp.Value })
+            .OrderByDescending(r => r.Score)
+            .Take(topK)
+            .ToList();
     }
 }

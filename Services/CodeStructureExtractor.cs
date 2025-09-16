@@ -10,6 +10,7 @@ namespace LlmContextCollector.Services
 
         // XML doc kommentek (pl. /// <summary>...)
         private static readonly Regex DocCommentsRegex = new(@"^\s*///.*$", RegexOpts);
+        private static readonly Regex UsingRegex = new(@"^\s*using\s+[\w\.]+;", RegexOpts);
         // Névtér
         private static readonly Regex NamespaceRegex = new(@"^\s*namespace\s+[\w\.]+", RegexOpts);
         // Osztály, interfész, struct, enum definíciók
@@ -31,35 +32,35 @@ namespace LlmContextCollector.Services
 
             switch (extension)
             {
-                //case ".cs":
-                //case ".razor":
-                //case ".cshtml":
-                //{
-                //    var structureSb = new StringBuilder();
-                //    var lines = fileContent.Split('\n');
-                //    foreach (var line in lines)
-                //    {
-                //        var trimmedLine = line.Trim();
-                //        if (string.IsNullOrWhiteSpace(trimmedLine)) continue;
-                //        if (DocCommentsRegex.IsMatch(trimmedLine) ||
-                //            NamespaceRegex.IsMatch(trimmedLine) ||
-                //            TypeDefinitionRegex.IsMatch(trimmedLine) ||
-                //            PropertyRegex.IsMatch(trimmedLine) ||
-                //            MethodRegex.IsMatch(trimmedLine))
-                //        {
-                //            structureSb.AppendLine(trimmedLine);
-                //        }
-                //    }
-                //    if (structureSb.Length > 0)
-                //    {
-                //        sb.Append(structureSb.ToString());
-                //    }
-                //    else
-                //    {
-                //        sb.Append(fileContent); // Fallback if no structure found
-                //    }
-                //    break;
-                //}
+                case ".cs":
+                {
+                    var structureSb = new StringBuilder();
+                    var lines = fileContent.Split('\n');
+                    foreach (var line in lines)
+                    {
+                        var trimmedLine = line.Trim();
+                        if (string.IsNullOrWhiteSpace(trimmedLine) || trimmedLine.StartsWith("//")) continue; // sima kommentek kihagyása
+
+                        if (DocCommentsRegex.IsMatch(trimmedLine) ||
+                            UsingRegex.IsMatch(trimmedLine) ||
+                            NamespaceRegex.IsMatch(trimmedLine) ||
+                            TypeDefinitionRegex.IsMatch(trimmedLine) ||
+                            PropertyRegex.IsMatch(trimmedLine) ||
+                            MethodRegex.IsMatch(trimmedLine))
+                        {
+                            structureSb.AppendLine(line); // Eredeti behúzás megtartása
+                        }
+                    }
+                    if (structureSb.Length > 20) // Heurisztika: csak akkor használjuk ha találtunk valami értelmeset
+                    {
+                        sb.Append(structureSb.ToString());
+                    }
+                    else
+                    {
+                        sb.Append(fileContent); // Fallback if no structure found
+                    }
+                    break;
+                }
 
                 case ".css":
                 {

@@ -1,5 +1,5 @@
 using LlmContextCollector.AI.Embeddings;
-using LlmContextCollector.AI.Search;
+using LlmContextCollector.AI;
 using LlmContextCollector.Models;
 using System.Collections.Concurrent;
 using System.Text;
@@ -57,19 +57,21 @@ namespace LlmContextCollector.Services
 
             var projectRootForTask = _appState.ProjectRoot;
             
-            var corpus = new List<(string path, string content, string key)>();
-            foreach (var node in allFileNodes)
-            {
-                try
-                {
-                    var relPath = Path.GetRelativePath(projectRootForTask, node.FullPath).Replace('\\', '/');
-                    corpus.Add((relPath, node.FullPath, ""));
-                }
-                catch (ArgumentException)
-                {
-                    continue;
-                }
-            }
+            var corpus = allFileNodes
+                .Select(node => {
+                    try
+                    {
+                        var relPath = Path.GetRelativePath(projectRootForTask, node.FullPath).Replace('\\', '/');
+                        return (path: relPath, fullPath: node.FullPath);
+                    }
+                    catch (ArgumentException)
+                    {
+                        return (path: null, fullPath: null);
+                    }
+                })
+                .Where(x => x.path != null)
+                .Select(x => (x.path!, x.fullPath!))
+                .ToList();
             
             _currentIndexingTask = Task.Run(() => BuildIndexInternalAsync(corpus, "Szemantikus keresési index (Kód)", token, useStructure: true), token);
         }
@@ -84,48 +86,67 @@ namespace LlmContextCollector.Services
 
             var adoDocs = Directory.GetFiles(_appState.AdoDocsPath, "*.txt");
             var corpus = adoDocs.Select(fullPath => 
-                (path: $"{AdoFilePrefix}{Path.GetFileName(fullPath)}", fullPath, key: "")).ToList();
+                (path: $"{AdoFilePrefix}{Path.GetFileName(fullPath)}", fullPath: fullPath)).ToList();
 
             _currentIndexingTask = Task.Run(() => BuildIndexInternalAsync(corpus, "Szemantikus keresési index (ADO)", token, useStructure: false), token);
         }
 
-        private async Task BuildIndexInternalAsync(List<(string path, string fullPath, string key)> corpus, string statusPrefix, CancellationToken ct, bool useStructure)
+        private async Task BuildIndexInternalAsync(List<(string path, string fullPath)> corpus, string statusPrefix, CancellationToken ct, bool useStructure)
         {
             try
             {
                 _appState.IsSemanticIndexBuilding = true;
-                _appState.StatusText = $"{statusPrefix} építése...";
+                _appState.StatusText = $"{statusPrefix} építése... (Fájlok elemzése)";
                 
-                var itemsToProcess = new List<(string key, string indexPath, string text)>();
-                foreach (var (indexPath, fullPath, _) in corpus)
+                var itemsToProcess = new List<(string cacheKey, string chunkKey, string text)>();
+                var totalChunks = 0;
+                var processedFiles = 0;
+
+                // Phase 1: Chunking and checking cache
+                foreach (var (indexPath, fullPath) in corpus)
                 {
                     if (ct.IsCancellationRequested) return;
                     try
                     {
                         var content = await File.ReadAllTextAsync(fullPath, ct);
-                        var textToEmbed = useStructure ? _codeExtractor.ExtractStructure(content, indexPath) : content;
-                        var key = JsonEmbeddingCache.KeyFor(fullPath, textToEmbed);
+                        var textToChunk = useStructure ? _codeExtractor.ExtractStructure(content, indexPath) : content;
                         
-                        if (_cache.TryGet(key, out var vec))
+                        var chunks = SemanticSearchService.Chunk(textToChunk).ToList();
+                        totalChunks += chunks.Count;
+
+                        for (int i = 0; i < chunks.Count; i++)
                         {
-                            _embeddingIndex[indexPath] = vec;
+                            var chunkContent = chunks[i];
+                            var cacheKey = JsonEmbeddingCache.KeyFor(fullPath, chunkContent);
+                            var chunkKey = SemanticSearchService.CreateChunkKey(indexPath, i);
+
+                            if (_cache.TryGet(cacheKey, out var vec))
+                            {
+                                _embeddingIndex[chunkKey] = vec;
+                            }
+                            else
+                            {
+                                itemsToProcess.Add((cacheKey, chunkKey, chunkContent));
+                            }
                         }
-                        else
+                        processedFiles++;
+                        if(processedFiles % 20 == 0)
                         {
-                            itemsToProcess.Add((key, indexPath, textToEmbed));
+                             _appState.StatusText = $"{statusPrefix} építése... ({processedFiles}/{corpus.Count} fájl feldolgozva)";
                         }
                     }
                     catch { /* Ignore files that can't be read */ }
                 }
                 
-                if (!itemsToProcess.Any() && !corpus.Any())
+                if (!corpus.Any())
                 {
                     _appState.StatusText = $"{statusPrefix} frissítve (nincs fájl).";
                     return;
                 }
                 
-                _appState.StatusText = $"{statusPrefix} építése... ({_embeddingIndex.Count}/{corpus.Count})";
+                _appState.StatusText = $"{statusPrefix} építése... ({itemsToProcess.Count} darab beágyazása)";
 
+                // Phase 2: Embedding missing chunks in batches
                 const int batchSize = 16;
                 for (int i = 0; i < itemsToProcess.Count; i += batchSize)
                 {
@@ -140,8 +161,8 @@ namespace LlmContextCollector.Services
                         for (int j = 0; j < batch.Count; j++)
                         {
                             if (ct.IsCancellationRequested) return;
-                            _embeddingIndex[batch[j].indexPath] = embeds[j];
-                            _cache.Set(batch[j].key, embeds[j]);
+                            _embeddingIndex[batch[j].chunkKey] = embeds[j];
+                            _cache.Set(batch[j].cacheKey, embeds[j]);
                         }
                     }
                     catch (Exception ex)
@@ -149,7 +170,7 @@ namespace LlmContextCollector.Services
                         System.Diagnostics.Debug.WriteLine($"Error embedding batch: {ex.Message}");
                     }
 
-                    _appState.StatusText = $"{statusPrefix} építése... ({_embeddingIndex.Count}/{corpus.Count})";
+                    _appState.StatusText = $"{statusPrefix} építése... ({_embeddingIndex.Count}/{totalChunks} darab indexelve)";
                 }
 
                 if (itemsToProcess.Any())
@@ -159,7 +180,7 @@ namespace LlmContextCollector.Services
 
                 if (!ct.IsCancellationRequested)
                 {
-                    _appState.StatusText = $"{statusPrefix} frissítve ({corpus.Count} fájl feldolgozva, összesen {_embeddingIndex.Count} indexelve).";
+                    _appState.StatusText = $"{statusPrefix} frissítve ({totalChunks} darab indexelve {corpus.Count} fájlból).";
                 }
             }
             finally
@@ -172,6 +193,20 @@ namespace LlmContextCollector.Services
             }
         }
 
-        public IReadOnlyDictionary<string, float[]>? GetIndex() => _embeddingIndex.IsEmpty ? null : _embeddingIndex;
+        public IReadOnlyDictionary<string, float[]> GetIndex() => _embeddingIndex.IsEmpty ? null : _embeddingIndex;
+
+        public IEnumerable<float[]> GetVectorsForFile(string filePath)
+        {
+            var index = GetIndex();
+            if (index == null) yield break;
+
+            foreach (var (key, vector) in index)
+            {
+                if (SemanticSearchService.GetPathFromChunkKey(key).Equals(filePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    yield return vector;
+                }
+            }
+        }
     }
 }
