@@ -266,10 +266,21 @@ namespace LlmContextCollector.Services
         private string FormatWorkItem(WorkItem item)
         {
             var sb = new StringBuilder();
+            var title = GetFieldAsString(item, "System.Title");
+
+            // Repeat title 3 times at the top to give it more weight in embeddings.
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                sb.AppendLine(title);
+                sb.AppendLine(title);
+                sb.AppendLine(title);
+                sb.AppendLine(); 
+            }
+
             sb.AppendLine($"ID: {item.Id}");
             sb.AppendLine($"Type: {GetFieldAsString(item, "System.WorkItemType")}");
             sb.AppendLine($"State: {GetFieldAsString(item, "System.State")}");
-            sb.AppendLine($"Title: {GetFieldAsString(item, "System.Title")}");
+            sb.AppendLine($"Title: {title}");
             sb.AppendLine("---");
 
             AppendHtmlField(sb, "Description", item, "System.Description");

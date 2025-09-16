@@ -47,6 +47,7 @@ namespace LlmContextCollector.Components.Pages
         private bool _isSettingsDialogVisible = false;
         private bool _isRelevanceDialogVisible = false;
         private bool _isAzureDevOpsDialogVisible = false;
+        private bool _isDocumentSearchDialogVisible = false;
 
         private bool _showTreeContextMenu = false;
         private bool _showListContextMenu = false;
@@ -405,6 +406,18 @@ namespace LlmContextCollector.Components.Pages
             StateHasChanged();
         }
 
+        private void ShowDocumentSearchDialog()
+        {
+            _isDocumentSearchDialogVisible = true;
+            StateHasChanged();
+        }
+
+        private void OnDocumentSearchDialogClose()
+        {
+            _isDocumentSearchDialogVisible = false;
+            StateHasChanged();
+        }
+
         private void ShowRelevanceDialog(RelevanceResultArgs args)
         {
             _relevanceResults = args.Results;
@@ -482,6 +495,7 @@ namespace LlmContextCollector.Components.Pages
 
             AppState.StatusText = $"{addedCount} új releváns fájl hozzáadva a listához.";
             OnRelevanceDialogClose();
+            OnDocumentSearchDialogClose();
         }
 
         private void ShowDiffDialog(DiffResultArgs args)

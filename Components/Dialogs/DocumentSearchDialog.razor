@@ -1,0 +1,152 @@
+@using LlmContextCollector.Models
+@using LlmContextCollector.Services
+@using LlmContextCollector.AI.Embeddings
+@using LlmContextCollector.AI.Search
+
+@inject IEmbeddingProvider EmbeddingProvider
+@inject EmbeddingIndexService IndexService
+@inject AppState AppState
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop">
+        <div class="modal-dialog relevant-files-dialog">
+            <div class="modal-header">
+                <h3>Dokumentum Keresése</h3>
+                <button class="close-btn" @onclick="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="document-search-bar">
+                    <input type="text" @bind="_searchQuery" @bind:event="oninput" @onkeyup="HandleSearchKeyup" placeholder="Keresési kifejezés..." />
+                    <button @onclick="PerformSearch" disabled="_isSearching">Keresés</button>
+                </div>
+
+                @if (_isSearching)
+                {
+                    <div class="editor-placeholder">Keresés folyamatban...</div>
+                }
+                else if (_results == null)
+                {
+                     <div class="editor-placeholder">Kérjük, adja meg a keresési feltételeket a kereséshez.</div>
+                }
+                else if (!_results.Any())
+                {
+                    <div class="editor-placeholder">Nincs találat.</div>
+                }
+                else
+                {
+                    <div class="relevant-file-list">
+                        @foreach (var result in _results)
+                        {
+                            <div class="relevant-file-item">
+                                <input type="checkbox" @bind="_selectionState[result.FilePath]" />
+                                <span>
+                                    @result.FilePath (Relevancia: @result.Score.ToString("F2"))
+                                </span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <span>@($"{_selectionState.Count(kv => kv.Value)} fájl kijelölve")</span>
+                <button @onclick="Close">Mégsem</button>
+                <button class="primary" @onclick="Accept" disabled="@(!_selectionState.Any(kv => kv.Value))">
+                    Kijelöltek Hozzáadása
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public EventCallback<List<string>> OnAccept { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private string _searchQuery = "";
+    private bool _isSearching = false;
+    private List<RelevanceResult>? _results;
+    private Dictionary<string, bool> _selectionState = new();
+
+    private async Task HandleSearchKeyup(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await PerformSearch();
+        }
+    }
+
+    private async Task PerformSearch()
+    {
+        if (string.IsNullOrWhiteSpace(_searchQuery) || _isSearching)
+        {
+            return;
+        }
+
+        _isSearching = true;
+        _results = null;
+        _selectionState.Clear();
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var embeddingIndex = IndexService.GetIndex();
+            if (embeddingIndex == null || !embeddingIndex.Any())
+            {
+                // Handle case where index is not ready
+                _results = new List<RelevanceResult>();
+                return;
+            }
+
+            var queryVector = await EmbeddingProvider.EmbedAsync(_searchQuery);
+            
+            // Jelenleg csak az ADO beágyazások között keresünk
+            var adoDocs = embeddingIndex.Where(kvp => kvp.Key.StartsWith("[ADO]"));
+            
+            var searchResults = new List<RelevanceResult>();
+            foreach (var (path, vector) in adoDocs)
+            {
+                var score = SemanticSearchService.Cosine(queryVector, vector);
+                if (score > 0.1) // Don't show very irrelevant results
+                {
+                    searchResults.Add(new RelevanceResult { FilePath = path, Score = score });
+                }
+            }
+
+            _results = searchResults.OrderByDescending(r => r.Score).Take(50).ToList();
+            _selectionState = _results.ToDictionary(r => r.FilePath, r => false); // Kezdetben semmi sincs kiválasztva
+        }
+        finally
+        {
+            _isSearching = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task Accept()
+    {
+        var selectedFiles = _selectionState
+            .Where(kv => kv.Value)
+            .Select(kv => kv.Key)
+            .ToList();
+        
+        if (selectedFiles.Any())
+        {
+            await OnAccept.InvokeAsync(selectedFiles);
+        }
+    }
+
+    private async Task Close()
+    {
+        _searchQuery = "";
+        _results = null;
+        _selectionState.Clear();
+        await OnClose.InvokeAsync();
+    }
+}

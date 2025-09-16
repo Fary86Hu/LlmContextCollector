@@ -1,4 +1,5 @@
 @using LlmContextCollector.Models
+@inject AppState AppState
 
 @if (IsVisible)
 {
@@ -8,29 +9,41 @@
                 <h3>Releváns Fájl Javaslatok</h3>
                 <button class="close-btn" @onclick="Close">&times;</button>
             </div>
-            <div class="modal-body">
-                @if (Results == null || !Results.Any())
-                {
-                    <div class="editor-placeholder">Nincsenek javaslatok.</div>
-                }
-                else
-                {
-                    <div class="relevant-file-list">
-                        @foreach (var result in Results)
-                        {
-                            <div class="relevant-file-item">
-                                <input type="checkbox" @bind="_selectionState[result.FilePath]" />
-                                <span>
-                                    @result.FilePath (Relevancia: @result.Score.ToString("F2"))
-                                    @if (!string.IsNullOrEmpty(result.SimilarTo))
-                                    {
-                                        <span class="relevance-reason">(hasonló ehhez: @result.SimilarTo)</span>
-                                    }
-                                </span>
-                            </div>
-                        }
-                    </div>
-                }
+            <div class="modal-body relevant-files-body">
+                <div class="relevant-files-left-pane">
+                    @if (Results == null || !Results.Any())
+                    {
+                        <div class="editor-placeholder">Nincsenek javaslatok.</div>
+                    }
+                    else
+                    {
+                        <div class="relevant-file-list">
+                            @foreach (var result in Results)
+                            {
+                                <div class="relevant-file-item @(_selectedResultForPreview == result ? "selected" : "")" @onclick="() => SelectFileForPreview(result)">
+                                    <input type="checkbox" @bind="_selectionState[result.FilePath]" @onclick:stopPropagation />
+                                    <span>
+                                        @result.FilePath (Relevancia: @result.Score.ToString("F2"))
+                                        @if (!string.IsNullOrEmpty(result.SimilarTo))
+                                        {
+                                            <span class="relevance-reason">(hasonló ehhez: @result.SimilarTo)</span>
+                                        }
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="relevant-files-right-pane">
+                    @if (_selectedResultForPreview != null)
+                    {
+                        <textarea readonly class="preview-box">@_previewContent</textarea>
+                    }
+                    else
+                    {
+                        <div class="editor-placeholder">Válassz egy fájlt az előnézethez.</div>
+                    }
+                </div>
             </div>
             <div class="modal-footer">
                 <span>@($"{_selectionState.Count(kv => kv.Value)} fájl kijelölve")</span>
@@ -57,17 +70,56 @@
     public EventCallback OnClose { get; set; }
 
     private Dictionary<string, bool> _selectionState = new();
+    private RelevanceResult? _selectedResultForPreview;
+    private string _previewContent = string.Empty;
 
     protected override void OnParametersSet()
     {
         if (IsVisible && Results != null)
         {
             _selectionState = Results.ToDictionary(r => r.FilePath, r => true);
+            _selectedResultForPreview = null;
+            _previewContent = string.Empty;
         }
         else
         {
             _selectionState.Clear();
         }
+    }
+
+    private async Task SelectFileForPreview(RelevanceResult result)
+    {
+        _selectedResultForPreview = result;
+        _previewContent = "Betöltés...";
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            string fullPath;
+            if (result.FilePath.StartsWith("[ADO]"))
+            {
+                fullPath = Path.Combine(AppState.AdoDocsPath, result.FilePath.Substring(5));
+            }
+            else
+            {
+                fullPath = Path.Combine(AppState.ProjectRoot, result.FilePath.Replace('/', Path.DirectorySeparatorChar));
+            }
+
+            if (File.Exists(fullPath))
+            {
+                _previewContent = await File.ReadAllTextAsync(fullPath);
+            }
+            else
+            {
+                _previewContent = $"Fájl nem található: {result.FilePath}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _previewContent = $"Hiba a fájl olvasása közben: {ex.Message}";
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task Accept()
@@ -85,6 +137,8 @@
 
     private async Task Close()
     {
+        _selectedResultForPreview = null;
+        _previewContent = string.Empty;
         await OnClose.InvokeAsync();
     }
 }

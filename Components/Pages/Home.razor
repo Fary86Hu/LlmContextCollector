@@ -28,6 +28,7 @@
                       OnShowPromptManager="() => isPromptManagerVisible = true"
                       OnShowSettingsDialog="ShowSettingsDialog"
                       OnShowRelevanceDialog="ShowRelevanceDialog"
+                      OnShowDocumentSearchDialog="ShowDocumentSearchDialog"
                       OnShowDiffDialog="ShowDiffDialog"
                       OnRequestRemoveSelected="RemoveSelectedFilesFromContext"
                       OnHistorySaveRequested="() => HistoryService.SaveCurrentStateAsync()"
@@ -73,3 +74,4 @@
             OnCreateBranch="HandleCreateBranchAsync"
             OnCommit="HandleCommitAsync"
             OnPush="HandlePushAsync" />
+<DocumentSearchDialog IsVisible="_isDocumentSearchDialogVisible" OnClose="OnDocumentSearchDialogClose" OnAccept="AddRelevantFiles" />

@@ -58,6 +58,9 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         public EventCallback<DiffResultArgs> OnShowDiffDialog { get; set; }
 
         [Parameter]
+        public EventCallback OnShowDocumentSearchDialog { get; set; }
+
+        [Parameter]
         public EventCallback OnRequestRemoveSelected { get; set; }
 
         [Parameter]

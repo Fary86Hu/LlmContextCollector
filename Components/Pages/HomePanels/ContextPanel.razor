@@ -56,6 +56,11 @@
                 <button style="margin: 0 5px;" @onclick="FindRelevantFiles" disabled="@AppState.IsSemanticIndexBuilding">Releváns keresés</button>
             }
             
+            @if (AppState.AdoDocsExist)
+            {
+                <button style="margin: 0 5px;" @onclick="OnShowDocumentSearchDialog" disabled="@(AppState.IsSemanticIndexBuilding || !IsIndexReady)">Dokumentum keresés</button>
+            }
+            
             <span style="margin-left:auto;"></span>
             <span class="char-counter">@_charCount.ToString("N0") kar.</span>
             <span class="char-counter">~@_tokenCount.ToString("N0") tok.</span>
