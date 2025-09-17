@@ -27,10 +27,10 @@ public sealed class JsonEmbeddingCache
         }
     }
 
-    public static string KeyFor(string filePath, string content)
+    public static string KeyFor(string filePath, string content, string versionPrefix)
     {
         using var sha = SHA256.Create();
-        var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(filePath + "|" + content));
+        var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(versionPrefix + "|" + filePath + "|" + content));
         return Convert.ToHexString(bytes);
     }
 

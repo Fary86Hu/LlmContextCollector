@@ -1,7 +1,7 @@
 @using LlmContextCollector.Models
 @using LlmContextCollector.Services
 @using LlmContextCollector.AI.Embeddings
-@using LlmContextCollector.AI
+@using LlmContextCollector.AI.Search
 
 @inject IEmbeddingProvider EmbeddingProvider
 @inject EmbeddingIndexService IndexService
@@ -29,7 +29,7 @@
                     }
                     else if (_results == null)
                     {
-                         <div class="editor-placeholder">Kérjük, adja meg a keresési feltételeket a kereséshez.</div>
+                        <div class="editor-placeholder">Kérjük, adja meg a keresési feltételeket a kereséshez.</div>
                     }
                     else if (!_results.Any())
                     {
@@ -114,16 +114,18 @@
         try
         {
             var embeddingIndex = IndexService.GetIndex();
-            if (embeddingIndex == null || !embeddingIndex.Any())
+            var chunkContents = IndexService.GetChunkContents();
+            if (embeddingIndex == null || chunkContents == null || !embeddingIndex.Any())
             {
-                // Handle case where index is not ready
                 _results = new List<RelevanceResult>();
                 return;
             }
 
             var queryVector = await EmbeddingProvider.EmbedAsync(_searchQuery);
-            
-            _results = SemanticSearchService.RankBySimilarity(queryVector, embeddingIndex, 50);
+            var multiQuery = new MultiQuery(queryVector);
+            var config = new SearchConfig { Rerank = 50, Candidates = 250 };
+
+            _results = SemanticSearchService.RankRelevantFiles(multiQuery, _searchQuery, embeddingIndex, chunkContents, config);
 
             _selectionState = _results.ToDictionary(r => r.FilePath, r => false); // Kezdetben semmi sincs kiválasztva
         }
@@ -145,11 +147,11 @@
             string fullPath;
             if (result.FilePath.StartsWith("[ADO]"))
             {
-                 fullPath = Path.Combine(AppState.AdoDocsPath, result.FilePath.Substring(5));
+                fullPath = Path.Combine(AppState.AdoDocsPath, result.FilePath.Substring(5));
             }
             else
             {
-                 fullPath = Path.Combine(AppState.ProjectRoot, result.FilePath.Replace('/', Path.DirectorySeparatorChar));
+                fullPath = Path.Combine(AppState.ProjectRoot, result.FilePath.Replace('/', Path.DirectorySeparatorChar));
             }
 
             if (File.Exists(fullPath))
@@ -175,7 +177,7 @@
             .Where(kv => kv.Value)
             .Select(kv => kv.Key)
             .ToList();
-        
+
         if (selectedFiles.Any())
         {
             await OnAccept.InvokeAsync(selectedFiles);

@@ -1,4 +1,4 @@
-﻿using Microsoft.ML.OnnxRuntime;
+using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Tokenizers.DotNet;
 
@@ -13,10 +13,11 @@ namespace LlmContextCollector.AI.Embeddings
         private readonly string? _attMaskName;
         private readonly string _outputName;
         private int? _dim;
+        public string ModelIdentifier { get; }
 
         public EmbeddingGemmaOnnxProvider(
             string onnxPath,
-            string tokenizerJsonPath,
+            Tokenizer tokenizer,
             int maxLen = 2048,
             bool useDml = true,
             int threads = 1,
@@ -37,9 +38,8 @@ namespace LlmContextCollector.AI.Embeddings
             }
 
             _session = new InferenceSession(onnxPath, so);
-
-            // Tokenizers.DotNet: tokenizer.json betöltése
-            _tokenizer = new Tokenizer(tokenizerJsonPath);
+            _tokenizer = tokenizer;
+            ModelIdentifier = $"gemma-onnx-{Path.GetFileNameWithoutExtension(onnxPath)}";
 
             _maxLen = maxLen;
 

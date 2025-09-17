@@ -2,8 +2,11 @@ using Microsoft.Extensions.Logging;
 using LlmContextCollector.Services;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
 using LlmContextCollector.AI.Embeddings;
+using LlmContextCollector.AI.Search;
 using LlmContextCollector.AI;
 using System.Net.Http.Headers;
+using LlmContextCollector.AI.Embeddings.Chunking;
+using Tokenizers.DotNet;
 
 #if WINDOWS
 using LlmContextCollector.WinUI.Services;
@@ -66,8 +69,18 @@ namespace LlmContextCollector
             builder.Services.AddHttpClient("AzureDevOps");
 
             builder.Services.AddSingleton<ITextGenerationProvider, GroqTextGenerationProvider>();
+            
+            builder.Services.AddSingleton(sp =>
+            {
+                var modelDir = Path.Combine(FileSystem.AppDataDirectory, "models");
+                var tokPath = Path.Combine(modelDir, "tokenizer.json");
+                 if (!File.Exists(tokPath))
+                    throw new FileNotFoundException("Nem található tokenizer.json a Resources/Raw alatt.", tokPath);
+                return new Tokenizer(tokPath);
+            });
 
-            //builder.Services.AddSingleton<ITextGenerationProvider, DummyTextGenerationProvider>();
+            builder.Services.AddSingleton<IChunker, TokenizerChunker>();
+            
             builder.Services.AddSingleton<IEmbeddingProvider>(sp =>
             {
                 var modelDir = Path.Combine(FileSystem.AppDataDirectory, "models");
@@ -76,14 +89,12 @@ namespace LlmContextCollector
                 TryCopyAsset("tokenizer.json", Path.Combine(modelDir, "tokenizer.json"));
                 TryCopyAsset("model_quantized.onnx", Path.Combine(modelDir, "model_quantized.onnx"));
                 TryCopyAsset("model_quantized.onnx_data", Path.Combine(modelDir, "model_quantized.onnx_data"));
-
-                var tokPath = Path.Combine(modelDir, "tokenizer.json");
-                if (!File.Exists(tokPath))
-                    throw new FileNotFoundException("Nem található tokenizer.json a Resources/Raw alatt.");
+                
+                var tokenizer = sp.GetRequiredService<Tokenizer>();
 
                 return new EmbeddingGemmaOnnxProvider(
                     onnxPath: Path.Combine(modelDir, "model_quantized.onnx"),
-                    tokenizerJsonPath: tokPath,
+                    tokenizer: tokenizer,
                     maxLen: 2048,
                     useDml: true,
                     threads: 1

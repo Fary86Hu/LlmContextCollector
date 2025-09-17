@@ -1,6 +1,7 @@
 using LlmContextCollector.Models;
-using LlmContextCollector.AI;
+using LlmContextCollector.AI.Search;
 using LlmContextCollector.AI.Embeddings;
+using System.IO;
 
 namespace LlmContextCollector.Services
 {
@@ -22,75 +23,54 @@ namespace LlmContextCollector.Services
         public async Task<List<RelevanceResult>> FindRelevantFilesAsync()
         {
             var embeddingIndex = _indexService.GetIndex();
-            if (_appState.IsSemanticIndexBuilding || embeddingIndex == null || !embeddingIndex.Any())
+            var chunkContents = _indexService.GetChunkContents();
+
+            if (_appState.IsSemanticIndexBuilding || embeddingIndex == null || chunkContents == null || !embeddingIndex.Any())
             {
                 _appState.StatusText = "A szemantikus index építése folyamatban van, vagy még nem áll készen. Kis türelmet.";
                 return new List<RelevanceResult>();
             }
+            
+            var queryVectors = new List<float[]>();
+            var rawQueryText = _appState.PromptText;
 
-            // 1. Kontextus vektorok összegyűjtése (prompt + már kiválasztott fájlok)
-            var contextVectors = new List<float[]>();
-
-            if (!string.IsNullOrWhiteSpace(_appState.PromptText))
+            // 1. Prompt vector
+            if (!string.IsNullOrWhiteSpace(rawQueryText))
             {
-                var promptVector = await _embeddingProvider.EmbedAsync(_appState.PromptText);
-                contextVectors.Add(promptVector);
+                var promptVector = await _embeddingProvider.EmbedAsync(rawQueryText);
+                if (promptVector.Length > 0) queryVectors.Add(promptVector);
             }
 
+            // 2. Context files centroid vector
+            var contextFileChunks = new List<string>();
             foreach (var fileRelPath in _appState.SelectedFilesForContext)
             {
-                var fileVectors = _indexService.GetVectorsForFile(fileRelPath).ToList();
-                if (fileVectors.Any())
-                {
-                    // Average the vectors of all chunks for a file to get a single representative vector
-                    var avgVector = AverageVectors(fileVectors);
-                    contextVectors.Add(avgVector);
-                }
+                contextFileChunks.AddRange(_indexService.GetChunksForFile(fileRelPath));
             }
 
-            if (!contextVectors.Any())
+            if (contextFileChunks.Any())
+            {
+                var centroidVector = await QueryBuilders.CentroidAsync(_embeddingProvider, contextFileChunks);
+                if (centroidVector.Length > 0) queryVectors.Add(centroidVector);
+                rawQueryText += " " + string.Join(" ", contextFileChunks.Take(5).Select(c => c.Substring(0, System.Math.Min(c.Length, 200))));
+            }
+            
+            if (!queryVectors.Any())
             {
                 _appState.StatusText = "Nincs elegendő kontextus a kereséshez.";
                 return new List<RelevanceResult>();
             }
 
-            // 2. Súlyozott átlag query vektor létrehozása
-            var queryVector = AverageVectors(contextVectors); // Simple average for now, could be weighted later
-
-            // 3. Jelölt fájlok szűrése és pontozása a SemanticSearchService segítségével
+            var multiQuery = new MultiQuery(queryVectors.ToArray());
+            var config = new SearchConfig(); // Use default config for now
             var contextFileSet = _appState.SelectedFilesForContext.ToHashSet();
-            
-            var results = _semanticSearchService.RankBySimilarity(queryVector, embeddingIndex, 30, filesToExclude: contextFileSet);
+
+            var results = _semanticSearchService.RankRelevantFiles(multiQuery, rawQueryText, embeddingIndex, chunkContents, config, contextFileSet);
 
             // A 'SimilarTo' mezőt már nem tudjuk egyszerűen kitölteni, mert aggregált lekérdezést használunk.
-            // A relevanciát a teljes kontextushoz képest mérjük.
             results.ForEach(r => r.SimilarTo = null);
             
             return results;
-        }
-
-        private float[] AverageVectors(List<float[]> vectors)
-        {
-            if (!vectors.Any()) return Array.Empty<float>();
-            
-            var dimension = vectors.First().Length;
-            var avgVector = new float[dimension];
-
-            foreach (var vector in vectors)
-            {
-                for (int i = 0; i < dimension; i++)
-                {
-                    avgVector[i] += vector[i];
-                }
-            }
-
-            var count = (float)vectors.Count;
-            for (int i = 0; i < dimension; i++)
-            {
-                avgVector[i] /= count;
-            }
-
-            return avgVector;
         }
     }
 }
