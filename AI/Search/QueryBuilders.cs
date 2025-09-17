@@ -6,7 +6,7 @@ using LlmContextCollector.AI.Embeddings;
 
 namespace LlmContextCollector.AI.Search
 {
-    public static class QueryBuilders
+    public class QueryBuilders
     {
         public static async Task<float[]> CentroidAsync(IEmbeddingProvider provider, IEnumerable<string> texts, CancellationToken ct = default)
         {

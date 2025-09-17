@@ -157,24 +157,27 @@ namespace LlmContextCollector.AI.Search
             }
 
             // 3. Aggregate scores at the file level
-            var scoresByPath = new Dictionary<string, List<double>>();
-            foreach (var chunkKey in rerankedKeys)
-            {
-                var filePath = GetPathFromChunkKey(chunkKey);
-                var score = candidates.First(c => c.key == chunkKey).score;
-                if (!scoresByPath.TryGetValue(filePath, out var scores))
-                {
-                    scores = new List<double>();
-                    scoresByPath[filePath] = scores;
-                }
-                scores.Add(score);
-            }
-            
+            var chunksByFile = rerankedKeys
+                .Select(key => new {
+                    FilePath = GetPathFromChunkKey(key),
+                    ChunkKey = key,
+                    Score = candidates.First(c => c.key == key).score
+                })
+                .GroupBy(x => x.FilePath);
+
             // 4. Final file scoring by aggregating top-k chunks
-            var finalScores = scoresByPath
+            var finalScores = chunksByFile
                 .Select(kvp => {
-                    var topKSum = kvp.Value.OrderByDescending(s => s).Take(cfg.TopKPerFile).Sum();
-                    return new RelevanceResult { FilePath = kvp.Key, Score = topKSum };
+                    var topChunks = kvp.OrderByDescending(c => c.Score).Take(cfg.TopKPerFile).ToList();
+                    var topKSum = topChunks.Sum(c => c.Score);
+                    var topChunkContents = topChunks.Select(c => chunkContents.TryGetValue(c.ChunkKey, out var content) ? content : "").ToList();
+                    
+                    return new RelevanceResult
+                    {
+                        FilePath = kvp.Key,
+                        Score = topKSum,
+                        TopChunks = topChunkContents
+                    };
                 })
                 .OrderByDescending(r => r.Score)
                 .ToList();

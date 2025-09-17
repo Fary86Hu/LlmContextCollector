@@ -53,6 +53,7 @@ namespace LlmContextCollector
             builder.Services.AddSingleton<GitWorkflowService>();
             builder.Services.AddTransient<ProjectService>();
             builder.Services.AddTransient<FileContextService>();
+            builder.Services.AddTransient<QueryBuilders>();
 
 
 #if WINDOWS

@@ -1,3 +1,5 @@
+using LlmContextCollector.AI;
+using LlmContextCollector.AI.Embeddings;
 using LlmContextCollector.Components.Pages.HomePanels;
 using LlmContextCollector.Models;
 using LlmContextCollector.Services;
@@ -37,15 +39,15 @@ namespace LlmContextCollector.Components.Pages
         private HistoryManagerService HistoryManagerService { get; set; } = null!;
         [Inject]
         private FileContextService FileContextService { get; set; } = null!;
+        [Inject]
+        private IEmbeddingProvider EmbeddingProvider { get; set; } = null!;
 
 
         private ContextPanel? _contextPanelRef;
         private List<string> _selectedInContextList = new();
-        private List<RelevanceResult> _relevanceResults = new();
 
         private bool isPromptManagerVisible = false;
         private bool _isSettingsDialogVisible = false;
-        private bool _isRelevanceDialogVisible = false;
         private bool _isAzureDevOpsDialogVisible = false;
         private bool _isDocumentSearchDialogVisible = false;
 
@@ -418,20 +420,6 @@ namespace LlmContextCollector.Components.Pages
             StateHasChanged();
         }
 
-        private void ShowRelevanceDialog(RelevanceResultArgs args)
-        {
-            _relevanceResults = args.Results;
-            _isRelevanceDialogVisible = true;
-            StateHasChanged();
-        }
-
-        private async Task OnRelevanceDialogClose()
-        {
-            _isRelevanceDialogVisible = false;
-            _relevanceResults.Clear();
-            await InvokeAsync(StateHasChanged);
-        }
-
         private void OnAzureDevOpsDialogClose()
         {
             _isAzureDevOpsDialogVisible = false;
@@ -494,7 +482,6 @@ namespace LlmContextCollector.Components.Pages
             AppState.SaveContextListState();
 
             AppState.StatusText = $"{addedCount} új releváns fájl hozzáadva a listához.";
-            OnRelevanceDialogClose();
             OnDocumentSearchDialogClose();
         }
 
@@ -595,15 +582,25 @@ namespace LlmContextCollector.Components.Pages
 
         #endregion
 
-        private void StartManualIndexing()
+        private async Task StartManualIndexing()
         {
+            if (EmbeddingProvider is NullEmbeddingProvider)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Az AI modell nem található vagy nem sikerült betölteni. Az indexelési funkció nem érhető el.");
+                return;
+            }
             var allFileNodes = new List<FileNode>();
             GetAllFileNodes(AppState.FileTree, allFileNodes);
             EmbeddingIndexService.StartBuildingIndex(allFileNodes);
         }
 
-        private void StartIndexingAdo()
+        private async Task StartIndexingAdo()
         {
+            if (EmbeddingProvider is NullEmbeddingProvider)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Az AI modell nem található vagy nem sikerült betölteni. Az indexelési funkció nem érhető el.");
+                return;
+            }
             EmbeddingIndexService.StartBuildingAdoIndex();
         }
 

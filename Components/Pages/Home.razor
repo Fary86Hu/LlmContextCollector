@@ -27,7 +27,6 @@
                       SelectedItemsChanged="HandleContextSelectionChanged"
                       OnShowPromptManager="() => isPromptManagerVisible = true"
                       OnShowSettingsDialog="ShowSettingsDialog"
-                      OnShowRelevanceDialog="ShowRelevanceDialog"
                       OnShowDocumentSearchDialog="ShowDocumentSearchDialog"
                       OnShowDiffDialog="ShowDiffDialog"
                       OnRequestRemoveSelected="RemoveSelectedFilesFromContext"
@@ -64,7 +63,6 @@
 
 <PromptManagerDialog IsVisible="isPromptManagerVisible" OnClose="OnPromptManagerClose" />
 <SettingsDialog IsVisible="_isSettingsDialogVisible" OnClose="OnSettingsDialogClose" />
-<RelevantFilesDialog IsVisible="_isRelevanceDialogVisible" Results="_relevanceResults" OnClose="OnRelevanceDialogClose" OnAccept="AddRelevantFiles" />
 <AzureDevOpsDialog IsVisible="_isAzureDevOpsDialogVisible" OnClose="OnAzureDevOpsDialogClose" OnDownload="HandleDownloadWorkItemsAsync" />
 <DiffDialog IsVisible="AppState.IsDiffDialogVisible"
             GlobalExplanation="@AppState.DiffGlobalExplanation"

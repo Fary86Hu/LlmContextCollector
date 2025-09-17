@@ -20,8 +20,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         [Inject]
         private PromptService PromptService { get; set; } = null!;
         [Inject]
-        private RelevanceFinderService RelevanceFinder { get; set; } = null!;
-        [Inject]
         private IClipboard Clipboard { get; set; } = null!;
         [Inject]
         private IJSRuntime JSRuntime { get; set; } = null!;
@@ -50,9 +48,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         [Parameter]
         public EventCallback OnShowSettingsDialog { get; set; }
-
-        [Parameter]
-        public EventCallback<RelevanceResultArgs> OnShowRelevanceDialog { get; set; }
 
         [Parameter]
         public EventCallback<DiffResultArgs> OnShowDiffDialog { get; set; }
@@ -457,54 +452,11 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         #endregion
 
-        #region Relevance Finder
-        private async Task FindRelevantFiles()
-        {
-            if (string.IsNullOrWhiteSpace(AppState.ProjectRoot))
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "Nincs projekt mappa kiválasztva.");
-                return;
-            }
-            if (string.IsNullOrWhiteSpace(AppState.PromptText) && !AppState.SelectedFilesForContext.Any())
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "Nincs kontextus a kereséshez. Válassz ki legalább egy fájlt vagy írj a prompt szerkesztőbe.");
-                return;
-            }
-
-            AppState.ShowLoading("Kontextus elemzése és releváns fájlok keresése...");
-            await Task.Delay(1);
-            try
-            {
-                var relevanceResults = await RelevanceFinder.FindRelevantFilesAsync();
-                if (!relevanceResults.Any())
-                {
-                    AppState.StatusText = "Nem található új releváns fájl.";
-                    await JSRuntime.InvokeVoidAsync("alert", "Nem találtunk új, a kontextushoz kapcsolódó fájlt.");
-                    return;
-                }
-
-                await OnShowRelevanceDialog.InvokeAsync(new RelevanceResultArgs(relevanceResults));
-                AppState.StatusText = $"{relevanceResults.Count} releváns fájl javasolva.";
-            }
-            finally
-            {
-                AppState.HideLoading();
-            }
-        }
-
-        #endregion
-
         public void Dispose()
         {
             AppState.SelectedFilesForContext.CollectionChanged -= OnSelectedFilesChanged;
             AppState.PropertyChanged -= OnAppStateChanged;
         }
-    }
-
-    public class RelevanceResultArgs
-    {
-        public List<RelevanceResult> Results { get; }
-        public RelevanceResultArgs(List<RelevanceResult> results) => Results = results;
     }
 
     public class DiffResultArgs

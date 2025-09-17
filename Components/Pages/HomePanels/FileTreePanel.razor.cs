@@ -3,9 +3,6 @@ using LlmContextCollector.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using System.ComponentModel;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace LlmContextCollector.Components.Pages.HomePanels
 {

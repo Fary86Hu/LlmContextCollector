@@ -1,72 +1,50 @@
-@using LlmContextCollector.Models
-@using LlmContextCollector.Services
-@using LlmContextCollector.AI.Embeddings
-@using LlmContextCollector.AI.Search
-
-@inject IEmbeddingProvider EmbeddingProvider
-@inject EmbeddingIndexService IndexService
 @inject AppState AppState
-@inject SemanticSearchService SemanticSearchService
+@inject RelevanceFinderService RelevanceFinderService
+@using LlmContextCollector.Models
 
 @if (IsVisible)
 {
     <div class="modal-backdrop">
-        <div class="modal-dialog relevant-files-dialog">
+        <div class="modal-dialog search-dialog">
             <div class="modal-header">
-                <h3>Dokumentum Keresése</h3>
+                <h3>Szemantikus Keresés</h3>
                 <button class="close-btn" @onclick="Close">&times;</button>
             </div>
-            <div class="modal-body relevant-files-body">
-                <div class="relevant-files-left-pane">
-                    <div class="document-search-bar">
-                        <input type="text" @bind="_searchQuery" @bind:event="oninput" @onkeyup="HandleSearchKeyup" placeholder="Keresési kifejezés..." />
-                        <button @onclick="PerformSearch" disabled="_isSearching">Keresés</button>
-                    </div>
-
-                    @if (_isSearching)
-                    {
-                        <div class="editor-placeholder">Keresés folyamatban...</div>
-                    }
-                    else if (_results == null)
-                    {
-                        <div class="editor-placeholder">Kérjük, adja meg a keresési feltételeket a kereséshez.</div>
-                    }
-                    else if (!_results.Any())
-                    {
-                        <div class="editor-placeholder">Nincs találat.</div>
-                    }
-                    else
-                    {
-                        <div class="relevant-file-list">
-                            @foreach (var result in _results)
+            <div class="modal-body">
+                <div class="search-dialog-top-pane">
+                    <textarea class="search-prompt-editor" placeholder="Keresési prompt (a fő promptot használja, ha üres)..." @bind="_searchPrompt"></textarea>
+                    <button @onclick="ExecuteSearch" disabled="@_isSearching">
+                        @(_isSearching ? "Keresés..." : "Keresés")
+                    </button>
+                </div>
+                <div class="search-dialog-main-pane">
+                    <div class="search-results-pane">
+                        <strong>Találatok (@_searchResults.Count)</strong>
+                        <div class="search-results-list">
+                            @if (!_searchResults.Any() && !_isSearching)
                             {
-                                <div class="relevant-file-item @(_selectedResultForPreview == result ? "selected" : "")" @onclick="() => SelectFileForPreview(result)">
-                                    <input type="checkbox" @bind="_selectionState[result.FilePath]" @onclick:stopPropagation />
-                                    <span>
-                                        @result.FilePath (Relevancia: @result.Score.ToString("F2"))
-                                    </span>
+                                <div class="editor-placeholder">Nincs találat, vagy még nem indított keresést.</div>
+                            }
+                            @foreach (var vm in _searchResults)
+                            {
+                                <div @key="vm.Result.FilePath" class="search-result-item @(_selectedResult == vm.Result ? "selected" : "")" @onclick="() => SelectResult(vm.Result)">
+                                    <input type="checkbox" @bind="vm.IsSelected" @onclick:stopPropagation />
+                                    <span class="search-result-score">@vm.Result.Score.ToString("F2")</span>
+                                    <span class="search-result-path">@vm.Result.FilePath</span>
                                 </div>
                             }
                         </div>
-                    }
-                </div>
-                <div class="relevant-files-right-pane">
-                    @if (_selectedResultForPreview != null)
-                    {
+                    </div>
+                    <div class="search-preview-pane">
+                        <strong>Előnézet</strong>
                         <textarea readonly class="preview-box">@_previewContent</textarea>
-                    }
-                    else
-                    {
-                        <div class="editor-placeholder">Válassz egy fájlt az előnézethez.</div>
-                    }
+                    </div>
                 </div>
+
             </div>
             <div class="modal-footer">
-                <span>@($"{_selectionState.Count(kv => kv.Value)} fájl kijelölve")</span>
                 <button @onclick="Close">Mégsem</button>
-                <button class="primary" @onclick="Accept" disabled="@(!_selectionState.Any(kv => kv.Value))">
-                    Kijelöltek Hozzáadása
-                </button>
+                <button class="primary" @onclick="Accept" disabled="@(!_searchResults.Any(vm => vm.IsSelected))">Kijelöltek Hozzáadása</button>
             </div>
         </div>
     </div>
@@ -77,120 +55,112 @@
     public bool IsVisible { get; set; }
 
     [Parameter]
-    public EventCallback<List<string>> OnAccept { get; set; }
-
-    [Parameter]
     public EventCallback OnClose { get; set; }
 
-    private string _searchQuery = "";
-    private bool _isSearching = false;
-    private List<RelevanceResult>? _results;
-    private Dictionary<string, bool> _selectionState = new();
-    private RelevanceResult? _selectedResultForPreview;
-    private string _previewContent = string.Empty;
+    [Parameter]
+    public EventCallback<List<string>> OnAccept { get; set; }
 
-    private async Task HandleSearchKeyup(KeyboardEventArgs e)
+    private string _searchPrompt = string.Empty;
+    private bool _isSearching = false;
+    private List<SearchResultViewModel> _searchResults = new();
+    private RelevanceResult? _selectedResult;
+    private string _previewContent = string.Empty;
+    
+    private const string AdoFilePrefix = "[ADO]";
+
+    private class SearchResultViewModel
     {
-        if (e.Key == "Enter")
+        public RelevanceResult Result { get; }
+        public bool IsSelected { get; set; }
+        public SearchResultViewModel(RelevanceResult result) { Result = result; }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (IsVisible)
         {
-            await PerformSearch();
+            if (string.IsNullOrWhiteSpace(_searchPrompt))
+            {
+                _searchPrompt = AppState.PromptText;
+            }
+            _searchResults.Clear();
+            _selectedResult = null;
+            _previewContent = string.Empty;
         }
     }
 
-    private async Task PerformSearch()
+    private async Task ExecuteSearch()
     {
-        if (string.IsNullOrWhiteSpace(_searchQuery) || _isSearching)
-        {
-            return;
-        }
-
         _isSearching = true;
-        _results = null;
-        _selectionState.Clear();
-        _selectedResultForPreview = null;
+        _searchResults.Clear();
+        _selectedResult = null;
         _previewContent = string.Empty;
-        await InvokeAsync(StateHasChanged);
+        StateHasChanged();
+
+        var originalPrompt = AppState.PromptText;
+        AppState.PromptText = _searchPrompt;
 
         try
         {
-            var embeddingIndex = IndexService.GetIndex();
-            var chunkContents = IndexService.GetChunkContents();
-            if (embeddingIndex == null || chunkContents == null || !embeddingIndex.Any())
-            {
-                _results = new List<RelevanceResult>();
-                return;
-            }
-
-            var queryVector = await EmbeddingProvider.EmbedAsync(_searchQuery);
-            var multiQuery = new MultiQuery(queryVector);
-            var config = new SearchConfig { Rerank = 50, Candidates = 250 };
-
-            _results = SemanticSearchService.RankRelevantFiles(multiQuery, _searchQuery, embeddingIndex, chunkContents, config);
-
-            _selectionState = _results.ToDictionary(r => r.FilePath, r => false); // Kezdetben semmi sincs kiválasztva
+            var results = await RelevanceFinderService.FindRelevantFilesAsync();
+            _searchResults = results.Select(r => new SearchResultViewModel(r)).ToList();
         }
         finally
         {
+            AppState.PromptText = originalPrompt;
             _isSearching = false;
-            await InvokeAsync(StateHasChanged);
+            StateHasChanged();
         }
     }
 
-    private async Task SelectFileForPreview(RelevanceResult result)
+    private async Task SelectResult(RelevanceResult result)
     {
-        _selectedResultForPreview = result;
+        _selectedResult = result;
         _previewContent = "Betöltés...";
-        await InvokeAsync(StateHasChanged);
+        StateHasChanged();
+
+        string fullPath;
+        if (result.FilePath.StartsWith(AdoFilePrefix))
+        {
+            fullPath = Path.Combine(AppState.AdoDocsPath, result.FilePath.Substring(AdoFilePrefix.Length));
+        }
+        else
+        {
+            fullPath = Path.Combine(AppState.ProjectRoot ?? "", result.FilePath.Replace('/', Path.DirectorySeparatorChar));
+        }
 
         try
         {
-            string fullPath;
-            if (result.FilePath.StartsWith("[ADO]"))
-            {
-                fullPath = Path.Combine(AppState.AdoDocsPath, result.FilePath.Substring(5));
-            }
-            else
-            {
-                fullPath = Path.Combine(AppState.ProjectRoot, result.FilePath.Replace('/', Path.DirectorySeparatorChar));
-            }
-
             if (File.Exists(fullPath))
             {
                 _previewContent = await File.ReadAllTextAsync(fullPath);
             }
             else
             {
-                _previewContent = $"Fájl nem található: {result.FilePath}";
+                _previewContent = $"Hiba: Fájl nem található az útvonalon: {fullPath}";
             }
         }
         catch (Exception ex)
         {
-            _previewContent = $"Hiba a fájl olvasása közben: {ex.Message}";
+            _previewContent = $"Hiba a fájl olvasásakor: {ex.Message}";
         }
 
-        await InvokeAsync(StateHasChanged);
+        StateHasChanged();
     }
 
     private async Task Accept()
     {
-        var selectedFiles = _selectionState
-            .Where(kv => kv.Value)
-            .Select(kv => kv.Key)
-            .ToList();
-
-        if (selectedFiles.Any())
+        var filesToAdd = _searchResults.Where(vm => vm.IsSelected).Select(vm => vm.Result.FilePath).ToList();
+        if (filesToAdd.Any())
         {
-            await OnAccept.InvokeAsync(selectedFiles);
+            await OnAccept.InvokeAsync(filesToAdd);
         }
+        await Close();
     }
 
     private async Task Close()
     {
-        _searchQuery = "";
-        _results = null;
-        _selectionState.Clear();
-        _selectedResultForPreview = null;
-        _previewContent = string.Empty;
+        _searchPrompt = string.Empty;
         await OnClose.InvokeAsync();
     }
 }
