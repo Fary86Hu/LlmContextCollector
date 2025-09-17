@@ -70,36 +70,51 @@ namespace LlmContextCollector
 
             builder.Services.AddSingleton<ITextGenerationProvider, GroqTextGenerationProvider>();
             
-            builder.Services.AddSingleton(sp =>
-            {
-                var modelDir = Path.Combine(FileSystem.AppDataDirectory, "models");
-                var tokPath = Path.Combine(modelDir, "tokenizer.json");
-                 if (!File.Exists(tokPath))
-                    throw new FileNotFoundException("Nem található tokenizer.json a Resources/Raw alatt.", tokPath);
-                return new Tokenizer(tokPath);
-            });
-
-            builder.Services.AddSingleton<IChunker, TokenizerChunker>();
+            // --- AI Services (ONNX-based) ---
+            // These services are registered conditionally. If the ONNX model or tokenizer is not found,
+            // dummy ("Null") implementations are used, allowing the app to run without AI search features.
             
-            builder.Services.AddSingleton<IEmbeddingProvider>(sp =>
+            var modelDir = Path.Combine(FileSystem.AppDataDirectory, "models");
+            Directory.CreateDirectory(modelDir);
+            var tokenizerPath = Path.Combine(modelDir, "tokenizer.json");
+            var modelPath = Path.Combine(modelDir, "model_quantized.onnx");
+
+            TryCopyAsset("tokenizer.json", tokenizerPath);
+            TryCopyAsset("model_quantized.onnx", modelPath);
+            TryCopyAsset("model_quantized.onnx_data", Path.Combine(modelDir, "model_quantized.onnx_data"));
+
+            if (File.Exists(modelPath) && File.Exists(tokenizerPath))
             {
-                var modelDir = Path.Combine(FileSystem.AppDataDirectory, "models");
-                Directory.CreateDirectory(modelDir);
-
-                TryCopyAsset("tokenizer.json", Path.Combine(modelDir, "tokenizer.json"));
-                TryCopyAsset("model_quantized.onnx", Path.Combine(modelDir, "model_quantized.onnx"));
-                TryCopyAsset("model_quantized.onnx_data", Path.Combine(modelDir, "model_quantized.onnx_data"));
-                
-                var tokenizer = sp.GetRequiredService<Tokenizer>();
-
-                return new EmbeddingGemmaOnnxProvider(
-                    onnxPath: Path.Combine(modelDir, "model_quantized.onnx"),
-                    tokenizer: tokenizer,
-                    maxLen: 2048,
-                    useDml: true,
-                    threads: 1
-                );
-            });
+                try
+                {
+                    // Register real AI services if models are found
+                    var tokenizer = new Tokenizer(tokenizerPath);
+                    builder.Services.AddSingleton(tokenizer);
+                    builder.Services.AddSingleton<IChunker, TokenizerChunker>();
+                    builder.Services.AddSingleton<IEmbeddingProvider>(sp =>
+                        new EmbeddingGemmaOnnxProvider(
+                            onnxPath: modelPath,
+                            tokenizer: sp.GetRequiredService<Tokenizer>(),
+                            maxLen: 2048,
+                            useDml: true,
+                            threads: 1
+                        )
+                    );
+                }
+                catch (Exception ex)
+                {
+                    // If loading fails, fall back to dummy services
+                    System.Diagnostics.Debug.WriteLine($"Error initializing ONNX models, AI features will be disabled: {ex.Message}");
+                    builder.Services.AddSingleton<IChunker, NullChunker>();
+                    builder.Services.AddSingleton<IEmbeddingProvider, NullEmbeddingProvider>();
+                }
+            }
+            else
+            {
+                // Register dummy services if model/tokenizer files are missing
+                builder.Services.AddSingleton<IChunker, NullChunker>();
+                builder.Services.AddSingleton<IEmbeddingProvider, NullEmbeddingProvider>();
+            }
 
             builder.Services.AddSingleton(new JsonEmbeddingCache(Path.Combine(FileSystem.AppDataDirectory, "embeddings", "cache.json")));
             builder.Services.AddSingleton<SemanticSearchService>();
