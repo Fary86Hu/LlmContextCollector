@@ -29,6 +29,26 @@
                         <input id="groq-maxtokens" type="number" min="64" max="8192" @bind="AppState.GroqMaxOutputTokens" />
                     </div>
                 </div>
+
+                <h4 style="margin-top: 20px;">OpenRouter API Beállítások</h4>
+                <div class="ado-dialog-body">
+                    <div class="ado-form-group">
+                        <label for="or-apikey">API Kulcs:</label>
+                        <input id="or-apikey" type="password" @bind="AppState.OpenRouterApiKey" placeholder="sk-or-..." />
+                    </div>
+                    <div class="ado-form-group">
+                        <label for="or-model">Modell:</label>
+                        <input id="or-model" type="text" @bind="AppState.OpenRouterModel" />
+                    </div>
+                    <div class="ado-form-group">
+                        <label for="or-siteurl">Site URL (opcionális):</label>
+                        <input id="or-siteurl" type="text" @bind="AppState.OpenRouterSiteUrl" placeholder="https://sajat-oldal.hu" />
+                    </div>
+                    <div class="ado-form-group">
+                        <label for="or-sitename">Site Name (opcionális):</label>
+                        <input id="or-sitename" type="text" @bind="AppState.OpenRouterSiteName" placeholder="Saját Projekt" />
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button @onclick="Close">Mégsem</button>
@@ -52,7 +72,11 @@
             GroqApiKey = AppState.GroqApiKey,
             GroqModel = AppState.GroqModel,
             GroqMaxOutputTokens = AppState.GroqMaxOutputTokens,
-            GroqApiUrl = AppState.GroqApiUrl
+            GroqApiUrl = AppState.GroqApiUrl,
+            OpenRouterApiKey = AppState.OpenRouterApiKey,
+            OpenRouterModel = AppState.OpenRouterModel,
+            OpenRouterSiteUrl = AppState.OpenRouterSiteUrl,
+            OpenRouterSiteName = AppState.OpenRouterSiteName
         };
         await SettingsService.SaveSettingsAsync(settings);
         AppState.StatusText = "Beállítások mentve.";

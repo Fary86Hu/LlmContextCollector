@@ -14,7 +14,13 @@
             <button @onclick="OnShowPromptManager">Szerkesztés...</button>
             <button @onclick="OnShowSettingsDialog" title="Beállítások" style="margin: 0 5px;">⚙️</button>
         </div>
-        <textarea class="prompt-editor" placeholder="Írja ide a promptot..." @bind="AppState.PromptText" @bind:event="oninput"></textarea>
+        <div class="prompt-container">
+            <textarea class="prompt-editor" placeholder="Írja ide a promptot..." @bind="AppState.PromptText" @bind:event="oninput"></textarea>
+            @if (!string.IsNullOrWhiteSpace(AppState.PromptText))
+            {
+                <button class="clear-prompt-btn" @onclick="ClearPrompt" title="Prompt törlése">&times;</button>
+            }
+        </div>
     </div>
 
     <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightTop"))'></div>
@@ -76,6 +82,7 @@
             <label><input type="checkbox" @bind="_includePromptInCopy" />Prompt</label>
             <label><input type="checkbox" @bind="_includeGlobalPrefixInCopy" />Globális</label>
             <button class="copy-button" @onclick="CopyToClipboard">Másolás vágólapra</button>
+            <button class="copy-button" @onclick="ProcessWithOpenRouterAsync" disabled="@(string.IsNullOrWhiteSpace(AppState.OpenRouterApiKey))" title="Változtatási javaslat kérése az OpenRouter-től">OR Javaslat</button>
         </div>
     </div>
 </div>

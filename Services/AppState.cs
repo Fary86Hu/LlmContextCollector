@@ -143,6 +143,36 @@ namespace LlmContextCollector.Services
         }
         #endregion
 
+        #region OpenRouter Settings
+        private string _openRouterApiKey = string.Empty;
+        public string OpenRouterApiKey
+        {
+            get => _openRouterApiKey;
+            set => SetField(ref _openRouterApiKey, value);
+        }
+
+        private string _openRouterModel = "x-ai/grok-4-fast:free";
+        public string OpenRouterModel
+        {
+            get => _openRouterModel;
+            set => SetField(ref _openRouterModel, value);
+        }
+
+        private string _openRouterSiteUrl = string.Empty;
+        public string OpenRouterSiteUrl
+        {
+            get => _openRouterSiteUrl;
+            set => SetField(ref _openRouterSiteUrl, value);
+        }
+
+        private string _openRouterSiteName = string.Empty;
+        public string OpenRouterSiteName
+        {
+            get => _openRouterSiteName;
+            set => SetField(ref _openRouterSiteName, value);
+        }
+        #endregion
+
 
         // HISTORY STATE
         public List<HistoryEntry> HistoryEntries { get; set; } = new();

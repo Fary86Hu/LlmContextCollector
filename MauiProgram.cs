@@ -54,6 +54,7 @@ namespace LlmContextCollector
             builder.Services.AddTransient<ProjectService>();
             builder.Services.AddTransient<FileContextService>();
             builder.Services.AddTransient<QueryBuilders>();
+            builder.Services.AddTransient<OpenRouterService>();
 
 
 #if WINDOWS
@@ -68,6 +69,13 @@ namespace LlmContextCollector
             });
             
             builder.Services.AddHttpClient("AzureDevOps");
+
+            builder.Services.AddHttpClient("OpenRouter", c =>
+            {
+                c.BaseAddress = new Uri("https://openrouter.ai/api/v1/");
+                c.Timeout = TimeSpan.FromSeconds(180);
+                c.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            });
 
             builder.Services.AddSingleton<ITextGenerationProvider, GroqTextGenerationProvider>();
             

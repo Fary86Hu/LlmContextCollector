@@ -10,6 +10,7 @@ using LlmContextCollector.Services;
 using System.IO;
 using System.ComponentModel;
 using System.Linq;
+using LlmContextCollector.AI;
 
 namespace LlmContextCollector.Components.Pages.HomePanels
 {
@@ -35,6 +36,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private ContextProcessingService ContextProcessingService { get; set; } = null!;
         [Inject]
         private RelevanceFinderService RelevanceFinderService { get; set; } = null!;
+        [Inject]
+        private OpenRouterService OpenRouterService { get; set; } = null!;
 
 
         [Parameter]
@@ -397,6 +400,12 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 AppState.StatusText = "A kontextus lista törölve.";
             }
         }
+
+        private void ClearPrompt()
+        {
+            AppState.PromptText = string.Empty;
+            StateHasChanged();
+        }
         
         private async Task CopyToClipboard()
         {
@@ -493,6 +502,41 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 
                 await OnShowDiffDialog.InvokeAsync(diffArgs);
                 AppState.StatusText = $"{diffArgs.DiffResults.Count} fájl feldolgozva. Változások ablak megnyitva.";
+            }
+            finally
+            {
+                AppState.HideLoading();
+            }
+        }
+
+        private async Task ProcessWithOpenRouterAsync()
+        {
+            if (string.IsNullOrWhiteSpace(AppState.OpenRouterApiKey))
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Az OpenRouter API kulcs nincs beállítva. Kérlek, add meg a Beállítások menüben.");
+                return;
+            }
+
+            AppState.ShowLoading("OpenRouter válaszára várakozás...");
+            try
+            {
+                var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
+                var diffArgs = await OpenRouterService.GenerateDiffFromContextAsync(sortedPaths);
+
+                if (!diffArgs.DiffResults.Any())
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", "Az OpenRouter modell nem adott vissza feldolgozható fájl-változásokat.\n\nMagyarázat:\n" + diffArgs.GlobalExplanation);
+                    AppState.StatusText = "Kész. Az OpenRouter nem adott vissza feldolgozható változásokat.";
+                    return;
+                }
+
+                await OnShowDiffDialog.InvokeAsync(diffArgs);
+                AppState.StatusText = $"{diffArgs.DiffResults.Count} fájl feldolgozva az OpenRouter-től. Változások ablak megnyitva.";
+            }
+            catch (Exception ex)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"Hiba az OpenRouter API hívása közben: {ex.Message}");
+                AppState.StatusText = "Hiba az OpenRouter API hívása közben.";
             }
             finally
             {

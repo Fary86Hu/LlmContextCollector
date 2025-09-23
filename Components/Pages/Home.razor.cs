@@ -387,6 +387,10 @@ namespace LlmContextCollector.Components.Pages
             AppState.GroqModel = settings.GroqModel;
             AppState.GroqMaxOutputTokens = settings.GroqMaxOutputTokens;
             AppState.GroqApiUrl = settings.GroqApiUrl;
+            AppState.OpenRouterApiKey = settings.OpenRouterApiKey;
+            AppState.OpenRouterModel = settings.OpenRouterModel;
+            AppState.OpenRouterSiteUrl = settings.OpenRouterSiteUrl;
+            AppState.OpenRouterSiteName = settings.OpenRouterSiteName;
         }
 
         private async Task OnPromptManagerClose()
