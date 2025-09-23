@@ -76,25 +76,28 @@ namespace LlmContextCollector.Services
             if (!diffResults.Any())
             {
                 _appState.StatusText = "Nincs változás a legutóbbi commit óta.";
-                return new DiffResultArgs("Nincs változás.", new List<DiffResult>());
+                return new DiffResultArgs("Nincs változás.", new List<DiffResult>(), string.Empty);
             }
 
             _appState.ShowLoading("Javaslatok generálása...");
             var (branch, commit) = await _suggestionService.GetSuggestionsAsync(diffResults, _appState.LastLlmGlobalExplanation);
 
             string explanation;
+            string fullLlmResponse;
             if (branch != null && commit != null)
             {
                 explanation = $"[BRANCH_SUGGESTION]{branch}[/BRANCH_SUGGESTION]\n[COMMIT_SUGGESTION]{commit}[/COMMIT_SUGGESTION]";
+                fullLlmResponse = explanation; // In this case, the explanation IS the full response.
                 _appState.StatusText = $"{diffResults.Count} változott fájl betöltve a Git-ből.";
             }
             else
             {
                 explanation = "Hiba: A javaslatok generálása nem sikerült. A nyelvi modell nem érhető el vagy hibát adott.";
+                fullLlmResponse = explanation;
                 _appState.StatusText = "Figyelem: LLM hiba, nincsenek Git javaslatok.";
             }
 
-            return new DiffResultArgs(explanation, diffResults);
+            return new DiffResultArgs(explanation, diffResults, fullLlmResponse);
         }
 
         public async Task<(int acceptedCount, int errorCount)> AcceptChangesAsync(List<DiffResult> acceptedResults)

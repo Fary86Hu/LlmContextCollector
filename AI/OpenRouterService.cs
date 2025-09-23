@@ -47,7 +47,7 @@ namespace LlmContextCollector.AI
 
             if (string.IsNullOrWhiteSpace(contextString))
             {
-                return new DiffResultArgs("The context is empty. Please add files or a prompt.", new List<DiffResult>());
+                return new DiffResultArgs("The context is empty. Please add files or a prompt.", new List<DiffResult>(), "");
             }
 
             var payload = new ChatRequest
@@ -89,7 +89,7 @@ namespace LlmContextCollector.AI
 
             if (string.IsNullOrWhiteSpace(responseContent))
             {
-                return new DiffResultArgs("The model returned an empty response.", new List<DiffResult>());
+                return new DiffResultArgs("The model returned an empty response.", new List<DiffResult>(), "");
             }
 
             return await _contextProcessingService.ProcessChangesFromClipboardAsync(responseContent);

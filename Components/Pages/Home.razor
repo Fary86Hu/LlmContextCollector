@@ -66,6 +66,7 @@
 <AzureDevOpsDialog IsVisible="_isAzureDevOpsDialogVisible" OnClose="OnAzureDevOpsDialogClose" OnDownload="HandleDownloadWorkItemsAsync" />
 <DiffDialog IsVisible="AppState.IsDiffDialogVisible"
             GlobalExplanation="@AppState.DiffGlobalExplanation"
+            FullLlmResponse="@AppState.DiffFullLlmResponse"
             DiffResults="AppState.DiffResults"
             OnClose="OnDiffDialogClose"
             OnAccept="HandleAcceptChanges"

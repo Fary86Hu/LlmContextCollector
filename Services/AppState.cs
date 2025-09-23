@@ -213,6 +213,7 @@ namespace LlmContextCollector.Services
             set => SetField(ref _isDiffDialogVisible, value);
         }
         public string DiffGlobalExplanation { get; set; } = string.Empty;
+        public string DiffFullLlmResponse { get; set; } = string.Empty;
         public List<DiffResult> DiffResults { get; set; } = new();
 
         // STATUS BAR STATE

@@ -557,10 +557,12 @@ namespace LlmContextCollector.Components.Pages.HomePanels
     {
         public string GlobalExplanation { get; }
         public List<DiffResult> DiffResults { get; }
-        public DiffResultArgs(string globalExplanation, List<DiffResult> diffResults)
+        public string FullLlmResponse { get; }
+        public DiffResultArgs(string globalExplanation, List<DiffResult> diffResults, string fullLlmResponse)
         {
             GlobalExplanation = globalExplanation;
             DiffResults = diffResults;
+            FullLlmResponse = fullLlmResponse;
         }
     }
 }

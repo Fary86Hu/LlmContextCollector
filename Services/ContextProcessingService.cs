@@ -85,7 +85,7 @@ namespace LlmContextCollector.Services
 
             if (!parsedFiles.Any())
             {
-                return new DiffResultArgs(explanation, new List<DiffResult>());
+                return new DiffResultArgs(explanation, new List<DiffResult>(), clipboardText);
             }
 
             var diffResults = new List<DiffResult>();
@@ -116,7 +116,7 @@ namespace LlmContextCollector.Services
                 });
             }
 
-            return new DiffResultArgs(explanation, diffResults);
+            return new DiffResultArgs(explanation, diffResults, clipboardText);
         }
     }
 }

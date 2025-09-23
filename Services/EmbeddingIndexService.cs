@@ -131,7 +131,7 @@ namespace LlmContextCollector.Services
                 {
                     if (ct.IsCancellationRequested) return;
                     var batch = itemsToProcess.Skip(i).Take(batchSize).ToList();
-                    var textsToEmbed = batch.Select(c => c.text).ToList();
+                    var textsToEmbed = batch.Select(c => $"File Path: {SemanticSearchService.GetPathFromChunkKey(c.chunkKey)}\n\nContent:\n{c.text}").ToList();
                     try
                     {
                         var embeds = await _embeddingProvider.EmbedBatchAsync(textsToEmbed, ct);

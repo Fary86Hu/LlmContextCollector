@@ -10,7 +10,15 @@
         <div class="modal-dialog diff-dialog">
             <div class="modal-header">
                 <h3>Változások Elemzése és Elfogadása</h3>
-                <button class="close-btn" @onclick="Close">&times;</button>
+                <div class="header-controls">
+                    @if (!string.IsNullOrEmpty(FullLlmResponse))
+                    {
+                        <button @onclick="ToggleFullResponseView">
+                            @(_isFullResponseView ? "Vissza a Változásokhoz" : "Teljes LLM Válasz")
+                        </button>
+                    }
+                    <button class="close-btn" @onclick="Close">&times;</button>
+                </div>
             </div>
             <div class="modal-body diff-body">
                 <div class="diff-left-pane">
@@ -41,21 +49,30 @@
                         </div>
                     }
                     <strong>Feldolgozott fájlok:</strong>
-                    <div class="diff-file-list">
-                        @foreach (var result in DiffResults)
-                        {
-                            <div @key="result.Path"
-                                 class="diff-file-item @GetStatusClass(result) @(_selectedResult != null && _selectedResult.Path == result.Path ? "selected" : "")"
-                                 @onclick="() => SelectResult(result)">
-                                <input type="checkbox" @bind="result.IsSelectedForAccept" @onclick:stopPropagation />
-                                <span class="status-badge @GetStatusClass(result)">@GetStatusText(result)</span>
-                                <span>@result.Path</span>
-                            </div>
-                        }
-                    </div>
+                    <fieldset class="file-list-fieldset" disabled="@_isFullResponseView">
+                        <div class="diff-file-list">
+                            @foreach (var result in DiffResults)
+                            {
+                                <div @key="result.Path"
+                                     class="diff-file-item @GetStatusClass(result) @(_selectedResult != null && _selectedResult.Path == result.Path ? "selected" : "")"
+                                     @onclick="() => SelectResult(result)">
+                                    <input type="checkbox" @bind="result.IsSelectedForAccept" @onclick:stopPropagation />
+                                    <span class="status-badge @GetStatusClass(result)">@GetStatusText(result)</span>
+                                    <span>@result.Path</span>
+                                </div>
+                            }
+                        </div>
+                    </fieldset>
                 </div>
                 <div class="diff-right-pane">
-                    @if (_selectedResult != null)
+                    @if (_isFullResponseView)
+                    {
+                        <div class="full-response-view">
+                            <strong>Teljes LLM válasz:</strong>
+                            <textarea readonly>@FullLlmResponse</textarea>
+                        </div>
+                    }
+                    else if (_selectedResult != null)
                     {
                         <div class="diff-view-switcher">
                             <label>
@@ -131,6 +148,9 @@
     public string GlobalExplanation { get; set; } = string.Empty;
 
     [Parameter]
+    public string FullLlmResponse { get; set; } = string.Empty;
+
+    [Parameter]
     public List<DiffResult>? DiffResults { get; set; }
 
     [Parameter]
@@ -144,7 +164,7 @@
 
     [Parameter]
     public EventCallback<CommitAndPushArgs> OnCommit { get; set; }
-    
+
     [Parameter]
     public EventCallback<CommitAndPushArgs> OnPush { get; set; }
 
@@ -156,11 +176,12 @@
 
     private record DiffMarkerInfo(string Type, double TopPercent);
     private List<DiffMarkerInfo> _diffMarkers = new();
-    
+
     private string _suggestedBranch = string.Empty;
     private string _suggestedCommit = string.Empty;
     private string _globalExplanationText = string.Empty;
     private bool _hasSuggestions = false;
+    private bool _isFullResponseView = false;
 
     protected override void OnInitialized()
     {
@@ -178,7 +199,7 @@
             }
         }
     }
-    
+
     private async void OnAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(AppState.CurrentGitBranch))
@@ -190,6 +211,11 @@
     public void Dispose()
     {
         AppState.PropertyChanged -= OnAppStateChanged;
+    }
+
+    private void ToggleFullResponseView()
+    {
+        _isFullResponseView = !_isFullResponseView;
     }
 
     private void ParseGlobalExplanation()
@@ -226,7 +252,7 @@
     {
         _selectedResult = result;
         _viewMode = "unified";
-        
+
         if (_selectedResult != null)
         {
             var (unified, sbsLeft, sbsRight) = DiffUtility.GenerateDiffMarkup(_selectedResult.OldContent, _selectedResult.NewContent);
@@ -255,7 +281,7 @@
     {
         _diffMarkers.Clear();
         if (_selectedResult == null) return;
-        
+
         var oldText = _selectedResult.OldContent;
         var newText = _selectedResult.NewContent;
 
@@ -313,7 +339,7 @@
                     case 'r': linesInOp = Math.Max(op.I2 - op.I1, op.J2 - op.J1); markerType = "replace"; break;
                 }
             }
-            
+
             if (markerType != null)
             {
                 _diffMarkers.Add(new DiffMarkerInfo(markerType, (currentLine / totalLines) * 100));
@@ -331,7 +357,7 @@
             await OnAccept.InvokeAsync(accepted);
         }
     }
-    
+
     private async Task CreateBranch()
     {
         if (!string.IsNullOrWhiteSpace(_suggestedBranch))
@@ -387,6 +413,7 @@
     private async Task Close()
     {
         _selectedResult = null;
+        _isFullResponseView = false;
         await OnClose.InvokeAsync();
     }
 }
