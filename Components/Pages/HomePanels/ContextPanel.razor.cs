@@ -33,6 +33,9 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private GitWorkflowService GitWorkflowService { get; set; } = null!;
         [Inject]
         private ContextProcessingService ContextProcessingService { get; set; } = null!;
+        [Inject]
+        private RelevanceFinderService RelevanceFinderService { get; set; } = null!;
+
 
         [Parameter]
         public EventCallback<MouseEventArgs> OnShowListContextMenu { get; set; }
@@ -75,8 +78,10 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private bool _isSortAscending = true;
         
         private const string AdoFilePrefix = "[ADO]";
+        private Dictionary<string, double> _semanticScores = new();
+        private string? _promptForLastSemanticSort;
 
-        private record ContextListItem(string RelativePath, string DisplayPath, string FileName, long Size);
+        private record ContextListItem(string RelativePath, string DisplayPath, string FileName, long Size, double SemanticScore);
 
         private bool IsIndexReady => EmbeddingIndexService.GetIndex()?.Any() ?? false;
 
@@ -85,10 +90,15 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             AppState.SelectedFilesForContext.CollectionChanged += OnSelectedFilesChanged;
             AppState.PropertyChanged += OnAppStateChanged;
             UpdateSortedFiles();
+            SortFiles();
         }
 
         private async void OnAppStateChanged(object? sender, PropertyChangedEventArgs e)
         {
+            if (e.PropertyName == nameof(AppState.PromptText))
+            {
+                _promptForLastSemanticSort = null;
+            }
             if (e.PropertyName == nameof(AppState.IsSemanticIndexBuilding) ||
                 e.PropertyName == nameof(AppState.AdoDocsExist))
             {
@@ -100,6 +110,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         {
             UpdateCounts();
             UpdateSortedFiles();
+            SortFiles();
             InvokeAsync(StateHasChanged);
         }
 
@@ -256,6 +267,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             {
                 try
                 {
+                    var score = _semanticScores.GetValueOrDefault(fileRelPath, -1.0);
                     if (fileRelPath.StartsWith(AdoFilePrefix))
                     {
                         var fileName = fileRelPath.Substring(AdoFilePrefix.Length);
@@ -263,11 +275,11 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                         if (File.Exists(fullPath))
                         {
                             var fileInfo = new FileInfo(fullPath);
-                            _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, fileName, fileInfo.Length));
+                            _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, fileName, fileInfo.Length, score));
                         }
                         else
                         {
-                            _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, fileName, 0));
+                            _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, fileName, 0, score));
                         }
                     }
                     else if (!string.IsNullOrEmpty(AppState.ProjectRoot))
@@ -276,24 +288,57 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                         if (File.Exists(fullPath))
                         {
                             var fileInfo = new FileInfo(fullPath);
-                            _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, Path.GetFileName(fileRelPath), fileInfo.Length));
+                            _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, Path.GetFileName(fileRelPath), fileInfo.Length, score));
                         }
                         else
                         {
-                            _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, Path.GetFileName(fileRelPath), 0));
+                            _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, Path.GetFileName(fileRelPath), 0, score));
                         }
                     }
                 }
                 catch
                 {
-                    _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, Path.GetFileName(fileRelPath), 0));
+                    var score = _semanticScores.GetValueOrDefault(fileRelPath, -1.0);
+                    _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, Path.GetFileName(fileRelPath), 0, score));
                 }
             }
-            SortFiles();
         }
         
         private async Task SortBy(string key)
         {
+            if (key == "semantic")
+            {
+                if (string.IsNullOrWhiteSpace(AppState.PromptText) || !IsIndexReady)
+                {
+                    AppState.StatusText = "A szemantikai rendezéshez prompt és betöltött index szükséges.";
+                    return;
+                }
+
+                if (_promptForLastSemanticSort != AppState.PromptText)
+                {
+                    AppState.ShowLoading("Szemantikai egyezés számítása...");
+                    try
+                    {
+                        var results = await RelevanceFinderService.ScoreGivenFilesAsync(AppState.SelectedFilesForContext);
+                        
+                        _semanticScores.Clear();
+                        foreach (var result in results)
+                        {
+                            _semanticScores[result.FilePath] = result.Score;
+                        }
+                        _promptForLastSemanticSort = AppState.PromptText;
+
+                        _sortedFiles = _sortedFiles.Select(item => 
+                            item with { SemanticScore = _semanticScores.GetValueOrDefault(item.RelativePath, -1.0) }
+                        ).ToList();
+                    }
+                    finally
+                    {
+                        AppState.HideLoading();
+                    }
+                }
+            }
+
             if (_currentSortKey == key)
             {
                 _isSortAscending = !_isSortAscending;
@@ -301,7 +346,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             else
             {
                 _currentSortKey = key;
-                _isSortAscending = true;
+                _isSortAscending = key != "semantic";
             }
             SortFiles();
             await InvokeAsync(StateHasChanged);
@@ -321,6 +366,11 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                     sorted = _isSortAscending
                         ? _sortedFiles.OrderBy(f => f.Size)
                         : _sortedFiles.OrderByDescending(f => f.Size);
+                    break;
+                case "semantic":
+                    sorted = _isSortAscending
+                        ? _sortedFiles.OrderBy(f => f.SemanticScore)
+                        : _sortedFiles.OrderByDescending(f => f.SemanticScore);
                     break;
                 case "path":
                 default:

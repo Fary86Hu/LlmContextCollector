@@ -1,6 +1,7 @@
 @inject AppState AppState
 @inject RelevanceFinderService RelevanceFinderService
 @using LlmContextCollector.Models
+@using System.IO
 
 @if (IsVisible)
 {
@@ -13,11 +14,44 @@
             <div class="modal-body">
                 <div class="search-dialog-top-pane">
                     <textarea class="search-prompt-editor" placeholder="Keresési prompt (a fő promptot használja, ha üres)..." @bind="_searchPrompt"></textarea>
-                    <button @onclick="ExecuteSearch" disabled="@_isSearching">
-                        @(_isSearching ? "Keresés..." : "Keresés")
-                    </button>
+                    <div class="search-controls">
+                        <div class="search-options">
+                            <span>Keresés itt:</span>
+                            <label><input type="checkbox" @bind="_searchInProgramFiles" /> Programfájlok</label>
+                            <label><input type="checkbox" @bind="_searchInOtherDocuments" /> Egyéb dokumentumok</label>
+                        </div>
+                        <button @onclick="ExecuteSearch" disabled="@_isSearching">
+                            @if (_isSearching)
+                            {
+                                <span class="spinner"></span>
+                                <span>Keresés...</span>
+                            }
+                            else
+                            {
+                                <span>Keresés</span>
+                            }
+                        </button>
+                    </div>
                 </div>
                 <div class="search-dialog-main-pane">
+                    <div class="search-context-pane">
+                        <strong>Keresési kontextus</strong>
+                        <div class="search-context-list">
+                            @if (!_contextFilesForSearch.Any())
+                            {
+                                <div class="editor-placeholder">Nincs fájl a fő kontextus listában.</div>
+                            }
+                            @foreach (var file in _contextFilesForSearch)
+                            {
+                                <div @key="file.FilePath" class="search-context-item" title="@file.FilePath">
+                                    <label>
+                                        <input type="checkbox" @bind="file.IsUsedForContext" />
+                                        <span class="search-context-path">@Path.GetFileName(file.FilePath)</span>
+                                    </label>
+                                </div>
+                            }
+                        </div>
+                    </div>
                     <div class="search-results-pane">
                         <strong>Találatok (@_searchResults.Count)</strong>
                         <div class="search-results-list">
@@ -66,6 +100,11 @@
     private RelevanceResult? _selectedResult;
     private string _previewContent = string.Empty;
     
+    // New state properties
+    private bool _searchInProgramFiles = true;
+    private bool _searchInOtherDocuments = false;
+    private List<ContextFileViewModel> _contextFilesForSearch = new();
+    
     private const string AdoFilePrefix = "[ADO]";
 
     private class SearchResultViewModel
@@ -74,6 +113,14 @@
         public bool IsSelected { get; set; }
         public SearchResultViewModel(RelevanceResult result) { Result = result; }
     }
+
+    // New ViewModel for context files
+    private class ContextFileViewModel
+    {
+        public string FilePath { get; set; } = string.Empty;
+        public bool IsUsedForContext { get; set; }
+    }
+
 
     protected override void OnParametersSet()
     {
@@ -86,6 +133,13 @@
             _searchResults.Clear();
             _selectedResult = null;
             _previewContent = string.Empty;
+            
+            _contextFilesForSearch = AppState.SelectedFilesForContext
+                .Select(f => new ContextFileViewModel { FilePath = f, IsUsedForContext = false })
+                .ToList();
+            
+            _searchInProgramFiles = true;
+            _searchInOtherDocuments = false;
         }
     }
 
@@ -98,16 +152,36 @@
         StateHasChanged();
 
         var originalPrompt = AppState.PromptText;
+        var originalContext = AppState.SelectedFilesForContext.ToList();
+        
         AppState.PromptText = _searchPrompt;
+        var filesForContextQuery = _contextFilesForSearch.Where(f => f.IsUsedForContext).Select(f => f.FilePath).ToList();
+        
+        AppState.SelectedFilesForContext.Clear();
+        foreach (var file in filesForContextQuery)
+        {
+            AppState.SelectedFilesForContext.Add(file);
+        }
 
         try
         {
             var results = await RelevanceFinderService.FindRelevantFilesAsync();
-            _searchResults = results.Select(r => new SearchResultViewModel(r)).ToList();
+            var filteredResults = results.Where(r =>
+                (_searchInProgramFiles && !r.FilePath.StartsWith(AdoFilePrefix)) ||
+                (_searchInOtherDocuments && r.FilePath.StartsWith(AdoFilePrefix))
+            ).ToList();
+            
+            _searchResults = filteredResults.Select(r => new SearchResultViewModel(r)).ToList();
         }
         finally
         {
             AppState.PromptText = originalPrompt;
+            AppState.SelectedFilesForContext.Clear();
+            foreach (var file in originalContext)
+            {
+                AppState.SelectedFilesForContext.Add(file);
+            }
+            
             _isSearching = false;
             StateHasChanged();
         }
@@ -161,6 +235,7 @@
     private async Task Close()
     {
         _searchPrompt = string.Empty;
+        _contextFilesForSearch.Clear();
         await OnClose.InvokeAsync();
     }
 }

@@ -79,7 +79,8 @@ namespace LlmContextCollector.AI.Search
             IReadOnlyDictionary<string, float[]> index,
             IReadOnlyDictionary<string, string> chunkContents,
             SearchConfig cfg,
-            HashSet<string>? filesToExclude = null)
+            HashSet<string>? filesToExclude = null,
+            HashSet<string>? filesToInclude = null)
         {
             var queryNameTokens = KeywordUtil.Tokens(rawQuery);
             
@@ -93,6 +94,9 @@ namespace LlmContextCollector.AI.Search
                     var filePath = GetPathFromChunkKey(key);
                     
                     if (filesToExclude != null && filesToExclude.Contains(filePath))
+                        return (key, score: -1.0);
+                    
+                    if (filesToInclude != null && !filesToInclude.Contains(filePath))
                         return (key, score: -1.0);
 
                     var vecScore = multiQuery.Score(chunkVector);

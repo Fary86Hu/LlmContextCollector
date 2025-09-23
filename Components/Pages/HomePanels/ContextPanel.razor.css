@@ -75,9 +75,10 @@
         text-overflow: ellipsis;
     }
     
-    .context-table th:nth-child(1) { width: 60%; }
-    .context-table th:nth-child(2) { width: 25%; }
-    .context-table th:nth-child(3) { width: 15%; }
+    .context-table th:nth-child(1) { width: 55%; }
+    .context-table th:nth-child(2) { width: 20%; }
+    .context-table th:nth-child(3) { width: 10%; }
+    .context-table th:nth-child(4) { width: 15%; }
 
 
     .context-table th {
