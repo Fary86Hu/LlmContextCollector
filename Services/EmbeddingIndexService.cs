@@ -59,7 +59,7 @@ namespace LlmContextCollector.Services
             _cancellationTokenSource = new CancellationTokenSource();
             var token = _cancellationTokenSource.Token;
             var projectRootForTask = _appState.ProjectRoot;
-            
+
             var corpus = allFileNodes
                 .Select(node => {
                     try { return (path: Path.GetRelativePath(projectRootForTask, node.FullPath).Replace('\\', '/'), fullPath: node.FullPath); }
@@ -68,7 +68,7 @@ namespace LlmContextCollector.Services
                 .Where(x => x.path != null)
                 .Select(x => (x.path!, x.fullPath!))
                 .ToList();
-            
+
             _currentIndexingTask = Task.Run(() => BuildIndexInternalAsync(corpus, "Szemantikus keresési index (Kód)", token, useStructure: true), token);
         }
 
@@ -103,26 +103,38 @@ namespace LlmContextCollector.Services
                     {
                         var content = await File.ReadAllTextAsync(fullPath, ct);
                         var textToChunk = useStructure ? _codeExtractor.ExtractStructure(content, indexPath) : content;
-                        
+
                         var chunks = _chunker.Chunk(textToChunk).ToList();
                         totalChunks += chunks.Count;
 
                         for (int i = 0; i < chunks.Count; i++)
                         {
                             var chunkContent = chunks[i];
-                            var cacheKey = JsonEmbeddingCache.KeyFor(fullPath, chunkContent, cacheVersionPrefix);
                             var chunkKey = SemanticSearchService.CreateChunkKey(indexPath, i);
-                            _chunkContents[chunkKey] = chunkContent;
 
-                            if (_cache.TryGet(cacheKey, out var vec)) _embeddingIndex[chunkKey] = vec;
-                            else itemsToProcess.Add((cacheKey, chunkKey, chunkContent));
+                            // 1. Összeállítjuk a TELJES szöveget, amit beágyazni fogunk.
+                            var textToEmbed = $"File Path: {indexPath}\n\nContent:\n{chunkContent}";
+                            _chunkContents[chunkKey] = chunkContent; // A chunk tartalmát (előtag nélkül) továbbra is elmentjük a preview-hoz.
+
+                            // 2. A cache kulcsot a TELJES szöveg alapján generáljuk.
+                            var cacheKey = JsonEmbeddingCache.KeyFor(fullPath, textToEmbed, cacheVersionPrefix);
+
+                            if (_cache.TryGet(cacheKey, out var vec))
+                            {
+                                _embeddingIndex[chunkKey] = vec;
+                            }
+                            else
+                            {
+                                // 3. Az `itemsToProcess` listába már a teljes szöveget tesszük.
+                                itemsToProcess.Add((cacheKey, chunkKey, textToEmbed));
+                            }
                         }
                         processedFiles++;
                         if (processedFiles % 20 == 0) _appState.StatusText = $"{statusPrefix} építése... ({processedFiles}/{corpus.Count} fájl feldolgozva)";
                     }
                     catch { /* Ignore unreadable files */ }
                 }
-                
+
                 if (!corpus.Any()) { _appState.StatusText = $"{statusPrefix} frissítve (nincs fájl)."; return; }
                 _appState.StatusText = $"{statusPrefix} építése... ({itemsToProcess.Count} darab beágyazása)";
 
@@ -131,10 +143,10 @@ namespace LlmContextCollector.Services
                 {
                     if (ct.IsCancellationRequested) return;
                     var batch = itemsToProcess.Skip(i).Take(batchSize).ToList();
-                    var textsToEmbed = batch.Select(c => $"File Path: {SemanticSearchService.GetPathFromChunkKey(c.chunkKey)}\n\nContent:\n{c.text}").ToList();
+                    var textsToEmbedInBatch = batch.Select(c => c.text).ToList(); // Itt már a teljes szöveget használjuk.
                     try
                     {
-                        var embeds = await _embeddingProvider.EmbedBatchAsync(textsToEmbed, ct);
+                        var embeds = await _embeddingProvider.EmbedBatchAsync(textsToEmbedInBatch, ct);
                         for (int j = 0; j < batch.Count; j++)
                         {
                             if (ct.IsCancellationRequested) return;
