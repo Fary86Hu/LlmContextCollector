@@ -59,6 +59,16 @@ namespace LlmContextCollector.Services
                     currentFiles.UnionWith(foundRefs);
                 }
 
+                // Razor fájlokhoz társított .cs és .css fájlok hozzáadása (közvetlen és ref-mélység által hozzáadott razors-ra is)
+                var razors = currentFiles.Where(f => f.EndsWith(".razor")).ToList();
+                var additionalAssociates = new HashSet<string>();
+                foreach (var razor in razors)
+                {
+                    additionalAssociates.UnionWith(GetAssociatedFilesForRazor(razor, projectRootPath));
+                }
+                additionalAssociates.RemoveWhere(f => currentFiles.Contains(f)); // Csak újakat adjuk hozzá
+                currentFiles.UnionWith(additionalAssociates);
+
                 var addedCount = currentFiles.Count - initialCount;
                 if (addedCount > 0)
                 {
@@ -140,6 +150,42 @@ namespace LlmContextCollector.Services
                     FindSelectedNodes(node.Children, selected);
                 }
             }
+        }
+
+        /// <summary>
+        /// Megkeresi és visszaadja a megadott .razor fájlhoz tartozó .razor.cs és .razor.css fájlok relatív útvonalait, ha léteznek.
+        /// </summary>
+        private List<string> GetAssociatedFilesForRazor(string razorRelPath, string projectRoot)
+        {
+            var fullRazorPath = Path.Combine(projectRoot, razorRelPath.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(fullRazorPath))
+            {
+                return new List<string>();
+            }
+
+            var directory = Path.GetDirectoryName(fullRazorPath);
+            if (directory == null)
+            {
+                return new List<string>();
+            }
+
+            var fileNameWithoutExt = Path.GetFileNameWithoutExtension(fullRazorPath);
+            var csFullPath = Path.Combine(directory, fileNameWithoutExt + ".razor.cs");
+            var cssFullPath = Path.Combine(directory, fileNameWithoutExt + ".razor.css");
+
+            var associates = new List<string>();
+            if (File.Exists(csFullPath))
+            {
+                var csRelPath = Path.GetRelativePath(projectRoot, csFullPath).Replace('\\', '/');
+                associates.Add(csRelPath);
+            }
+            if (File.Exists(cssFullPath))
+            {
+                var cssRelPath = Path.GetRelativePath(projectRoot, cssFullPath).Replace('\\', '/');
+                associates.Add(cssRelPath);
+            }
+
+            return associates;
         }
     }
 }
