@@ -47,6 +47,29 @@ namespace LlmContextCollector.Services
                     node.IsSelectedInTree = false;
                 }
 
+                // Add companion .cs and .css files for .razor files
+                var allProjectPaths = new HashSet<string>();
+                GetAllFilePaths(_appState.FileTree, allProjectPaths, projectRootPath);
+
+                var additionalFiles = new HashSet<string>();
+                foreach (var selectedFile in filesFromSelection)
+                {
+                    if (selectedFile.EndsWith(".razor", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var csFile = selectedFile + ".cs";
+                        if (allProjectPaths.Contains(csFile))
+                        {
+                            additionalFiles.Add(csFile);
+                        }
+                        var cssFile = selectedFile + ".css";
+                        if (allProjectPaths.Contains(cssFile))
+                        {
+                            additionalFiles.Add(cssFile);
+                        }
+                    }
+                }
+                filesFromSelection.UnionWith(additionalFiles);
+
                 var currentFiles = _appState.SelectedFilesForContext.ToHashSet();
                 var initialCount = currentFiles.Count;
                 currentFiles.UnionWith(filesFromSelection);
@@ -138,6 +161,21 @@ namespace LlmContextCollector.Services
                 if (node.Children.Any())
                 {
                     FindSelectedNodes(node.Children, selected);
+                }
+            }
+        }
+
+        private void GetAllFilePaths(IEnumerable<FileNode> nodes, HashSet<string> paths, string root)
+        {
+            foreach (var node in nodes)
+            {
+                if (node.IsDirectory)
+                {
+                    GetAllFilePaths(node.Children, paths, root);
+                }
+                else
+                {
+                    paths.Add(Path.GetRelativePath(root, node.FullPath).Replace('\\', '/'));
                 }
             }
         }

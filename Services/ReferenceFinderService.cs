@@ -83,9 +83,31 @@ namespace LlmContextCollector.Services
                     }
                 }
             }
+            
+            // Add companion .cs and .css files for any .razor files found
+            var allProjectFilePaths = new HashSet<string>(allProjectFiles.Select(f => Path.GetRelativePath(projectRoot, f.FullPath).Replace('\\', '/')));
+            var finalFoundFiles = new HashSet<string>(allFoundFilesRel);
+
+            foreach (var foundFile in allFoundFilesRel)
+            {
+                if (foundFile.EndsWith(".razor", StringComparison.OrdinalIgnoreCase))
+                {
+                    var csFile = foundFile + ".cs";
+                    if (allProjectFilePaths.Contains(csFile))
+                    {
+                        finalFoundFiles.Add(csFile);
+                    }
+
+                    var cssFile = foundFile + ".css";
+                    if (allProjectFilePaths.Contains(cssFile))
+                    {
+                        finalFoundFiles.Add(cssFile);
+                    }
+                }
+            }
 
             // Az eredetileg megadott fájlokat ne adjuk vissza az eredményben
-            return allFoundFilesRel.Except(new HashSet<string>(startingFilesRel)).ToList();
+            return finalFoundFiles.Except(new HashSet<string>(startingFilesRel)).ToList();
         }
 
         private void GetAllFileNodes(IEnumerable<FileNode> nodes, List<FileNode> flatList)

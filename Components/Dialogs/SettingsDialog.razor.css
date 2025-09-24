@@ -1,0 +1,31 @@
+.form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.form-group label {
+    font-weight: bold;
+}
+
+.form-group input {
+    width: 100%;
+}
+
+::deep .modal-body h4 {
+    margin-top: 15px;
+    margin-bottom: 5px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 1.1em;
+}
+
+::deep .modal-body h4:first-of-type {
+    margin-top: 0;
+}
