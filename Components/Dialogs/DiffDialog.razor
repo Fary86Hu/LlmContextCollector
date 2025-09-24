@@ -132,7 +132,7 @@
                 <button class="primary" @onclick="Commit" disabled="@(string.IsNullOrWhiteSpace(_suggestedCommit) || !DiffResults.Any(r => r.IsSelectedForAccept))">
                     Commit
                 </button>
-                <button class="primary commit-btn" @onclick="Push" disabled="@(string.IsNullOrWhiteSpace(_suggestedBranch) || !onCorrectBranch)">
+                <button class="primary commit-btn" @onclick="Push">
                     Push
                 </button>
             </div>
@@ -378,10 +378,11 @@
 
     private async Task Push()
     {
-        if (!string.IsNullOrWhiteSpace(_suggestedBranch))
+        var branchToPush = AppState.CurrentGitBranch;
+        if (!string.IsNullOrWhiteSpace(branchToPush))
         {
             var accepted = DiffResults?.Where(r => r.IsSelectedForAccept).ToList() ?? new List<DiffResult>();
-            var args = new CommitAndPushArgs(_suggestedBranch, _suggestedCommit, accepted);
+            var args = new CommitAndPushArgs(branchToPush, _suggestedCommit, accepted);
             await OnPush.InvokeAsync(args);
         }
     }

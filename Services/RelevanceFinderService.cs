@@ -20,7 +20,7 @@ namespace LlmContextCollector.Services
             _semanticSearchService = semanticSearchService;
         }
 
-        public async Task<List<RelevanceResult>> FindRelevantFilesAsync()
+        public async Task<List<RelevanceResult>> FindRelevantFilesAsync(bool searchInCode, bool searchInAdo)
         {
             var embeddingIndex = _indexService.GetIndex();
             var chunkContents = _indexService.GetChunkContents();
@@ -65,7 +65,28 @@ namespace LlmContextCollector.Services
             var config = new SearchConfig(); // Use default config for now
             var contextFileSet = _appState.SelectedFilesForContext.ToHashSet();
 
-            var results = _semanticSearchService.RankRelevantFiles(multiQuery, rawQueryText, embeddingIndex, chunkContents, config, contextFileSet);
+            if (!searchInCode && !searchInAdo)
+            {
+                return new List<RelevanceResult>();
+            }
+
+            HashSet<string>? filesToIncludeSet = null;
+            // Csak akkor alkalmazunk szűrést, ha nem mindkét opció van bejelölve.
+            if (searchInCode != searchInAdo)
+            {
+                filesToIncludeSet = new HashSet<string>();
+                var allIndexedPaths = embeddingIndex.Keys.Select(SemanticSearchService.GetPathFromChunkKey).Distinct();
+                foreach (var path in allIndexedPaths)
+                {
+                    var isAdo = path.StartsWith("[ADO]");
+                    if ((searchInAdo && isAdo) || (searchInCode && !isAdo))
+                    {
+                        filesToIncludeSet.Add(path);
+                    }
+                }
+            }
+
+            var results = _semanticSearchService.RankRelevantFiles(multiQuery, rawQueryText, embeddingIndex, chunkContents, config, contextFileSet, filesToInclude: filesToIncludeSet);
 
             // A 'SimilarTo' mezőt már nem tudjuk egyszerűen kitölteni, mert aggregált lekérdezést használunk.
             results.ForEach(r => r.SimilarTo = null);

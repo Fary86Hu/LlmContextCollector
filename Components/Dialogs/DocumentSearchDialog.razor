@@ -157,6 +157,15 @@
         AppState.PromptText = _searchPrompt;
         var filesForContextQuery = _contextFilesForSearch.Where(f => f.IsUsedForContext).Select(f => f.FilePath).ToList();
         
+        if (_searchInOtherDocuments && !_searchInProgramFiles) // Csak ADO keresés
+        {
+            filesForContextQuery = filesForContextQuery.Where(f => f.StartsWith(AdoFilePrefix)).ToList();
+        }
+        else if (!_searchInOtherDocuments && _searchInProgramFiles) // Csak kód keresés
+        {
+            filesForContextQuery = filesForContextQuery.Where(f => !f.StartsWith(AdoFilePrefix)).ToList();
+        }
+
         AppState.SelectedFilesForContext.Clear();
         foreach (var file in filesForContextQuery)
         {
@@ -165,13 +174,8 @@
 
         try
         {
-            var results = await RelevanceFinderService.FindRelevantFilesAsync();
-            var filteredResults = results.Where(r =>
-                (_searchInProgramFiles && !r.FilePath.StartsWith(AdoFilePrefix)) ||
-                (_searchInOtherDocuments && r.FilePath.StartsWith(AdoFilePrefix))
-            ).ToList();
-            
-            _searchResults = filteredResults.Select(r => new SearchResultViewModel(r)).ToList();
+            var results = await RelevanceFinderService.FindRelevantFilesAsync(_searchInProgramFiles, _searchInOtherDocuments);
+            _searchResults = results.Select(r => new SearchResultViewModel(r)).ToList();
         }
         finally
         {
