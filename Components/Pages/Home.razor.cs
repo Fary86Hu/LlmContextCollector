@@ -62,6 +62,7 @@ namespace LlmContextCollector.Components.Pages
             await HistoryService.LoadHistoryAsync();
             await AppState.LoadPromptsAsync();
             await LoadSettingsAsync();
+            await ApplyTheme();
 
             var latest = AppState.HistoryEntries.FirstOrDefault();
             if (latest != null)
@@ -379,10 +380,15 @@ namespace LlmContextCollector.Components.Pages
         #endregion
 
         #region Dialog Handling
+        private async Task ApplyTheme()
+        {
+            await JSRuntime.InvokeVoidAsync("setTheme", AppState.Theme);
+        }
 
         private async Task LoadSettingsAsync()
         {
             var settings = await SettingsService.GetSettingsAsync();
+            AppState.Theme = settings.Theme;
             AppState.GroqApiKey = settings.GroqApiKey;
             AppState.GroqModel = settings.GroqModel;
             AppState.GroqMaxOutputTokens = settings.GroqMaxOutputTokens;
@@ -406,9 +412,10 @@ namespace LlmContextCollector.Components.Pages
             StateHasChanged();
         }
 
-        private void OnSettingsDialogClose()
+        private async Task OnSettingsDialogClose()
         {
             _isSettingsDialogVisible = false;
+            await ApplyTheme();
             StateHasChanged();
         }
 

@@ -6,7 +6,7 @@
 }
 
     .tree-node:hover {
-        background-color: #e5f1fb;
+        background-color: var(--hover-bg-color);
     }
 
 .node-expander {
@@ -23,16 +23,16 @@
 }
 
 .ref-match {
-    color: #888;
+    color: var(--text-color-light);
     font-style: italic;
 }
 
 .tree-node.selected {
-    background-color: #0078d7;
-    color: white;
+    background-color: var(--selected-bg-color);
+    color: var(--selected-text-color);
 }
 
     .tree-node.selected .node-name,
     .tree-node.selected .node-expander span {
-        color: white;
+        color: var(--selected-text-color);
     }

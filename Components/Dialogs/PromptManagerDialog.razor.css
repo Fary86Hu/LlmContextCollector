@@ -27,15 +27,16 @@
 .prompt-list-item {
     padding: 8px;
     cursor: pointer;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border-color);
 }
 
     .prompt-list-item:hover {
-        background-color: #f5f5f5;
+        background-color: var(--hover-bg-color);
     }
 
     .prompt-list-item.selected {
-        background-color: #e5f1fb;
+        background-color: var(--hover-bg-color);
+        font-weight: bold;
     }
 
 .prompt-list-actions {
@@ -74,3 +75,108 @@
         width: 100%;
         resize: vertical;
     }
+```Fájl: Components/Dialogs/SettingsDialog.razor
+```csharp
+@inject AppState AppState
+@inject SettingsService SettingsService
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>Beállítások</h3>
+                <button class="close-btn" @onclick="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h4>Megjelenés</h4>
+                <div class="form-section">
+                    <div class="form-group">
+                        <label for="theme-select">Téma:</label>
+                        <select id="theme-select" @bind="AppState.Theme">
+                            <option value="System">Rendszer alapértelmezett</option>
+                            <option value="Light">Világos</option>
+                            <option value="Dark">Sötét</option>
+                        </select>
+                    </div>
+                </div>
+
+                <h4>Groq LLM Beállítások</h4>
+                <div class="form-section">
+                    <div class="form-group">
+                        <label for="groq-apiurl">API URL:</label>
+                        <input id="groq-apiurl" type="text" @bind="AppState.GroqApiUrl" placeholder="https://api.groq.com/openai/v1/"/>
+                    </div>
+                    <div class="form-group">
+                        <label for="groq-model">Modell:</label>
+                        <input id="groq-model" type="text" @bind="AppState.GroqModel" />
+                    </div>
+                    <div class="form-group">
+                        <label for="groq-apikey">API Kulcs:</label>
+                        <input id="groq-apikey" type="password" @bind="AppState.GroqApiKey" placeholder="gsk_..."/>
+                    </div>
+                    <div class="form-group">
+                        <label for="groq-maxtokens">Max. kimeneti token:</label>
+                        <input id="groq-maxtokens" type="number" min="64" max="8192" @bind="AppState.GroqMaxOutputTokens" />
+                    </div>
+                </div>
+
+                <h4>OpenRouter API Beállítások</h4>
+                <div class="form-section">
+                    <div class="form-group">
+                        <label for="or-apikey">API Kulcs:</label>
+                        <input id="or-apikey" type="password" @bind="AppState.OpenRouterApiKey" placeholder="sk-or-..." />
+                    </div>
+                    <div class="form-group">
+                        <label for="or-model">Modell:</label>
+                        <input id="or-model" type="text" @bind="AppState.OpenRouterModel" />
+                    </div>
+                    <div class="form-group">
+                        <label for="or-siteurl">Site URL (opcionális):</label>
+                        <input id="or-siteurl" type="text" @bind="AppState.OpenRouterSiteUrl" placeholder="https://sajat-oldal.hu" />
+                    </div>
+                    <div class="form-group">
+                        <label for="or-sitename">Site Name (opcionális):</label>
+                        <input id="or-sitename" type="text" @bind="AppState.OpenRouterSiteName" placeholder="Saját Projekt" />
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button @onclick="Close">Mégsem</button>
+                <button class="primary" @onclick="SaveChanges">Mentés</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private async Task SaveChanges()
+    {
+        var settings = new Settings
+        {
+            Theme = AppState.Theme,
+            GroqApiKey = AppState.GroqApiKey,
+            GroqModel = AppState.GroqModel,
+            GroqMaxOutputTokens = AppState.GroqMaxOutputTokens,
+            GroqApiUrl = AppState.GroqApiUrl,
+            OpenRouterApiKey = AppState.OpenRouterApiKey,
+            OpenRouterModel = AppState.OpenRouterModel,
+            OpenRouterSiteUrl = AppState.OpenRouterSiteUrl,
+            OpenRouterSiteName = AppState.OpenRouterSiteName
+        };
+        await SettingsService.SaveSettingsAsync(settings);
+        AppState.StatusText = "Beállítások mentve.";
+        await Close();
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+}

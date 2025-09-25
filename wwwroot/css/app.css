@@ -10,6 +10,47 @@
     --font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", "Helvetica Neue", Arial, sans-serif;
     --font-size: 14px;
     --font-size-sm: 12px;
+    --hover-bg-color: #e5f1fb;
+    --selected-bg-color: #0078d7;
+    --selected-text-color: white;
+    --input-bg-color: #ffffff;
+    --input-disabled-bg-color: #eee;
+    --button-bg-color: #e1e1e1;
+    --button-border-color: #c1c1c1;
+    --button-disabled-bg: #f4f4f4;
+    --button-disabled-border: #ddd;
+    --button-disabled-text: #aaa;
+    --diff-del-bg: #ffe0e0;
+    --diff-add-bg: #e0ffe0;
+    --suggestion-box-bg: #f0f8ff;
+    --suggestion-box-border: #cce5ff;
+    --placeholder-bg: #f9f9f9;
+}
+
+html[data-theme="dark"] {
+    --bg-color: #202020;
+    --panel-bg: #2d2d2d;
+    --toolbar-bg: #3c3c3c;
+    --border-color: #454545;
+    --text-color: #e0e0e0;
+    --text-color-light: #9e9e9e;
+    --accent-color: #0090ff;
+    --accent-color-hover: #38a9ff;
+    --hover-bg-color: #3a3d41;
+    --selected-bg-color: #0078d4;
+    --selected-text-color: white;
+    --input-bg-color: #3c3c3c;
+    --input-disabled-bg-color: #252525;
+    --button-bg-color: #4f4f4f;
+    --button-border-color: #6a6a6a;
+    --button-disabled-bg: #252525;
+    --button-disabled-border: #404040;
+    --button-disabled-text: #6e6e6e;
+    --diff-del-bg: #5c1f1f;
+    --diff-add-bg: #2d572d;
+    --suggestion-box-bg: #2a3038;
+    --suggestion-box-border: #3c4a5c;
+    --placeholder-bg: #252525;
 }
 
 html, body {
@@ -28,24 +69,25 @@ html, body {
 }
 
 button {
-    background-color: #e1e1e1;
-    border: 1px solid #c1c1c1;
+    background-color: var(--button-bg-color);
+    border: 1px solid var(--button-border-color);
     border-radius: 3px;
     padding: 6px 12px;
     cursor: pointer;
     font-size: var(--font-size);
     transition: background-color 0.2s, border-color 0.2s;
+    color: var(--text-color);
 }
 
     button:hover {
-        background-color: #e5f1fb;
+        background-color: var(--hover-bg-color);
         border-color: var(--accent-color);
     }
 
     button:disabled {
-        background-color: #f4f4f4;
-        border-color: #ddd;
-        color: #aaa;
+        background-color: var(--button-disabled-bg);
+        border-color: var(--button-disabled-border);
+        color: var(--button-disabled-text);
         cursor: not-allowed;
     }
 
@@ -67,6 +109,8 @@ input[type="text"], input[type="number"], select, textarea {
     font-family: var(--font-family);
     font-size: var(--font-size-sm);
     box-sizing: border-box;
+    background-color: var(--input-bg-color);
+    color: var(--text-color);
 }
 
     input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
@@ -91,7 +135,7 @@ input[type="text"], input[type="number"], select, textarea {
     justify-content: center;
     height: 100%;
     color: var(--text-color-light);
-    background-color: #f9f9f9;
+    background-color: var(--placeholder-bg);
     border: 1px dashed var(--border-color);
     border-radius: 4px;
 }
@@ -128,7 +172,7 @@ input[type="text"], input[type="number"], select, textarea {
     align-items: center;
     padding: 10px 15px;
     border-bottom: 1px solid var(--border-color);
-    background-color: #f7f7f7;
+    background-color: var(--panel-bg);
 }
 
     .modal-header h3 {
@@ -140,6 +184,7 @@ input[type="text"], input[type="number"], select, textarea {
         border: none;
         font-size: 24px;
         cursor: pointer;
+        color: var(--text-color);
     }
 
 .modal-body {
@@ -155,7 +200,7 @@ input[type="text"], input[type="number"], select, textarea {
     gap: 10px;
     padding: 10px 15px;
     border-top: 1px solid var(--border-color);
-    background-color: #f7f7f7;
+    background-color: var(--panel-bg);
 }
 
     .modal-footer span {

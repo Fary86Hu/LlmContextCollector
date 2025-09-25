@@ -71,7 +71,7 @@
 }
 
     .context-menu-item:hover {
-        background-color: #e5f1fb;
+        background-color: var(--hover-bg-color);
     }
 
 .loading-overlay {

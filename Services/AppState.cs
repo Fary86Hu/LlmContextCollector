@@ -95,6 +95,13 @@ namespace LlmContextCollector.Services
             set => SetField(ref _promptText, value);
         }
 
+        private string _theme = "System";
+        public string Theme
+        {
+            get => _theme;
+            set => SetField(ref _theme, value);
+        }
+
         private Guid _selectedPromptTemplateId;
         public Guid SelectedPromptTemplateId
         {

@@ -2,6 +2,7 @@ namespace LlmContextCollector.Models
 {
     public class Settings
     {
+        public string Theme { get; set; } = "System";
         public string GroqApiKey { get; set; } = string.Empty;
         public string GroqModel { get; set; } = "llama-3.3-70b-versatile";
         public int GroqMaxOutputTokens { get; set; } = 2048;

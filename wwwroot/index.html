@@ -8,6 +8,31 @@
     <link rel="stylesheet" href="css/app.css" />
     <link rel="stylesheet" href="LlmContextCollector.styles.css" />
     <link rel="icon" href="data:,">
+    <script>
+        (function () {
+            function applyTheme(theme) {
+                if (theme === 'Dark' || (theme === 'System' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                }
+            }
+            window.setTheme = (theme) => {
+                localStorage.setItem('theme', theme);
+                applyTheme(theme);
+            };
+            const savedTheme = localStorage.getItem('theme') || 'System';
+            applyTheme(savedTheme);
+
+            const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+            mediaQuery.addEventListener('change', () => {
+                const currentTheme = localStorage.getItem('theme') || 'System';
+                if (currentTheme === 'System') {
+                    applyTheme('System');
+                }
+            });
+        })();
+    </script>
 </head>
 
 <body>

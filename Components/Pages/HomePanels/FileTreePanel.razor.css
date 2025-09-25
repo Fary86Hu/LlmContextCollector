@@ -1,6 +1,7 @@
 .path-display {
     flex-grow: 1;
-    background-color: #eee;
+    background-color: var(--input-disabled-bg-color);
+    color: var(--text-color-light);
 }
 
 .tree-view-container {

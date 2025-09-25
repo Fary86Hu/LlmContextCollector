@@ -103,7 +103,7 @@
     .context-table th, .context-table td {
         padding: 4px 8px;
         text-align: left;
-        border-bottom: 1px solid #f0f0f0;
+        border-bottom: 1px solid var(--border-color);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -116,7 +116,7 @@
 
 
     .context-table th {
-        background-color: #f8f8f8;
+        background-color: var(--toolbar-bg);
         position: sticky;
         top: 0;
     }
@@ -126,11 +126,11 @@
     }
 
         .context-table th.sortable:hover {
-            background-color: #e8e8e8;
+            background-color: var(--hover-bg-color);
         }
 
         .context-table th.sortable.active {
-            background-color: #d0e6f8;
+            background-color: var(--hover-bg-color);
         }
 
         .context-table th.sortable.active::after {
@@ -153,12 +153,12 @@
         }
 
     .context-table tbody tr:hover {
-        background-color: #f5f5f5;
+        background-color: var(--hover-bg-color);
     }
 
     .context-table tbody tr.selected {
-        background-color: #0078d7;
-        color: white;
+        background-color: var(--selected-bg-color);
+        color: var(--selected-text-color);
     }
 
 .char-counter {
@@ -170,7 +170,7 @@
 
 .preview-box {
     flex-grow: 1;
-    background-color: #fdfdfd;
+    background-color: var(--input-bg-color);
     resize: none;
     font-family: Consolas, monospace;
     font-size: var(--font-size-sm);
