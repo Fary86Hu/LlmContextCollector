@@ -60,6 +60,9 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         [Parameter]
         public EventCallback OnShowDocumentSearchDialog { get; set; }
+        
+        [Parameter]
+        public EventCallback OnShowClarificationDialog { get; set; }
 
         [Parameter]
         public EventCallback OnRequestRemoveSelected { get; set; }
@@ -424,6 +427,36 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             await OnHistorySaveRequested.InvokeAsync();
             await Clipboard.SetTextAsync(content);
             AppState.StatusText = $"Tartalom másolva ({_charCount} kar., ~{_tokenCount} token). Előzmény mentve.";
+        }
+        
+        private async Task CopyToClipboardForAnalysis()
+        {
+            var developerPrompt = await PromptService.GetDeveloperPromptAsync();
+            if (string.IsNullOrWhiteSpace(developerPrompt))
+            {
+                AppState.StatusText = "Nincs fejlesztői prompt beállítva a Prompt Sablon Kezelőben.";
+                return;
+            }
+    
+            var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
+            // We want to include user prompt, global prefix, and files
+            var mainContext = await ContextProcessingService.BuildContextForClipboardAsync(
+                true, // include prompt
+                true, // include global prefix
+                sortedPaths);
+    
+            if (string.IsNullOrWhiteSpace(mainContext))
+            {
+                AppState.StatusText = "Nincs másolható tartalom (se fájl, se prompt).";
+                return;
+            }
+            
+            var separator = "\n\n---\n\n";
+            var finalContent = developerPrompt + separator + mainContext;
+    
+            await OnHistorySaveRequested.InvokeAsync();
+            await Clipboard.SetTextAsync(finalContent);
+            AppState.StatusText = $"Tartalom elemzéshez másolva. Előzmény mentve.";
         }
 
         private async Task CopyPromptOnly()

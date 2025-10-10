@@ -10,5 +10,6 @@ namespace LlmContextCollector.Models
     public class GlobalPreferences
     {
         public string GlobalPrefix { get; set; } = string.Empty;
+        public string DeveloperPrompt { get; set; } = string.Empty;
     }
 }

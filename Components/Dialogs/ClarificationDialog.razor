@@ -1,0 +1,113 @@
+@using System.Text.RegularExpressions
+@using System.Text
+@inject IClipboard Clipboard
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop">
+        <div class="modal-dialog clarification-dialog">
+            <div class="modal-header">
+                <h3>Tisztázandó Kérdések Megválaszolása</h3>
+                <button class="close-btn" @onclick="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                @if (_items.Any())
+                {
+                    <div class="clarification-list">
+                        @foreach (var item in _items)
+                        {
+                            <div class="clarification-item">
+                                <div class="clarification-question">
+                                    <strong>Kérdés:</strong>
+                                    <p>@item.Question</p>
+                                </div>
+                                <div class="clarification-answer">
+                                    <textarea placeholder="Válasz..." @bind="item.Answer" @bind:event="oninput"></textarea>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="editor-placeholder">
+                        Nem találhatóak formázott kérdések a vágólapon.<br />
+                        A funkció használatához győződjön meg róla, hogy a vágólap tartalma `[Q1]...[/Q1]`, `[Q2]...[/Q2]` stb. formátumú blokkokat tartalmaz.
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button @onclick="Close">Mégsem</button>
+                <button class="primary" @onclick="CopyToClipboardAndClose" disabled="@(!_items.Any())">Válaszok Másolása és Bezárás</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public string ClipboardText { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private List<ClarificationItem> _items = new();
+
+    private class ClarificationItem
+    {
+        public string Question { get; set; } = string.Empty;
+        public string Answer { get; set; } = string.Empty;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (IsVisible && !string.IsNullOrWhiteSpace(ClipboardText))
+        {
+            ParseClipboardText();
+        }
+        else
+        {
+            _items.Clear();
+        }
+    }
+
+    private void ParseClipboardText()
+    {
+        _items.Clear();
+        var regex = new Regex(@"\[Q\d+\]([\s\S]*?)\[/Q\d+\]", RegexOptions.IgnoreCase);
+        var matches = regex.Matches(ClipboardText);
+
+        foreach (Match match in matches)
+        {
+            if (match.Success)
+            {
+                _items.Add(new ClarificationItem { Question = match.Groups[1].Value.Trim() });
+            }
+        }
+    }
+
+    private async Task CopyToClipboardAndClose()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("--- VÁLASZOK A TISZTÁZANDÓ KÉRDÉSEKRE ---");
+        sb.AppendLine();
+
+        foreach (var item in _items)
+        {
+            sb.AppendLine($"KÉRDÉS: {item.Question.Trim()}");
+            sb.AppendLine($"VÁLASZ: {(string.IsNullOrWhiteSpace(item.Answer) ? "(Nincs válasz megadva)" : item.Answer.Trim())}");
+            sb.AppendLine("---");
+        }
+
+        await Clipboard.SetTextAsync(sb.ToString());
+        await Close();
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+}

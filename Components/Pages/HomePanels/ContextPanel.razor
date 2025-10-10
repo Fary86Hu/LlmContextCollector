@@ -18,7 +18,10 @@
             <textarea class="prompt-editor" placeholder="Írja ide a promptot..." @bind="AppState.PromptText" @bind:event="oninput"></textarea>
             @if (!string.IsNullOrWhiteSpace(AppState.PromptText))
             {
-                <button class="clear-prompt-btn" @onclick="ClearPrompt" title="Prompt törlése">&times;</button>
+                <div class="prompt-editor-button-group">
+                    <button class="prompt-editor-btn" @onclick="CopyToClipboardForAnalysis" title="Másolás elemzéshez">🔍</button>
+                    <button class="prompt-editor-btn" @onclick="ClearPrompt" title="Prompt törlése">&times;</button>
+                </div>
             }
         </div>
     </div>
@@ -77,6 +80,7 @@
 
     <div class="bottom-actions">
         <button @onclick="ProcessGitDiffAsync" disabled="@(!AppState.IsGitRepository)">Git Különbségek</button>
+        <button @onclick="OnShowClarificationDialog">Tisztázandó kérdések vágólapról</button>
         <button @onclick="ProcessChangesFromClipboardAsync">Változások Vágólapról</button>
         <div>
             <label><input type="checkbox" @bind="_includePromptInCopy" />Prompt</label>

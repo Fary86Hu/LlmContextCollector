@@ -29,6 +29,7 @@
                       OnShowSettingsDialog="ShowSettingsDialog"
                       OnShowDocumentSearchDialog="ShowDocumentSearchDialog"
                       OnShowDiffDialog="ShowDiffDialog"
+                      OnShowClarificationDialog="ShowClarificationDialog"
                       OnRequestRemoveSelected="RemoveSelectedFilesFromContext"
                       OnHistorySaveRequested="() => HistoryService.SaveCurrentStateAsync()"
                       OnSplitterMouseDown="args => StartResize(args.Item1, args.Item2)" />
@@ -74,3 +75,4 @@
             OnCommit="HandleCommitAsync"
             OnPush="HandlePushAsync" />
 <DocumentSearchDialog IsVisible="_isDocumentSearchDialogVisible" OnClose="OnDocumentSearchDialogClose" OnAccept="AddRelevantFiles" />
+<ClarificationDialog IsVisible="_isClarificationDialogVisible" ClipboardText="@_clarificationDialogText" OnClose="OnClarificationDialogClose" />

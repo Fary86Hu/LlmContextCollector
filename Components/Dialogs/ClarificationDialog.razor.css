@@ -1,0 +1,35 @@
+.clarification-dialog {
+    width: 70vw;
+    min-width: 600px;
+}
+
+.clarification-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.clarification-item {
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 15px;
+}
+
+.clarification-question p {
+    margin: 5px 0 0 0;
+    white-space: pre-wrap; /* Megőrzi a sortöréseket a kérdésben */
+    background-color: var(--suggestion-box-bg);
+    padding: 10px;
+    border-radius: 3px;
+}
+
+.clarification-answer {
+    margin-top: 10px;
+}
+
+.clarification-answer textarea {
+    width: 100%;
+    min-height: 80px;
+    resize: vertical;
+}

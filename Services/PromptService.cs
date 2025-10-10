@@ -17,7 +17,7 @@ namespace LlmContextCollector.Services
         private async Task EnsureLoadedAsync()
         {
             // Cache check to avoid frequent disk I/O
-            if (!_promptDataCache.Prompts.Any() && !_promptDataCache.Preferences.GlobalPrefix.Any())
+            if (!_promptDataCache.Prompts.Any() && string.IsNullOrEmpty(_promptDataCache.Preferences.GlobalPrefix) && string.IsNullOrEmpty(_promptDataCache.Preferences.DeveloperPrompt))
             {
                  _promptDataCache = await _storage.ReadFromFileAsync<PromptData>(PromptFileName) ?? new PromptData();
             }
@@ -34,11 +34,18 @@ namespace LlmContextCollector.Services
             await EnsureLoadedAsync();
             return _promptDataCache.Preferences.GlobalPrefix;
         }
+        
+        public async Task<string> GetDeveloperPromptAsync()
+        {
+            await EnsureLoadedAsync();
+            return _promptDataCache.Preferences.DeveloperPrompt;
+        }
 
-        public async Task SaveAllAsync(List<PromptTemplate> prompts, string globalPrefix)
+        public async Task SaveAllAsync(List<PromptTemplate> prompts, string globalPrefix, string developerPrompt)
         {
             _promptDataCache.Prompts = prompts;
             _promptDataCache.Preferences.GlobalPrefix = globalPrefix;
+            _promptDataCache.Preferences.DeveloperPrompt = developerPrompt;
 
             await _storage.WriteToFileAsync(PromptFileName, _promptDataCache);
         }

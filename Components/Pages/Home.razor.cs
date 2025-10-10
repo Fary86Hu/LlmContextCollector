@@ -50,6 +50,8 @@ namespace LlmContextCollector.Components.Pages
         private bool _isSettingsDialogVisible = false;
         private bool _isAzureDevOpsDialogVisible = false;
         private bool _isDocumentSearchDialogVisible = false;
+        private bool _isClarificationDialogVisible = false;
+        private string _clarificationDialogText = string.Empty;
 
         private bool _showTreeContextMenu = false;
         private bool _showListContextMenu = false;
@@ -416,6 +418,20 @@ namespace LlmContextCollector.Components.Pages
         {
             _isSettingsDialogVisible = false;
             await ApplyTheme();
+            StateHasChanged();
+        }
+        
+        private async Task ShowClarificationDialog()
+        {
+            _clarificationDialogText = await Clipboard.GetTextAsync() ?? string.Empty;
+            _isClarificationDialogVisible = true;
+            StateHasChanged();
+        }
+
+        private void OnClarificationDialogClose()
+        {
+            _isClarificationDialogVisible = false;
+            _clarificationDialogText = string.Empty;
             StateHasChanged();
         }
 
