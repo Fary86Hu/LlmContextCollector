@@ -44,7 +44,14 @@
                                 </select>
                             }
                             <button @onclick="LoadSelectedDiffsAsync" disabled="@_isLoadingDiffs">
-                                @if (_isLoadingDiffs) { <span class="spinner-small"></span> } else { <>Különbségek mutatása</> }
+                                @if (_isLoadingDiffs)
+                                {
+                                    <span class="spinner-small"></span>
+                                }
+                                else
+                                {
+                                    <span>Különbségek mutatása</span>
+                                }
                             </button>
                         </div>
                     }
@@ -55,7 +62,14 @@
                             @if (_isGitDiffMode)
                             {
                                 <button class="refresh-btn" @onclick="RefreshSuggestionsAsync" title="Javaslatok frissítése" disabled="@_isRefreshingSuggestions">
-                                    @if (_isRefreshingSuggestions) { <span class="spinner-small"></span> } else { <>🔄</> }
+                                    @if (_isRefreshingSuggestions)
+                                    {
+                                        <span class="spinner-small"></span>
+                                    }
+                                    else
+                                    {
+                                        <span>🔄</span>
+                                    }
                                 </button>
                             }
                         </div>

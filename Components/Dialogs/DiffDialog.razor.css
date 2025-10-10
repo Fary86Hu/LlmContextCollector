@@ -5,12 +5,15 @@
 .diff-body {
     display: flex;
     gap: 15px;
+    overflow: hidden;
 }
 
 .diff-left-pane {
     width: 35%;
     display: flex;
     flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .diff-right-pane {
@@ -35,6 +38,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    flex-shrink: 0;
 }
 
     .diff-selector-box strong {
@@ -63,6 +67,7 @@
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 4px;
+    flex-shrink: 0;
 }
 
 .suggestion-header {
@@ -139,6 +144,7 @@
     margin-bottom: 10px;
     max-height: 200px;
     overflow-y: auto;
+    flex-shrink: 0;
 }
 
     .diff-global-explanation pre {
@@ -157,7 +163,6 @@
 
 .diff-file-list {
     flex-grow: 1;
-    overflow-y: auto;
     border: 1px solid var(--border-color);
     background-color: var(--panel-bg);
 }

@@ -38,24 +38,50 @@ namespace LlmContextCollector.Services
                          .ToList();
         }
 
-        private async Task<string> GetDefaultBranchNameAsync()
+        private async Task<string> GetDevelopmentBranchNameAsync()
         {
-            // Try to find what remote HEAD points to
-            var (success, output, _) = await _gitService.RunGitCommandAsync("symbolic-ref refs/remotes/origin/HEAD");
-            if (success && !string.IsNullOrWhiteSpace(output))
+            var allBranches = await GetBranchesAsync(); // This gets local branches
+
+            // Look for remote branches as well, they are more stable indicators
+            var (success, remoteBranchesOutput, _) = await _gitService.RunGitCommandAsync("branch -r");
+            if (success)
             {
-                var match = Regex.Match(output, @"refs/remotes/origin/(.+)");
+                var remoteBranches = remoteBranchesOutput
+                    .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(b => b.Trim())
+                    .Where(b => !b.Contains("->")) // Filter out "HEAD -> origin/master"
+                    .Select(b => b.StartsWith("origin/") ? b.Substring("origin/".Length) : b);
+                allBranches.AddRange(remoteBranches);
+            }
+
+            var uniqueBranches = allBranches.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+            // Prioritize 'develop', then 'main', then 'master'
+            if (uniqueBranches.Any(b => b.Equals("develop", StringComparison.OrdinalIgnoreCase)))
+            {
+                return "develop";
+            }
+            if (uniqueBranches.Any(b => b.Equals("main", StringComparison.OrdinalIgnoreCase)))
+            {
+                return "main";
+            }
+            if (uniqueBranches.Any(b => b.Equals("master", StringComparison.OrdinalIgnoreCase)))
+            {
+                return "master";
+            }
+
+            // Fallback: Try to find remote HEAD
+            var (headSuccess, headOutput, _) = await _gitService.RunGitCommandAsync("symbolic-ref refs/remotes/origin/HEAD");
+            if (headSuccess && !string.IsNullOrWhiteSpace(headOutput))
+            {
+                var match = Regex.Match(headOutput, @"refs/remotes/origin/(.+)");
                 if (match.Success) return match.Groups[1].Value.Trim();
             }
 
-            // Fallback: check for main or master
-            var allBranches = await GetBranchesAsync();
-            if (allBranches.Contains("main")) return "main";
-            if (allBranches.Contains("master")) return "master";
-
-            // Ultimate fallback
-            return allBranches.FirstOrDefault() ?? "main";
+            // Ultimate fallback if nothing is found
+            return "main";
         }
+
 
         public async Task<List<DiffResult>> GetDiffsAsync(DiffMode mode, string? targetBranch = null)
         {
@@ -68,8 +94,8 @@ namespace LlmContextCollector.Services
             switch (mode)
             {
                 case DiffMode.SinceBranchCreation:
-                    var defaultBranch = await GetDefaultBranchNameAsync();
-                    diffCommand = $"diff --name-status {defaultBranch}...HEAD";
+                    var devBranch = await GetDevelopmentBranchNameAsync();
+                    diffCommand = $"diff --name-status {devBranch}...HEAD";
                     break;
                 case DiffMode.AgainstBranch:
                     if (string.IsNullOrWhiteSpace(targetBranch)) return new List<DiffResult>();
