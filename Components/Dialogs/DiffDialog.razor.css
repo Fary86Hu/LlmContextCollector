@@ -26,6 +26,37 @@
     align-items: center;
 }
 
+.diff-selector-box {
+    background-color: var(--suggestion-box-bg);
+    border: 1px solid var(--suggestion-box-border);
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+    .diff-selector-box strong {
+        display: block;
+    }
+
+    .diff-selector-box .diff-options {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .diff-selector-box select {
+        width: 100%;
+    }
+
+    .diff-selector-box button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
 .suggestion-box {
     background-color: var(--suggestion-box-bg);
     border: 1px solid var(--suggestion-box-border);
@@ -34,10 +65,43 @@
     border-radius: 4px;
 }
 
-    .suggestion-box strong {
+.suggestion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+    .suggestion-header strong {
         display: block;
-        margin-bottom: 8px;
     }
+
+    .suggestion-header .refresh-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 1.2em;
+        padding: 2px;
+    }
+
+        .suggestion-header .refresh-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+.spinner-small {
+    display: inline-block;
+    border: 2px solid var(--text-color);
+    border-top-color: transparent;
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
 
 .suggestion-item {
     display: flex;

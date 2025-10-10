@@ -1,6 +1,7 @@
 using LlmContextCollector.Components.Pages.HomePanels;
 using LlmContextCollector.Models;
 using Microsoft.JSInterop;
+using System.Text.RegularExpressions;
 
 namespace LlmContextCollector.Services
 {
@@ -9,6 +10,8 @@ namespace LlmContextCollector.Services
         private readonly GitService _gitService;
         private readonly GitSuggestionService _suggestionService;
         private readonly AppState _appState;
+
+        public enum DiffMode { Uncommitted, SinceBranchCreation, AgainstBranch }
 
         public GitWorkflowService(GitService gitService, GitSuggestionService suggestionService, AppState appState)
         {
@@ -19,45 +22,77 @@ namespace LlmContextCollector.Services
 
         public async Task<DiffResultArgs> PrepareGitDiffForReviewAsync()
         {
-            var diffResults = new List<DiffResult>();
+            var diffResults = await GetDiffsAsync(DiffMode.Uncommitted);
+            _appState.StatusText = $"{diffResults.Count} változott fájl betöltve a Git-ből.";
+            return new DiffResultArgs(string.Empty, diffResults, string.Empty);
+        }
 
-            // Tracked changes
-            var (trackedSuccess, trackedDiff, trackedError) = await _gitService.RunGitCommandAsync("diff --name-status HEAD --no-color");
+        public async Task<List<string>> GetBranchesAsync()
+        {
+            var (success, output, error) = await _gitService.RunGitCommandAsync("branch");
+            if (!success) return new List<string>();
+
+            return output.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                         .Select(line => line.Trim().Replace("* ", ""))
+                         .Where(b => !b.Contains("->"))
+                         .ToList();
+        }
+
+        private async Task<string> GetDefaultBranchNameAsync()
+        {
+            // Try to find what remote HEAD points to
+            var (success, output, _) = await _gitService.RunGitCommandAsync("symbolic-ref refs/remotes/origin/HEAD");
+            if (success && !string.IsNullOrWhiteSpace(output))
+            {
+                var match = Regex.Match(output, @"refs/remotes/origin/(.+)");
+                if (match.Success) return match.Groups[1].Value.Trim();
+            }
+
+            // Fallback: check for main or master
+            var allBranches = await GetBranchesAsync();
+            if (allBranches.Contains("main")) return "main";
+            if (allBranches.Contains("master")) return "master";
+
+            // Ultimate fallback
+            return allBranches.FirstOrDefault() ?? "main";
+        }
+
+        public async Task<List<DiffResult>> GetDiffsAsync(DiffMode mode, string? targetBranch = null)
+        {
+            if (mode == DiffMode.Uncommitted)
+            {
+                return await GetUncommittedDiffsAsync();
+            }
+
+            string diffCommand;
+            switch (mode)
+            {
+                case DiffMode.SinceBranchCreation:
+                    var defaultBranch = await GetDefaultBranchNameAsync();
+                    diffCommand = $"diff --name-status {defaultBranch}...HEAD";
+                    break;
+                case DiffMode.AgainstBranch:
+                    if (string.IsNullOrWhiteSpace(targetBranch)) return new List<DiffResult>();
+                    diffCommand = $"diff --name-status {targetBranch}...HEAD";
+                    break;
+                default:
+                    return new List<DiffResult>();
+            }
+
+            var (success, output, error) = await _gitService.RunGitCommandAsync(diffCommand);
+            if (!success) throw new InvalidOperationException($"Git diff failed: {error}");
+
+            return await ParseDiffNameStatusOutputAsync(output, diffCommand.Split(' ')[0]);
+        }
+
+        private async Task<List<DiffResult>> GetUncommittedDiffsAsync()
+        {
+            var diffResults = new List<DiffResult>();
+            // Staged + Unstaged changes to tracked files
+            var (trackedSuccess, trackedDiff, trackedError) = await _gitService.RunGitCommandAsync("diff --name-status HEAD");
             if (!trackedSuccess) throw new InvalidOperationException(trackedError);
 
-            var trackedLines = trackedDiff.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var line in trackedLines)
-            {
-                var parts = line.Split('\t');
-                if (parts.Length < 2) continue;
-                var statusChar = parts[0][0];
-                var path = parts[1];
-                if (statusChar == 'R' && parts.Length > 2)
-                {
-                    path = parts[2];
-                    statusChar = 'M';
-                }
-
-                var result = new DiffResult { Path = path.Replace('\\', '/') };
-                var fullPath = Path.Combine(_appState.ProjectRoot, path);
-
-                switch (statusChar)
-                {
-                    case 'M':
-                        result.Status = DiffStatus.Modified;
-                        result.OldContent = (await _gitService.RunGitCommandAsync($"show HEAD:\"{path}\"")).output;
-                        if (File.Exists(fullPath)) result.NewContent = await File.ReadAllTextAsync(fullPath);
-                        break;
-                    case 'D':
-                        result.Status = DiffStatus.Deleted;
-                        result.OldContent = (await _gitService.RunGitCommandAsync($"show HEAD:\"{path}\"")).output;
-                        result.NewContent = "";
-                        break;
-                    default:
-                        continue;
-                }
-                diffResults.Add(result);
-            }
+            diffResults.AddRange(await ParseDiffNameStatusOutputAsync(trackedDiff, "HEAD"));
 
             // Untracked files
             var (untrackedSuccess, untrackedFiles, untrackedError) = await _gitService.RunGitCommandAsync("ls-files --others --exclude-standard");
@@ -73,31 +108,50 @@ namespace LlmContextCollector.Services
                 diffResults.Add(result);
             }
 
-            if (!diffResults.Any())
-            {
-                _appState.StatusText = "Nincs változás a legutóbbi commit óta.";
-                return new DiffResultArgs("Nincs változás.", new List<DiffResult>(), string.Empty);
-            }
+            return diffResults;
+        }
 
-            _appState.ShowLoading("Javaslatok generálása...");
-            var (branch, commit) = await _suggestionService.GetSuggestionsAsync(diffResults, _appState.LastLlmGlobalExplanation);
+        private async Task<List<DiffResult>> ParseDiffNameStatusOutputAsync(string output, string oldContentRef)
+        {
+            var diffResults = new List<DiffResult>();
+            var lines = output.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
 
-            string explanation;
-            string fullLlmResponse;
-            if (branch != null && commit != null)
+            foreach (var line in lines)
             {
-                explanation = $"[BRANCH_SUGGESTION]{branch}[/BRANCH_SUGGESTION]\n[COMMIT_SUGGESTION]{commit}[/COMMIT_SUGGESTION]";
-                fullLlmResponse = explanation; // In this case, the explanation IS the full response.
-                _appState.StatusText = $"{diffResults.Count} változott fájl betöltve a Git-ből.";
-            }
-            else
-            {
-                explanation = "Hiba: A javaslatok generálása nem sikerült. A nyelvi modell nem érhető el vagy hibát adott.";
-                fullLlmResponse = explanation;
-                _appState.StatusText = "Figyelem: LLM hiba, nincsenek Git javaslatok.";
-            }
+                var parts = line.Split('\t');
+                if (parts.Length < 2) continue;
 
-            return new DiffResultArgs(explanation, diffResults, fullLlmResponse);
+                var statusChar = parts[0][0];
+                var oldPath = parts[1];
+                var newPath = parts.Length > 2 ? parts[2] : oldPath; // For renames
+
+                var result = new DiffResult { Path = newPath.Replace('\\', '/') };
+                var fullPath = Path.Combine(_appState.ProjectRoot, newPath);
+
+                switch (statusChar)
+                {
+                    case 'M': // Modified
+                    case 'R': // Renamed
+                        result.Status = DiffStatus.Modified;
+                        result.OldContent = (await _gitService.RunGitCommandAsync($"show {oldContentRef}:\"{oldPath}\"")).output;
+                        if (File.Exists(fullPath)) result.NewContent = await File.ReadAllTextAsync(fullPath);
+                        break;
+                    case 'A': // Added
+                        result.Status = DiffStatus.New;
+                        result.OldContent = "";
+                        if (File.Exists(fullPath)) result.NewContent = await File.ReadAllTextAsync(fullPath);
+                        break;
+                    case 'D': // Deleted
+                        result.Status = DiffStatus.Deleted;
+                        result.OldContent = (await _gitService.RunGitCommandAsync($"show {oldContentRef}:\"{oldPath}\"")).output;
+                        result.NewContent = "";
+                        break;
+                    default:
+                        continue;
+                }
+                diffResults.Add(result);
+            }
+            return diffResults;
         }
 
         public async Task<(int acceptedCount, int errorCount)> AcceptChangesAsync(List<DiffResult> acceptedResults)

@@ -1,10 +1,13 @@
 @using LlmContextCollector.Models
 @using LlmContextCollector.Utils
+@using LlmContextCollector.Services
 @inject IClipboard Clipboard
 @inject AppState AppState
+@inject GitWorkflowService GitWorkflowService
+@inject GitSuggestionService GitSuggestionService
 @implements IDisposable
 
-@if (IsVisible && DiffResults != null)
+@if (IsVisible)
 {
     <div class="modal-backdrop">
         <div class="modal-dialog diff-dialog">
@@ -22,8 +25,40 @@
             </div>
             <div class="modal-body diff-body">
                 <div class="diff-left-pane">
+                    @if (_isGitDiffMode)
+                    {
+                        <div class="diff-selector-box">
+                            <strong>Különbségek forrása:</strong>
+                            <div class="diff-options">
+                                <label><input type="radio" name="diff-mode" @onchange="() => _selectedDiffMode = GitWorkflowService.DiffMode.Uncommitted" checked="@(_selectedDiffMode == GitWorkflowService.DiffMode.Uncommitted)" /> Jelenlegi változások</label>
+                                <label><input type="radio" name="diff-mode" @onchange="() => _selectedDiffMode = GitWorkflowService.DiffMode.SinceBranchCreation" checked="@(_selectedDiffMode == GitWorkflowService.DiffMode.SinceBranchCreation)" /> Branch nyitása óta</label>
+                                <label><input type="radio" name="diff-mode" @onchange="() => _selectedDiffMode = GitWorkflowService.DiffMode.AgainstBranch" checked="@(_selectedDiffMode == GitWorkflowService.DiffMode.AgainstBranch)" /> Másik branch-hez képest</label>
+                            </div>
+                            @if (_selectedDiffMode == GitWorkflowService.DiffMode.AgainstBranch)
+                            {
+                                <select @bind="_selectedTargetBranch">
+                                    @foreach (var branch in _allBranches)
+                                    {
+                                        <option value="@branch">@branch</option>
+                                    }
+                                </select>
+                            }
+                            <button @onclick="LoadSelectedDiffsAsync" disabled="@_isLoadingDiffs">
+                                @if (_isLoadingDiffs) { <span class="spinner-small"></span> } else { <>Különbségek mutatása</> }
+                            </button>
+                        </div>
+                    }
+
                     <div class="suggestion-box">
-                        <strong>@(_hasSuggestions ? "Javaslatok:" : "Git Műveletek")</strong>
+                        <div class="suggestion-header">
+                            <strong>@(_hasSuggestions ? "Javaslatok:" : "Git Műveletek")</strong>
+                            @if (_isGitDiffMode)
+                            {
+                                <button class="refresh-btn" @onclick="RefreshSuggestionsAsync" title="Javaslatok frissítése" disabled="@_isRefreshingSuggestions">
+                                    @if (_isRefreshingSuggestions) { <span class="spinner-small"></span> } else { <>🔄</> }
+                                </button>
+                            }
+                        </div>
                         <div class="suggestion-item">
                             <label>Branch:</label>
                             <input type="text" @bind="_suggestedBranch" placeholder="pl. feature/uj-funkcio" />
@@ -48,10 +83,10 @@
                             <pre>@_globalExplanationText</pre>
                         </div>
                     }
-                    <strong>Feldolgozott fájlok:</strong>
+                    <strong>Feldolgozott fájlok: (@_localDiffResults.Count)</strong>
                     <fieldset class="file-list-fieldset" disabled="@_isFullResponseView">
                         <div class="diff-file-list">
-                            @foreach (var result in DiffResults)
+                            @foreach (var result in _localDiffResults)
                             {
                                 <div @key="result.Path"
                                      class="diff-file-item @GetStatusClass(result) @(_selectedResult != null && _selectedResult.Path == result.Path ? "selected" : "")"
@@ -112,15 +147,15 @@
                     }
                     else
                     {
-                        <div class="editor-placeholder">Válassz egy fájlt a változások megtekintéséhez.</div>
+                        <div class="editor-placeholder">Válassz egy fájlt a változások megtekintéséhez. Vagy válassz másik különbség forrást.</div>
                     }
                 </div>
 
             </div>
             <div class="modal-footer">
-                <span>@($"{DiffResults.Count(r => r.IsSelectedForAccept)} fájl kijelölve")</span>
+                <span>@($"{_localDiffResults.Count(r => r.IsSelectedForAccept)} fájl kijelölve")</span>
                 <button @onclick="Close">Bezárás</button>
-                <button class="primary" @onclick="AcceptSelectedChanges" disabled="@(!DiffResults.Any(r => r.IsSelectedForAccept))">
+                <button class="primary" @onclick="AcceptSelectedChanges" disabled="@(!_localDiffResults.Any(r => r.IsSelectedForAccept))">
                     Kijelöltek elfogadása
                 </button>
                 @{
@@ -129,7 +164,7 @@
                 <button class="primary" @onclick="CreateBranch" disabled="@(string.IsNullOrWhiteSpace(_suggestedBranch) || onCorrectBranch)">
                     Branch Létrehozása
                 </button>
-                <button class="primary" @onclick="Commit" disabled="@(string.IsNullOrWhiteSpace(_suggestedCommit) || !DiffResults.Any(r => r.IsSelectedForAccept))">
+                <button class="primary" @onclick="Commit" disabled="@(string.IsNullOrWhiteSpace(_suggestedCommit) || !_localDiffResults.Any(r => r.IsSelectedForAccept))">
                     Commit
                 </button>
                 <button class="primary commit-btn" @onclick="Push">
@@ -168,6 +203,7 @@
     [Parameter]
     public EventCallback<CommitAndPushArgs> OnPush { get; set; }
 
+    private List<DiffResult> _localDiffResults = new();
     private DiffResult? _selectedResult;
     private string _viewMode = "unified";
     private MarkupString _unifiedDiffMarkup;
@@ -182,20 +218,45 @@
     private string _globalExplanationText = string.Empty;
     private bool _hasSuggestions = false;
     private bool _isFullResponseView = false;
+    private bool _isGitDiffMode = false;
+
+    // New state for Git diff selection
+    private GitWorkflowService.DiffMode _selectedDiffMode = GitWorkflowService.DiffMode.Uncommitted;
+    private List<string> _allBranches = new();
+    private string? _selectedTargetBranch;
+    private bool _isLoadingDiffs = false;
+    private bool _isRefreshingSuggestions = false;
+
 
     protected override void OnInitialized()
     {
         AppState.PropertyChanged += OnAppStateChanged;
     }
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
-        if (IsVisible && DiffResults != null && DiffResults.Any())
+        if (IsVisible)
         {
-            ParseGlobalExplanation();
-            if (_selectedResult == null || !DiffResults.Any(d => d.Path == _selectedResult.Path))
+            _localDiffResults = DiffResults?.ToList() ?? new();
+            _isGitDiffMode = string.IsNullOrEmpty(FullLlmResponse);
+
+            if (_isGitDiffMode)
             {
-                SelectResult(DiffResults.FirstOrDefault());
+                _suggestedBranch = string.Empty;
+                _suggestedCommit = string.Empty;
+                _hasSuggestions = false;
+                _globalExplanationText = string.Empty; // No initial explanation for git diff
+                await LoadBranchesAsync();
+            }
+            else
+            {
+                // This is from clipboard or OpenRouter, parse suggestions immediately.
+                ParseGlobalExplanation();
+            }
+
+            if (_selectedResult == null || !_localDiffResults.Any(d => d.Path == _selectedResult.Path))
+            {
+                SelectResult(_localDiffResults.FirstOrDefault());
             }
         }
     }
@@ -218,6 +279,59 @@
         _isFullResponseView = !_isFullResponseView;
     }
 
+    private async Task LoadBranchesAsync()
+    {
+        _allBranches = await GitWorkflowService.GetBranchesAsync();
+        if (_allBranches.Any())
+        {
+            _selectedTargetBranch = _allBranches.FirstOrDefault(b => b == "main" || b == "master") ?? _allBranches.First();
+        }
+    }
+
+    private async Task LoadSelectedDiffsAsync()
+    {
+        _isLoadingDiffs = true;
+        StateHasChanged();
+        try
+        {
+            _localDiffResults = await GitWorkflowService.GetDiffsAsync(_selectedDiffMode, _selectedTargetBranch);
+            _suggestedBranch = string.Empty;
+            _suggestedCommit = string.Empty;
+            _hasSuggestions = false;
+            SelectResult(_localDiffResults.FirstOrDefault());
+        }
+        finally
+        {
+            _isLoadingDiffs = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshSuggestionsAsync()
+    {
+        if (!_localDiffResults.Any())
+        {
+            AppState.StatusText = "Nincsenek különbségek, amik alapján javaslatot lehetne generálni.";
+            return;
+        }
+
+        _isRefreshingSuggestions = true;
+        StateHasChanged();
+
+        try
+        {
+            var (branch, commit) = await GitSuggestionService.GetSuggestionsAsync(_localDiffResults, _globalExplanationText);
+            _suggestedBranch = branch ?? "hiba-a-javaslatban";
+            _suggestedCommit = commit ?? "Hiba történt a commit üzenet generálásakor.";
+            _hasSuggestions = branch != null;
+        }
+        finally
+        {
+            _isRefreshingSuggestions = false;
+            StateHasChanged();
+        }
+    }
+
     private void ParseGlobalExplanation()
     {
         _hasSuggestions = false;
@@ -235,7 +349,6 @@
             _hasSuggestions = true;
             _suggestedBranch = branchMatch.Groups[1].Value.Trim();
             _suggestedCommit = commitMatch.Groups[1].Value.Trim();
-            // Eltávolítjuk a javaslat részt a magyarázatból, hogy ne jelenjen meg kétszer
             _globalExplanationText = System.Text.RegularExpressions.Regex.Replace(GlobalExplanation, @"\[BRANCH_SUGGESTION\][\s\S]*?\[/COMMIT_SUGGESTION\]\s*", "").Trim();
         }
     }
@@ -252,7 +365,18 @@
     {
         _selectedResult = result;
         _viewMode = "unified";
+        GenerateDiffView();
+    }
 
+    private void SetViewMode(string newMode)
+    {
+        if (_viewMode == newMode) return;
+        _viewMode = newMode;
+        GenerateDiffView();
+    }
+
+    private void GenerateDiffView()
+    {
         if (_selectedResult != null)
         {
             var (unified, sbsLeft, sbsRight) = DiffUtility.GenerateDiffMarkup(_selectedResult.OldContent, _selectedResult.NewContent);
@@ -263,17 +387,10 @@
         }
         else
         {
+            _unifiedDiffMarkup = new MarkupString("");
+            _sbsLeftMarkup = new MarkupString("");
+            _sbsRightMarkup = new MarkupString("");
             _diffMarkers.Clear();
-        }
-    }
-
-    private void SetViewMode(string newMode)
-    {
-        if (_viewMode == newMode) return;
-        _viewMode = newMode;
-        if (_selectedResult != null)
-        {
-            GenerateDiffMarkers();
         }
     }
 
@@ -292,7 +409,8 @@
         double totalLines = 0;
         if (_viewMode == "unified")
         {
-            totalLines = opcodes.Sum(op => op.Tag switch {
+            totalLines = opcodes.Sum(op => op.Tag switch
+            {
                 'e' => op.I2 - op.I1,
                 'd' => op.I2 - op.I1,
                 'i' => op.J2 - op.J1,
@@ -302,7 +420,8 @@
         }
         else // sbs
         {
-            totalLines = opcodes.Sum(op => op.Tag switch {
+            totalLines = opcodes.Sum(op => op.Tag switch
+            {
                 'e' => op.I2 - op.I1,
                 'd' => op.I2 - op.I1,
                 'i' => op.J2 - op.J1,
@@ -351,7 +470,7 @@
 
     private async Task AcceptSelectedChanges()
     {
-        var accepted = DiffResults?.Where(r => r.IsSelectedForAccept).ToList();
+        var accepted = _localDiffResults?.Where(r => r.IsSelectedForAccept).ToList();
         if (accepted != null && accepted.Any())
         {
             await OnAccept.InvokeAsync(accepted);
@@ -368,7 +487,7 @@
 
     private async Task Commit()
     {
-        var accepted = DiffResults?.Where(r => r.IsSelectedForAccept).ToList();
+        var accepted = _localDiffResults?.Where(r => r.IsSelectedForAccept).ToList();
         if (accepted != null && accepted.Any() && !string.IsNullOrWhiteSpace(_suggestedCommit))
         {
             var args = new CommitAndPushArgs(_suggestedBranch, _suggestedCommit, accepted);
@@ -381,7 +500,7 @@
         var branchToPush = AppState.CurrentGitBranch;
         if (!string.IsNullOrWhiteSpace(branchToPush))
         {
-            var accepted = DiffResults?.Where(r => r.IsSelectedForAccept).ToList() ?? new List<DiffResult>();
+            var accepted = _localDiffResults?.Where(r => r.IsSelectedForAccept).ToList() ?? new List<DiffResult>();
             var args = new CommitAndPushArgs(branchToPush, _suggestedCommit, accepted);
             await OnPush.InvokeAsync(args);
         }
@@ -415,6 +534,8 @@
     {
         _selectedResult = null;
         _isFullResponseView = false;
+        _localDiffResults.Clear();
+        _allBranches.Clear();
         await OnClose.InvokeAsync();
     }
 }
