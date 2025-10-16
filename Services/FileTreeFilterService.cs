@@ -24,7 +24,7 @@ namespace LlmContextCollector.Services
                 return;
             }
 
-            _appState.ShowLoading($"Keresés: '{term}'...");
+            _appState.ShowLoading($"Szűrés: '{term}'...");
             await Task.Delay(1); 
             try
             {
@@ -93,7 +93,7 @@ namespace LlmContextCollector.Services
                 }
                 UpdateVisibility(_appState.FileTree);
                 var fileMatchCount = matchedNodes.Count(n => !n.IsDirectory);
-                _appState.StatusText = $"{fileMatchCount} fájl található.";
+                _appState.StatusText = $"{fileMatchCount} fájl található a szűrésben.";
             }
             finally
             {
@@ -118,7 +118,7 @@ namespace LlmContextCollector.Services
                 }
             }
             UpdateVisibility(_appState.FileTree);
-            _appState.StatusText = "Keresés törölve, fa nézet visszaállítva.";
+            _appState.StatusText = "Szűrés törölve, fa nézet visszaállítva.";
         }
     }
 }

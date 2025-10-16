@@ -60,9 +60,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         [Parameter]
         public EventCallback OnShowDocumentSearchDialog { get; set; }
-        
-        [Parameter]
-        public EventCallback OnShowClarificationDialog { get; set; }
 
         [Parameter]
         public EventCallback OnRequestRemoveSelected { get; set; }
@@ -86,6 +83,9 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private const string AdoFilePrefix = "[ADO]";
         private Dictionary<string, double> _semanticScores = new();
         private string? _promptForLastSemanticSort;
+        
+        private bool _isClarificationDialogVisible = false;
+        private string _clarificationDialogText = string.Empty;
 
         private record ContextListItem(string RelativePath, string DisplayPath, string FileName, long Size, double SemanticScore);
 
@@ -472,6 +472,60 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             }
         }
 
+
+        #region Clarification Dialog
+        
+        private async Task ShowClarificationDialog()
+        {
+            _clarificationDialogText = await Clipboard.GetTextAsync() ?? string.Empty;
+            _isClarificationDialogVisible = true;
+            StateHasChanged();
+        }
+
+        private void OnClarificationDialogClose()
+        {
+            _isClarificationDialogVisible = false;
+            _clarificationDialogText = string.Empty;
+            StateHasChanged();
+        }
+        
+        private async Task HandleGenerateRefinedPrompt(string qaString)
+        {
+            OnClarificationDialogClose(); 
+            AppState.ShowLoading("Részletes prompt összeállítása a vágólapra...");
+            try
+            {
+                var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
+                var originalContext = await ContextProcessingService.BuildContextForClipboardAsync(
+                    true, 
+                    true, 
+                    sortedPaths);
+
+                var sb = new StringBuilder();
+                sb.AppendLine("--- EREDETI KONTEXTUS ÉS TISZTÁZOTT RÉSZLETEK ---");
+                sb.AppendLine();
+                sb.AppendLine(originalContext);
+                sb.AppendLine();
+                sb.AppendLine();
+                sb.AppendLine("--- TISZTÁZANDÓ KÉRDÉSEK ÉS VÁLASZOK ---");
+                sb.AppendLine();
+                sb.AppendLine(qaString);
+                sb.AppendLine();
+                sb.AppendLine();
+                sb.AppendLine("--- UTASÍTÁS ---");
+                sb.AppendLine("A fenti, kiegészített kontextus alapján készíts egy új, részletes és egyértelmű végleges promptot a fejlesztő számára. Az új promptnak tartalmaznia kell minden releváns információt a válaszokból. Ha egy kérdésre nem érkezett válasz, dönts a legjobb belátásod szerint, és jelezd a feltételezésedet egy [FELTÉTELEZÉS] taggel. Az új, végleges promptot önmagában, mindenféle magyarázat vagy előzetes szöveg nélkül add meg. Csak a végleges prompt tartalma szerepeljen a válaszodban.");
+
+                await Clipboard.SetTextAsync(sb.ToString());
+                AppState.StatusText = "Részletes prompt a vágólapra másolva. Illessze be az LLM-be a végleges prompt generálásához.";
+            }
+            finally
+            {
+                AppState.HideLoading();
+            }
+        }
+
+
+        #endregion
 
         #region Diff Processing
 

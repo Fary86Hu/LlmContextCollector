@@ -31,8 +31,22 @@
     <div class="toolbar">
         <input type="text" placeholder="Keresés..." style="flex-grow: 1;" @bind="AppState.SearchTerm" @bind:event="oninput" @onkeyup="HandleSearchKeyup" />
         <label style="font-size: 0.8em; margin: 0 5px;"><input type="checkbox" @bind="AppState.SearchInContent" /> Tartalomban</label>
-        <button @onclick="FilterTree">Keresés</button>
-        <button @onclick="ClearSearch">Törlés</button>
+        <button @onclick="ToggleFilter" 
+                disabled="@(string.IsNullOrWhiteSpace(AppState.SearchTerm) && !_isFiltered)" 
+                class="icon-btn" 
+                title="@(_isFiltered ? "Szűrés törlése" : "Szűrés")">
+            @if (_isFiltered)
+            {
+                <span>🚫</span>
+            }
+            else
+            {
+                <span>🔍</span>
+            }
+        </button>
+        <button @onclick="FindPrevious" class="icon-btn" disabled="@(string.IsNullOrWhiteSpace(AppState.SearchTerm))" title="Előző találat">▲</button>
+        <button @onclick="() => FindNext(false)" class="icon-btn" disabled="@(string.IsNullOrWhiteSpace(AppState.SearchTerm))" title="Következő találat">▼</button>
+        <button @onclick="ClearSearch" class="icon-btn clear-btn" title="Törlés">&times;</button>
     </div>
     <div class="tree-view-container" @oncontextmenu="e => OnShowTreeContextMenu.InvokeAsync(e)" @oncontextmenu:preventDefault>
         @if (AppState.FileTree.Any())

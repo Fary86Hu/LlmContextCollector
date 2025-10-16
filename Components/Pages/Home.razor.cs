@@ -50,8 +50,6 @@ namespace LlmContextCollector.Components.Pages
         private bool _isSettingsDialogVisible = false;
         private bool _isAzureDevOpsDialogVisible = false;
         private bool _isDocumentSearchDialogVisible = false;
-        private bool _isClarificationDialogVisible = false;
-        private string _clarificationDialogText = string.Empty;
 
         private bool _showTreeContextMenu = false;
         private bool _showListContextMenu = false;
@@ -131,14 +129,26 @@ namespace LlmContextCollector.Components.Pages
             var node = payload.Node;
             var e = payload.Args;
 
-            // Step 1: Update tree selection state (logic moved from FileTreePanel)
-            if (!e.CtrlKey)
+            if (e != null) // User click
+            {
+                if (!e.CtrlKey)
+                {
+                    DeselectAllNodes(AppState.FileTree);
+                    node.IsSelectedInTree = true;
+                }
+                else // Ctrl+click
+                {
+                    node.IsSelectedInTree = !node.IsSelectedInTree; // Toggle
+                }
+            }
+            else // Programmatic selection from search
             {
                 DeselectAllNodes(AppState.FileTree);
+                node.IsSelectedInTree = true;
+                AppState.ExpandNodeParents(node);
             }
-            node.IsSelectedInTree = !node.IsSelectedInTree;
 
-            // Step 2: Synchronize this new tree selection to the list
+            // Synchronize this new tree selection to the list
             var selectedNodes = new List<FileNode>();
             FindSelectedNodes(AppState.FileTree, selectedNodes);
 
@@ -153,7 +163,7 @@ namespace LlmContextCollector.Components.Pages
 
             if (_contextPanelRef != null)
             {
-                // Step 3: Update preview panel based on the new selection state
+                // Update preview panel based on the new selection state
                 if (selectedNodes.Count == 1 && !selectedNodes[0].IsDirectory)
                 {
                     var relativePath = Path.GetRelativePath(AppState.ProjectRoot, selectedNodes[0].FullPath).Replace('\\', '/');
@@ -418,20 +428,6 @@ namespace LlmContextCollector.Components.Pages
         {
             _isSettingsDialogVisible = false;
             await ApplyTheme();
-            StateHasChanged();
-        }
-        
-        private async Task ShowClarificationDialog()
-        {
-            _clarificationDialogText = await Clipboard.GetTextAsync() ?? string.Empty;
-            _isClarificationDialogVisible = true;
-            StateHasChanged();
-        }
-
-        private void OnClarificationDialogClose()
-        {
-            _isClarificationDialogVisible = false;
-            _clarificationDialogText = string.Empty;
             StateHasChanged();
         }
 

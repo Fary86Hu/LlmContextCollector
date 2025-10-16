@@ -80,7 +80,7 @@
 
     <div class="bottom-actions">
         <button @onclick="ProcessGitDiffAsync" disabled="@(!AppState.IsGitRepository)">Git Különbségek</button>
-        <button @onclick="OnShowClarificationDialog">Tisztázandó kérdések vágólapról</button>
+        <button @onclick="ShowClarificationDialog">Tisztázandó kérdések vágólapról</button>
         <button @onclick="ProcessChangesFromClipboardAsync">Változások Vágólapról</button>
         <div>
             <label><input type="checkbox" @bind="_includePromptInCopy" />Prompt</label>
@@ -90,3 +90,8 @@
         </div>
     </div>
 </div>
+
+<ClarificationDialog IsVisible="_isClarificationDialogVisible" 
+                     ClipboardText="@_clarificationDialogText" 
+                     OnClose="OnClarificationDialogClose" 
+                     OnGenerateRefinedPrompt="HandleGenerateRefinedPrompt" />

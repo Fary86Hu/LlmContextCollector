@@ -38,7 +38,7 @@
             </div>
             <div class="modal-footer">
                 <button @onclick="Close">Mégsem</button>
-                <button class="primary" @onclick="CopyToClipboardAndClose" disabled="@(!_items.Any())">Válaszok Másolása és Bezárás</button>
+                <button class="primary" @onclick="GenerateRefinedPrompt" disabled="@(!_items.Any())">Részletes Prompt Készítése és Másolása</button>
             </div>
         </div>
     </div>
@@ -53,6 +53,9 @@
 
     [Parameter]
     public EventCallback OnClose { get; set; }
+    
+    [Parameter]
+    public EventCallback<string> OnGenerateRefinedPrompt { get; set; }
 
     private List<ClarificationItem> _items = new();
 
@@ -89,21 +92,16 @@
         }
     }
 
-    private async Task CopyToClipboardAndClose()
+    private async Task GenerateRefinedPrompt()
     {
         var sb = new StringBuilder();
-        sb.AppendLine("--- VÁLASZOK A TISZTÁZANDÓ KÉRDÉSEKRE ---");
-        sb.AppendLine();
-
         foreach (var item in _items)
         {
             sb.AppendLine($"KÉRDÉS: {item.Question.Trim()}");
             sb.AppendLine($"VÁLASZ: {(string.IsNullOrWhiteSpace(item.Answer) ? "(Nincs válasz megadva)" : item.Answer.Trim())}");
             sb.AppendLine("---");
         }
-
-        await Clipboard.SetTextAsync(sb.ToString());
-        await Close();
+        await OnGenerateRefinedPrompt.InvokeAsync(sb.ToString());
     }
 
     private async Task Close()
