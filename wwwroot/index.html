@@ -32,6 +32,20 @@
                 }
             });
         })();
+
+        function scrollToElement(id) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function scrollToElementInContainer(containerId, elementId) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            }
+        }
     </script>
 </head>
 

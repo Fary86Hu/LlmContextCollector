@@ -74,8 +74,26 @@
     <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightMiddle"))'></div>
 
     <div class="right-bottom-section">
-        <h4>Fájl Előnézet</h4>
-        <textarea readonly class="preview-box">@_previewContent</textarea>
+        <div class="preview-header">
+            <h4>Fájl Előnézet</h4>
+            <div class="preview-search-controls">
+                <input type="text" 
+                       placeholder="Keresés..." 
+                       @bind="_previewSearchTerm" 
+                       @bind:event="oninput" 
+                       @onkeyup="HandlePreviewSearchKeyup" />
+                @if (_totalPreviewMatches > 0)
+                {
+                    <span class="preview-match-counter">@_currentPreviewMatchIndex/@_totalPreviewMatches</span>
+                }
+                <button @onclick="FindPreviousInPreview" disabled="@(_totalPreviewMatches == 0)" title="Előző">▲</button>
+                <button @onclick="FindNextInPreview" disabled="@(_totalPreviewMatches == 0)" title="Következő">▼</button>
+                <button @onclick="ClearPreviewSearch" disabled="@(string.IsNullOrEmpty(_previewSearchTerm))" class="clear-btn">&times;</button>
+            </div>
+        </div>
+        <div id="preview-box" class="preview-box">
+            <pre>@_previewContentMarkup</pre>
+        </div>
     </div>
 
     <div class="bottom-actions">

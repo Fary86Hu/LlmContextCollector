@@ -39,6 +39,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         public EventCallback OnStartIndexingCode { get; set; }
 
         [Parameter]
+
         public EventCallback OnStartIndexingAdo { get; set; }
 
         private Timer? _searchTimer;
@@ -94,9 +95,13 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private async Task HandleSearchKeyup(KeyboardEventArgs e)
         {
             _searchTimer?.Change(Timeout.Infinite, Timeout.Infinite);
-            if (e.Key == "Enter")
+            if (e.Key == "Enter" || e.Key == "ArrowDown")
             {
                 await FindNext(false);
+            }
+            else if (e.Key == "ArrowUp")
+            {
+                await FindPrevious();
             }
             else
             {
@@ -141,45 +146,64 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             try
             {
                 var term = _lastSearchTerm.ToLowerInvariant();
-                var allFileNodes = new List<FileNode>();
+                var nodesToSearch = new List<FileNode>();
 
-                void GetAllFileNodesRecursive(IEnumerable<FileNode> nodes)
+                void CollectSearchableNodes(IEnumerable<FileNode> nodes)
                 {
                     foreach (var node in nodes)
                     {
-                        if (!node.IsDirectory) allFileNodes.Add(node);
-                        if (node.IsDirectory) GetAllFileNodesRecursive(node.Children);
+                        if (_isFiltered && !node.IsVisible)
+                        {
+                            continue;
+                        }
+                        
+                        nodesToSearch.Add(node);
+
+                        if (node.IsDirectory)
+                        {
+                            CollectSearchableNodes(node.Children);
+                        }
                     }
                 }
-                GetAllFileNodesRecursive(AppState.FileTree);
 
-                foreach (var node in allFileNodes)
+                CollectSearchableNodes(AppState.FileTree);
+
+                foreach (var node in nodesToSearch)
                 {
                     bool isMatch = node.Name.ToLowerInvariant().Contains(term);
-                    if (!isMatch && AppState.SearchInContent)
+
+                    if (!isMatch && AppState.SearchInContent && !node.IsDirectory)
                     {
                         try
                         {
-                            var content = await File.ReadAllTextAsync(node.FullPath);
-                            if (content.ToLowerInvariant().Contains(term))
+                            var fileInfo = new FileInfo(node.FullPath);
+                            if (fileInfo.Length < 5 * 1024 * 1024) // 5MB limit
                             {
-                                isMatch = true;
+                                 var content = await File.ReadAllTextAsync(node.FullPath);
+                                 if (content.ToLowerInvariant().Contains(term))
+                                 {
+                                     isMatch = true;
+                                 }
                             }
                         }
                         catch { /* ignore read errors */ }
                     }
+
                     if (isMatch)
                     {
                         _searchResults.Add(node);
                     }
                 }
-                 AppState.StatusText = $"{_searchResults.Count} találat.";
+                
+                _searchResults = _searchResults.OrderBy(n => n.FullPath, StringComparer.OrdinalIgnoreCase).ToList();
+                AppState.StatusText = $"{_searchResults.Count} találat.";
             }
             finally
             {
                 AppState.HideLoading();
             }
         }
+
 
         private async Task FindNext(bool isNewSearch)
         {
@@ -270,16 +294,17 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         
         private string? GetSelectedNodePath()
         {
-            var selectedNodes = new List<FileNode>();
-            FindSelectedNodes(AppState.FileTree, selectedNodes);
-
             if (_currentSearchIndex >= 0 && _currentSearchIndex < _searchResults.Count)
             {
                 var lastSearched = _searchResults[_currentSearchIndex];
                 if (lastSearched.IsSelectedInTree) return lastSearched.FullPath;
             }
-            var firstSelectedFile = selectedNodes.FirstOrDefault(n => !n.IsDirectory);
-            return firstSelectedFile?.FullPath;
+
+            var selectedNodes = new List<FileNode>();
+            FindSelectedNodes(AppState.FileTree, selectedNodes);
+
+            var firstSelected = selectedNodes.FirstOrDefault();
+            return firstSelected?.FullPath;
         }
 
         private void FindSelectedNodes(IEnumerable<FileNode> nodes, List<FileNode> selected)

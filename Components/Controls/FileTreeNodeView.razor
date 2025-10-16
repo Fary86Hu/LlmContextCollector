@@ -1,6 +1,6 @@
-﻿@if (Node != null && Node.IsVisible)
+@if (Node != null && Node.IsVisible)
 {
-    <div class="tree-node @(Node.IsSelectedInTree ? "selected" : "")" style="@($"padding-left: {Level * 20}px")" @onclick="(e) => OnNodeClick.InvokeAsync((Node, e))">
+    <div id="@ElementId" class="tree-node @(Node.IsSelectedInTree ? "selected" : "")" style="@($"padding-left: {Level * 20}px")" @onclick="(e) => OnNodeClick.InvokeAsync((Node, e))">
         <span @onclick="ToggleExpand" @onclick:stopPropagation class="node-expander">
             @if (Node.IsDirectory)
             {
@@ -39,6 +39,11 @@
 
     [Parameter]
     public EventCallback<(FileNode Node, MouseEventArgs Args)> OnNodeClick { get; set; }
+
+    private string ElementId => "filenode-" + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(Node.FullPath))
+        .Replace("=", "")
+        .Replace("+", "-")
+        .Replace("/", "_");
 
     private void ToggleExpand()
     {

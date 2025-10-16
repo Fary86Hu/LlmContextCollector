@@ -11,6 +11,7 @@ using System.IO;
 using System.ComponentModel;
 using System.Linq;
 using LlmContextCollector.AI;
+using System.Web;
 
 namespace LlmContextCollector.Components.Pages.HomePanels
 {
@@ -73,6 +74,11 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private long _charCount = 0;
         private long _tokenCount = 0;
         private string _previewContent = string.Empty;
+        private MarkupString _previewContentMarkup;
+        private string _previewSearchTerm = string.Empty;
+        private int _currentPreviewMatchIndex = 0;
+        private int _totalPreviewMatches = 0;
+        private bool _isInitialPreviewSearch = true;
         private bool _includePromptInCopy = true;
         private bool _includeGlobalPrefixInCopy = true;
 
@@ -181,12 +187,14 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 else if (SelectedItems.Count > 1)
                 {
                     _previewContent = $"{SelectedItems.Count} fájl kiválasztva. Válassz egyet az előnézethez.";
+                    UpdatePreviewMarkup();
                     StateHasChanged();
                     return;
                 }
                 else
                 {
                     _previewContent = "";
+                    UpdatePreviewMarkup();
                     StateHasChanged();
                     return;
                 }
@@ -225,6 +233,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 _previewContent = $"Hiba a fájl olvasásakor: {ex.Message}";
             }
 
+            UpdatePreviewMarkup();
             StateHasChanged();
         }
 
@@ -628,6 +637,130 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             }
         }
 
+        #endregion
+
+        #region Preview Search
+        private void UpdatePreviewMarkup()
+        {
+            if (string.IsNullOrEmpty(_previewContent))
+            {
+                _previewContentMarkup = new MarkupString("");
+                ResetPreviewSearchState();
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_previewSearchTerm))
+            {
+                _previewContentMarkup = new MarkupString(HttpUtility.HtmlEncode(_previewContent));
+                ResetPreviewSearchState();
+                return;
+            }
+
+            var term = _previewSearchTerm;
+            int matchCount = 0;
+
+            _totalPreviewMatches = Regex.Matches(HttpUtility.HtmlEncode(_previewContent), Regex.Escape(HttpUtility.HtmlEncode(term)), RegexOptions.IgnoreCase).Count;
+
+            if (_isInitialPreviewSearch)
+            {
+                _currentPreviewMatchIndex = _totalPreviewMatches > 0 ? 1 : 0;
+                _isInitialPreviewSearch = false;
+            }
+
+            if (_totalPreviewMatches > 0 && (_currentPreviewMatchIndex == 0 || _currentPreviewMatchIndex > _totalPreviewMatches))
+            {
+                _currentPreviewMatchIndex = 1;
+            }
+            else if (_totalPreviewMatches == 0)
+            {
+                _currentPreviewMatchIndex = 0;
+            }
+
+            var highlightedContent = Regex.Replace(HttpUtility.HtmlEncode(_previewContent),
+                Regex.Escape(HttpUtility.HtmlEncode(term)),
+                m =>
+                {
+                    string classStr = "highlight";
+                    if (matchCount == _currentPreviewMatchIndex - 1)
+                    {
+                        classStr += " current";
+                    }
+                    var result = $"<span id=\"preview-match-{matchCount}\" class=\"{classStr}\">{m.Value}</span>";
+                    matchCount++;
+                    return result;
+                },
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+            _previewContentMarkup = new MarkupString(highlightedContent);
+        }
+
+        private void ResetPreviewSearchState()
+        {
+            _totalPreviewMatches = 0;
+            _currentPreviewMatchIndex = 0;
+        }
+
+        private async Task HandlePreviewSearchKeyup(KeyboardEventArgs e)
+        {
+            _isInitialPreviewSearch = true;
+            if (e.Key == "Enter")
+            {
+                await FindNextInPreview();
+            }
+            else
+            {
+                UpdatePreviewMarkup();
+                if (_totalPreviewMatches > 0 && _currentPreviewMatchIndex > 0)
+                {
+                    await ScrollToCurrentPreviewMatch();
+                }
+            }
+        }
+
+        private async Task FindNextInPreview()
+        {
+            if (_totalPreviewMatches == 0) return;
+            _isInitialPreviewSearch = false;
+
+            _currentPreviewMatchIndex++;
+            if (_currentPreviewMatchIndex > _totalPreviewMatches)
+            {
+                _currentPreviewMatchIndex = 1;
+            }
+            UpdatePreviewMarkup();
+            await ScrollToCurrentPreviewMatch();
+        }
+
+        private async Task FindPreviousInPreview()
+        {
+            if (_totalPreviewMatches == 0) return;
+            _isInitialPreviewSearch = false;
+
+            _currentPreviewMatchIndex--;
+            if (_currentPreviewMatchIndex < 1)
+            {
+                _currentPreviewMatchIndex = _totalPreviewMatches;
+            }
+            UpdatePreviewMarkup();
+            await ScrollToCurrentPreviewMatch();
+        }
+
+        private async Task ClearPreviewSearch()
+        {
+            _previewSearchTerm = string.Empty;
+            _isInitialPreviewSearch = true;
+            UpdatePreviewMarkup();
+            await Task.CompletedTask;
+        }
+
+        private async Task ScrollToCurrentPreviewMatch()
+        {
+            if (_totalPreviewMatches > 0 && _currentPreviewMatchIndex > 0)
+            {
+                var elementId = $"preview-match-{_currentPreviewMatchIndex - 1}";
+                await JSRuntime.InvokeVoidAsync("scrollToElementInContainer", "preview-box", elementId);
+            }
+        }
         #endregion
 
         public void Dispose()

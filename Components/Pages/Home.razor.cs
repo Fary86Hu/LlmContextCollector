@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
 using System.ComponentModel;
+using System.Text;
 
 namespace LlmContextCollector.Components.Pages
 {
@@ -146,6 +147,16 @@ namespace LlmContextCollector.Components.Pages
                 DeselectAllNodes(AppState.FileTree);
                 node.IsSelectedInTree = true;
                 AppState.ExpandNodeParents(node);
+
+                // UI frissítés bevárása a scroll előtt
+                await Task.Delay(10); 
+                
+                var elementId = "filenode-" + Convert.ToBase64String(Encoding.UTF8.GetBytes(node.FullPath))
+                    .Replace("=", "")
+                    .Replace("+", "-")
+                    .Replace("/", "_");
+
+                await JSRuntime.InvokeVoidAsync("scrollToElement", elementId);
             }
 
             // Synchronize this new tree selection to the list

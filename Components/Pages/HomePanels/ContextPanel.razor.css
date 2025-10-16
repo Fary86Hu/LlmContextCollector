@@ -27,9 +27,13 @@
     flex-shrink: 0;
 }
 
-.right-middle-section h4, .right-bottom-section h4 {
+.right-middle-section h4 {
     margin-top: 0;
     margin-bottom: 5px;
+}
+
+.right-bottom-section h4 {
+    margin: 0;
 }
 
 .prompt-container {
@@ -173,12 +177,81 @@
     margin: 0 5px;
 }
 
+.preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+    flex-shrink: 0;
+}
+
+.preview-search-controls {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+    .preview-search-controls input {
+        width: 150px;
+        padding: 2px 5px;
+    }
+
+    .preview-search-controls button {
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        font-size: 16px;
+        line-height: 1;
+    }
+
+    .preview-search-controls button.clear-btn {
+        font-size: 20px;
+        font-weight: bold;
+    }
+
+.preview-match-counter {
+    font-size: var(--font-size-sm);
+    color: var(--text-color-light);
+    white-space: nowrap;
+}
+
 .preview-box {
     flex-grow: 1;
     background-color: var(--input-bg-color);
-    resize: none;
-    font-family: Consolas, monospace;
-    font-size: var(--font-size-sm);
+    border: 1px solid var(--border-color);
+    overflow: auto;
+    min-height: 0; /* Fontos a flex-grow megfelelő működéséhez */
+}
+
+    .preview-box pre {
+        margin: 0;
+        padding: 5px;
+        font-family: Consolas, monospace;
+        font-size: var(--font-size-sm);
+        white-space: pre-wrap; /* Sortörés megengedése */
+        word-break: break-all; /* Hosszú szavak törése */
+    }
+
+::deep .highlight {
+    background-color: #f0e68c;
+    color: #000;
+    border-radius: 2px;
+}
+
+html[data-theme="dark"] ::deep .highlight {
+    background-color: #a08d00;
+    color: #fff;
+}
+
+::deep .highlight.current {
+    background-color: #ffa500;
+    outline: 1px solid #c48000;
+}
+
+html[data-theme="dark"] ::deep .highlight.current {
+    background-color: #ffc400;
+    color: #000;
+    outline: 1px solid #ffeb3b;
 }
 
 .bottom-actions {
