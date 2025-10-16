@@ -7,7 +7,12 @@ namespace LlmContextCollector.Services
     {
         private static readonly Regex CSharpKeywordsRegex = new Regex(@"\b(public|private|protected|internal|static|class|struct|interface|enum|void|string|int|bool|double|float|decimal|long|short|byte|var|get|set|new|using|namespace|return|if|else|for|foreach|while|do|switch|case|default|break|continue|try|catch|finally|throw|lock|using|yield|base|this|true|false|null|async|await|partial|readonly|virtual|override|sealed|abstract|as|is|in|out|ref|params|checked|unchecked|unsafe|fixed|stackalloc)\b", RegexOptions.Compiled);
         private static readonly Regex CSharpCommonTypesRegex = new Regex(@"\b(object|string|int|bool|double|float|decimal|long|short|byte|List|Dictionary|IEnumerable|Task|IActionResult|ICollection|Exception|PageModel|ComponentBase|DbContext|WebApplication|Program|HttpContext|IServiceCollection|IConfiguration|ILogger|Activator|Attribute|EventArgs|Console|Math|DateTime|Guid|CancellationToken|TaskCompletionSource|Action|Func|Predicate|Tuple|ValueTuple)\b", RegexOptions.Compiled);
+        
+        // This regex finds constructs that look like types, including generics.
         private static readonly Regex PotentialTypeRegex = new Regex(@"\b[A-Z][a-zA-Z0-9_]*\b(?:<[A-Za-z0-9_,\s<>]+>)?", RegexOptions.Compiled);
+        
+        // This regex extracts individual capitalized words (potential type names) from a larger string.
+        private static readonly Regex TypeNamePartRegex = new Regex(@"\b[A-Z][a-zA-Z0-9_]*\b", RegexOptions.Compiled);
 
 
         public async Task<List<string>> FindReferencesAsync(List<string> startingFilesRel, List<FileNode> allNodes, string projectRoot, int depth)
@@ -38,18 +43,23 @@ namespace LlmContextCollector.Services
                     try
                     {
                         var content = await File.ReadAllTextAsync(fullPath);
+                        // Find all constructs that look like types (e.g., "List<Message>", "UserDto").
                         var matches = PotentialTypeRegex.Matches(content);
                         foreach (Match match in matches.Cast<Match>())
                         {
-                            // A C# regex nem tartalmazza a generikusokat, így azokat manuálisan kell eltávolítani
-                            var construct = match.Value;
-                            var cleanConstruct = Regex.Replace(construct, @"<.*?>", "");
-
-                            if (!string.IsNullOrWhiteSpace(cleanConstruct) &&
-                                !CSharpKeywordsRegex.IsMatch(cleanConstruct) &&
-                                !CSharpCommonTypesRegex.IsMatch(cleanConstruct))
+                            // For each construct, extract all capitalized words, which are potential type names.
+                            // e.g., for "Dictionary<string, UserDto>", it will extract "Dictionary" and "UserDto".
+                            var partMatches = TypeNamePartRegex.Matches(match.Value);
+                            foreach (Match partMatch in partMatches.Cast<Match>())
                             {
-                                potentialTypeNames.Add(cleanConstruct);
+                                var typeName = partMatch.Value;
+                                // Filter out common C# keywords and built-in types.
+                                if (!string.IsNullOrWhiteSpace(typeName) &&
+                                    !CSharpKeywordsRegex.IsMatch(typeName) &&
+                                    !CSharpCommonTypesRegex.IsMatch(typeName))
+                                {
+                                    potentialTypeNames.Add(typeName);
+                                }
                             }
                         }
                     }

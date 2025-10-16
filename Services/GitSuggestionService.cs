@@ -84,12 +84,13 @@ namespace LlmContextCollector.Services
                 {
                     sb.Append(section);
                     remaining -= section.Length;
-                    continue;
                 }
-
-                var truncated = TruncateWithNotice(section, remaining, $"[...truncated {diff.Path}...]");
-                sb.Append(truncated);
-                remaining = 0;
+                else
+                {
+                    var truncated = TruncateWithNotice(section, remaining, $"[...truncated {diff.Path}...]");
+                    sb.Append(truncated);
+                    remaining -= truncated.Length;
+                }
             }
 
             return sb.ToString();
