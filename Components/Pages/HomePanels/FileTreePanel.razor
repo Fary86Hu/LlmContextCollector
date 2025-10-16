@@ -41,7 +41,9 @@
             }
             else
             {
-                <span>🔍</span>
+                <svg viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M2 3h20l-8 9.46V19l-4 2v-8.54L2 3z"></path>
+                </svg>
             }
         </button>
         <button @onclick="FindPrevious" class="icon-btn" disabled="@(string.IsNullOrWhiteSpace(AppState.SearchTerm))" title="Előző találat">▲</button>

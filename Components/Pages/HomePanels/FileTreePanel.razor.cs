@@ -96,7 +96,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             _searchTimer?.Change(Timeout.Infinite, Timeout.Infinite);
             if (e.Key == "Enter")
             {
-                await FilterTree();
+                await FindNext(false);
             }
             else
             {
@@ -113,7 +113,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         {
             InvokeAsync(() => FindNext(true));
         }
-
+        
         private async Task FilterTree()
         {
             _searchTimer?.Change(Timeout.Infinite, Timeout.Infinite);
@@ -173,7 +173,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                         _searchResults.Add(node);
                     }
                 }
-                AppState.StatusText = $"{_searchResults.Count} találat.";
+                 AppState.StatusText = $"{_searchResults.Count} találat.";
             }
             finally
             {
@@ -185,7 +185,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         {
             _searchTimer?.Change(Timeout.Infinite, Timeout.Infinite);
             bool searchParametersChanged = AppState.SearchTerm != _lastSearchTerm || AppState.SearchInContent != _lastSearchInContent;
-
+            
             if (isNewSearch || searchParametersChanged || !_searchResults.Any())
             {
                 await PopulateSearchResults();
@@ -207,7 +207,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             if (AppState.SearchTerm != _lastSearchTerm || AppState.SearchInContent != _lastSearchInContent || !_searchResults.Any())
             {
                 await PopulateSearchResults();
-                _currentSearchIndex = 0;
+                _currentSearchIndex = 0; 
             }
 
             if (!_searchResults.Any()) return;
@@ -226,7 +226,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             var nodeToSelect = _searchResults[index];
             await OnNodeClick.InvokeAsync((nodeToSelect, null));
         }
-
+        
         private async Task ToggleFilter()
         {
             _searchTimer?.Change(Timeout.Infinite, Timeout.Infinite);
@@ -254,7 +254,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             {
                 AppState.SearchTerm = "";
             }
-
+            
             _searchResults.Clear();
             _currentSearchIndex = -1;
             _lastSearchTerm = AppState.SearchTerm;
@@ -267,7 +267,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
             await ReselectNode(selectedNodePath);
         }
-
+        
         private string? GetSelectedNodePath()
         {
             var selectedNodes = new List<FileNode>();

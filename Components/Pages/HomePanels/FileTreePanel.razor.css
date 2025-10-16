@@ -18,11 +18,18 @@
     line-height: 28px;
     text-align: center;
     flex-shrink: 0;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
 }
 
     .toolbar button.icon-btn span {
         font-size: 16px;
-        vertical-align: middle;
+    }
+
+    .toolbar button.icon-btn svg {
+        width: 16px;
+        height: 16px;
     }
 
 .toolbar button.clear-btn {
