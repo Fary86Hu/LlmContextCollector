@@ -179,6 +179,11 @@ namespace LlmContextCollector.Components.Pages
                 {
                     var relativePath = Path.GetRelativePath(AppState.ProjectRoot, selectedNodes[0].FullPath).Replace('\\', '/');
                     await _contextPanelRef.UpdatePreview(relativePath);
+
+                    if (e == null && AppState.SearchInContent && !string.IsNullOrWhiteSpace(AppState.SearchTerm))
+                    {
+                        await _contextPanelRef.SearchInPreview(AppState.SearchTerm);
+                    }
                 }
                 else
                 {

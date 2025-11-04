@@ -177,6 +177,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         public async Task UpdatePreview(string? path = null)
         {
+            await ClearPreviewSearch();
+            
             string? fileRelPath = path;
             if (fileRelPath == null)
             {
@@ -214,14 +216,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             {
                 if (File.Exists(fullPath))
                 {
-                    using var reader = new StreamReader(fullPath);
-                    var buffer = new char[10000];
-                    var charsRead = await reader.ReadAsync(buffer, 0, buffer.Length);
-                    _previewContent = new string(buffer, 0, charsRead);
-                    if (charsRead == 10000)
-                    {
-                        _previewContent += "\n\n[... Fájl vége levágva az előnézetben ...]";
-                    }
+                    _previewContent = await File.ReadAllTextAsync(fullPath);
                 }
                 else
                 {
@@ -640,6 +635,23 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         #endregion
 
         #region Preview Search
+        public async Task SearchInPreview(string searchTerm)
+        {
+            if (string.IsNullOrWhiteSpace(searchTerm))
+            {
+                await ClearPreviewSearch();
+                return;
+            }
+
+            _previewSearchTerm = searchTerm;
+            _isInitialPreviewSearch = true;
+            UpdatePreviewMarkup();
+            StateHasChanged();
+            
+            await Task.Delay(10); 
+            await ScrollToCurrentPreviewMatch();
+        }
+        
         private void UpdatePreviewMarkup()
         {
             if (string.IsNullOrEmpty(_previewContent))
@@ -658,8 +670,10 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
             var term = _previewSearchTerm;
             int matchCount = 0;
+            var encodedContent = HttpUtility.HtmlEncode(_previewContent);
+            var encodedTerm = HttpUtility.HtmlEncode(term);
 
-            _totalPreviewMatches = Regex.Matches(HttpUtility.HtmlEncode(_previewContent), Regex.Escape(HttpUtility.HtmlEncode(term)), RegexOptions.IgnoreCase).Count;
+            _totalPreviewMatches = Regex.Matches(encodedContent, Regex.Escape(encodedTerm), RegexOptions.IgnoreCase).Count;
 
             if (_isInitialPreviewSearch)
             {
@@ -676,8 +690,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 _currentPreviewMatchIndex = 0;
             }
 
-            var highlightedContent = Regex.Replace(HttpUtility.HtmlEncode(_previewContent),
-                Regex.Escape(HttpUtility.HtmlEncode(term)),
+            var highlightedContent = Regex.Replace(encodedContent,
+                Regex.Escape(encodedTerm),
                 m =>
                 {
                     string classStr = "highlight";
