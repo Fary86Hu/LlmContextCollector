@@ -49,7 +49,6 @@ namespace LlmContextCollector.Services
                     node.IsSelectedInTree = false;
                 }
 
-                // Add companion .cs and .css files for .razor files
                 var allProjectPaths = new HashSet<string>();
                 GetAllFilePaths(_appState.FileTree, allProjectPaths, projectRootPath);
 
@@ -78,7 +77,6 @@ namespace LlmContextCollector.Services
                 
                 var statusMessageParts = new List<string>();
 
-                // 1. Forward Reference Search (Mit használ ez a fájl?)
                 if (searchReferences && filesFromSelection.Any())
                 {
                     var foundRefs = await _referenceFinder.FindReferencesAsync(filesFromSelection.ToList(), _appState.FileTree, projectRootPath, _appState.ReferenceSearchDepth);
@@ -87,12 +85,8 @@ namespace LlmContextCollector.Services
                     currentFiles.UnionWith(foundRefs);
                 }
 
-                // 2. Reverse Reference Search (Ki használja ezt a fájlt?)
                 if (searchReferencing && filesFromSelection.Any())
                 {
-                    // A kereséshez azokat a fájlokat használjuk, amiket a user direktben kijelölt (plusz a companion fájlok),
-                    // nem feltétlenül azokat, amiket az 1. lépésben találtunk (bár lehetne azokat is, de az exponenciális lehet).
-                    // Most csak a közvetlen kijelölés hivatkozóit keressük.
                     var foundReferencing = await _referenceFinder.FindReferencingFilesAsync(filesFromSelection.ToList(), _appState.FileTree, projectRootPath);
                     var newReferencingCount = foundReferencing.Count(r => !currentFiles.Contains(r));
                     if (newReferencingCount > 0) statusMessageParts.Add($"{newReferencingCount} hivatkozó fájl");

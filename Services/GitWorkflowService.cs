@@ -40,23 +40,21 @@ namespace LlmContextCollector.Services
 
         private async Task<string> GetDevelopmentBranchNameAsync()
         {
-            var allBranches = await GetBranchesAsync(); // This gets local branches
+            var allBranches = await GetBranchesAsync();
 
-            // Look for remote branches as well, they are more stable indicators
             var (success, remoteBranchesOutput, _) = await _gitService.RunGitCommandAsync("branch -r");
             if (success)
             {
                 var remoteBranches = remoteBranchesOutput
                     .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(b => b.Trim())
-                    .Where(b => !b.Contains("->")) // Filter out "HEAD -> origin/master"
+                    .Where(b => !b.Contains("->"))
                     .Select(b => b.StartsWith("origin/") ? b.Substring("origin/".Length) : b);
                 allBranches.AddRange(remoteBranches);
             }
 
             var uniqueBranches = allBranches.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
-            // Prioritize 'develop', then 'main', then 'master'
             if (uniqueBranches.Any(b => b.Equals("develop", StringComparison.OrdinalIgnoreCase)))
             {
                 return "develop";
@@ -70,7 +68,6 @@ namespace LlmContextCollector.Services
                 return "master";
             }
 
-            // Fallback: Try to find remote HEAD
             var (headSuccess, headOutput, _) = await _gitService.RunGitCommandAsync("symbolic-ref refs/remotes/origin/HEAD");
             if (headSuccess && !string.IsNullOrWhiteSpace(headOutput))
             {
@@ -78,7 +75,6 @@ namespace LlmContextCollector.Services
                 if (match.Success) return match.Groups[1].Value.Trim();
             }
 
-            // Ultimate fallback if nothing is found
             return "main";
         }
 
@@ -114,13 +110,11 @@ namespace LlmContextCollector.Services
         private async Task<List<DiffResult>> GetUncommittedDiffsAsync()
         {
             var diffResults = new List<DiffResult>();
-            // Staged + Unstaged changes to tracked files
             var (trackedSuccess, trackedDiff, trackedError) = await _gitService.RunGitCommandAsync("diff --name-status HEAD");
             if (!trackedSuccess) throw new InvalidOperationException(trackedError);
 
             diffResults.AddRange(await ParseDiffNameStatusOutputAsync(trackedDiff, "HEAD"));
 
-            // Untracked files
             var (untrackedSuccess, untrackedFiles, untrackedError) = await _gitService.RunGitCommandAsync("ls-files --others --exclude-standard");
             if (!untrackedSuccess) throw new InvalidOperationException(untrackedError);
 
@@ -149,25 +143,25 @@ namespace LlmContextCollector.Services
 
                 var statusChar = parts[0][0];
                 var oldPath = parts[1];
-                var newPath = parts.Length > 2 ? parts[2] : oldPath; // For renames
+                var newPath = parts.Length > 2 ? parts[2] : oldPath;
 
                 var result = new DiffResult { Path = newPath.Replace('\\', '/') };
                 var fullPath = Path.Combine(_appState.ProjectRoot, newPath);
 
                 switch (statusChar)
                 {
-                    case 'M': // Modified
-                    case 'R': // Renamed
+                    case 'M': 
+                    case 'R': 
                         result.Status = DiffStatus.Modified;
                         result.OldContent = (await _gitService.RunGitCommandAsync($"show {oldContentRef}:\"{oldPath}\"")).output;
                         if (File.Exists(fullPath)) result.NewContent = await File.ReadAllTextAsync(fullPath);
                         break;
-                    case 'A': // Added
+                    case 'A': 
                         result.Status = DiffStatus.New;
                         result.OldContent = "";
                         if (File.Exists(fullPath)) result.NewContent = await File.ReadAllTextAsync(fullPath);
                         break;
-                    case 'D': // Deleted
+                    case 'D': 
                         result.Status = DiffStatus.Deleted;
                         result.OldContent = (await _gitService.RunGitCommandAsync($"show {oldContentRef}:\"{oldPath}\"")).output;
                         result.NewContent = "";
@@ -227,18 +221,15 @@ namespace LlmContextCollector.Services
 
         public async Task CommitChangesAsync(CommitAndPushArgs args)
         {
-            // 1. Fájlok mentése
             await AcceptChangesAsync(args.AcceptedFiles);
             _appState.StatusText = "Fájlok mentve. Fájlok stage-elése...";
             await Task.Delay(1);
 
-            // 2. Fájlok stage-elése
             var filePathsToStage = args.AcceptedFiles.Select(f => f.Path);
             await _gitService.StageFilesAsync(filePathsToStage);
             _appState.StatusText = "Fájlok stage-elve. Commit létrehozása...";
             await Task.Delay(1);
 
-            // 3. Commit
             await _gitService.CommitAsync(args.CommitMessage);
             _appState.StatusText = "Commit sikeres. A változások push-olhatók.";
         }

@@ -19,7 +19,6 @@ namespace LlmContextCollector.Services
             _promptService = promptService;
         }
 
-        // PROJECT AND FILE STATE
         private string _projectRoot = string.Empty;
         public string ProjectRoot
         {
@@ -46,7 +45,6 @@ namespace LlmContextCollector.Services
         public ObservableCollection<string> SelectedFilesForContext { get; } = new();
 
 
-        // FILTERS AND SEARCH STATE
         public Dictionary<string, bool> ExtensionFilters { get; } = new()
         {
             { ".razor", true }, { ".cs", true }, { ".js", true }, { ".css", true },
@@ -94,7 +92,6 @@ namespace LlmContextCollector.Services
             set => SetField(ref _includeReferencingFiles, value);
         }
 
-        // PROMPT STATE
         private string _promptText = string.Empty;
         public string PromptText
         {
@@ -127,7 +124,6 @@ namespace LlmContextCollector.Services
             PromptText = selectedTemplate?.Content ?? string.Empty;
         }
 
-        #region Groq Settings
         private string _groqApiKey = string.Empty;
         public string GroqApiKey
         {
@@ -155,9 +151,7 @@ namespace LlmContextCollector.Services
             get => _groqApiUrl;
             set => SetField(ref _groqApiUrl, value);
         }
-        #endregion
 
-        #region OpenRouter Settings
         private string _openRouterApiKey = string.Empty;
         public string OpenRouterApiKey
         {
@@ -185,13 +179,10 @@ namespace LlmContextCollector.Services
             get => _openRouterSiteName;
             set => SetField(ref _openRouterSiteName, value);
         }
-        #endregion
 
 
-        // HISTORY STATE
         public List<HistoryEntry> HistoryEntries { get; set; } = new();
 
-        #region Azure DevOps State
         private string _azureDevOpsOrganizationUrl = "";
         public string AzureDevOpsOrganizationUrl { get => _azureDevOpsOrganizationUrl; set => SetField(ref _azureDevOpsOrganizationUrl, value); }
 
@@ -214,12 +205,9 @@ namespace LlmContextCollector.Services
         
         private DateTime? _adoLastDownloadDate;
         public DateTime? AdoLastDownloadDate { get => _adoLastDownloadDate; set => SetField(ref _adoLastDownloadDate, value); }
-        #endregion
 
-        // LLM CONTEXT STATE
         public string LastLlmGlobalExplanation { get; set; } = string.Empty;
 
-        // DIFF DIALOG STATE
         private bool _isDiffDialogVisible = false;
         public bool IsDiffDialogVisible
         {
@@ -230,7 +218,6 @@ namespace LlmContextCollector.Services
         public string DiffFullLlmResponse { get; set; } = string.Empty;
         public List<DiffResult> DiffResults { get; set; } = new();
 
-        // STATUS BAR STATE
         private string _statusText = "Készen áll.";
         public string StatusText
         {
@@ -238,7 +225,6 @@ namespace LlmContextCollector.Services
             set => SetField(ref _statusText, value);
         }
 
-        // LOADING INDICATOR STATE
         private bool _isLoading = false;
         public bool IsLoading
         {
@@ -260,13 +246,11 @@ namespace LlmContextCollector.Services
             set => SetField(ref _loadingText, value);
         }
 
-        // UNDO/REDO STATE
         private List<List<string>> _contextListHistory = new();
         private int _contextListHistoryIndex = -1;
         public bool CanUndo => _contextListHistoryIndex > 0;
         public bool CanRedo => _contextListHistoryIndex < _contextListHistory.Count - 1;
 
-        // PANEL RESIZING STATE
         private double _leftPanelFlex = 30;
         public double LeftPanelFlex { get => _leftPanelFlex; set => SetField(ref _leftPanelFlex, value); }
 
@@ -292,7 +276,7 @@ namespace LlmContextCollector.Services
             {
                 _contextListHistory.RemoveRange(_contextListHistoryIndex + 1, _contextListHistory.Count - (_contextListHistoryIndex + 1));
             }
-            // Csak akkor ments, ha változott az állapot
+            
             if (!_contextListHistory.Any() || !_contextListHistory.Last().SequenceEqual(currentState))
             {
                 _contextListHistory.Add(currentState);
@@ -321,7 +305,7 @@ namespace LlmContextCollector.Services
         public void ResetContextListHistory()
         {
             _contextListHistory.Clear();
-            _contextListHistory.Add(new List<string>()); // Kezdeti üres állapot
+            _contextListHistory.Add(new List<string>());
             _contextListHistoryIndex = 0;
         }
 
@@ -338,8 +322,6 @@ namespace LlmContextCollector.Services
             NotifyStateChanged(nameof(SelectedFilesForContext));
         }
 
-
-        // --- State Management and Notifications ---
 
         public void ShowLoading(string text)
         {

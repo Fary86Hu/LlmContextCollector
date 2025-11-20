@@ -94,34 +94,28 @@ namespace LlmContextCollector.Services
 
                 if (isCss)
                 {
-                    // CSS esetén csak jelzünk, nem adunk diffet
                     sectionContent = $"(CSS/Style definitions {diff.Status.ToString().ToLower()})";
                 }
                 else if (isStructureSupported)
                 {
                     if (diff.Status == DiffStatus.New)
                     {
-                        // Új fájl: Vázlat
                         sectionContent = CodeStructureDiffHelper.GetFileStructure(diff.NewContent, ext);
                     }
                     else if (diff.Status == DiffStatus.Modified || diff.Status == DiffStatus.NewFromModified)
                     {
-                        // Módosítás: Hierarchia + Diff block
                         sectionContent = CodeStructureDiffHelper.GetContextualDiff(diff.OldContent, diff.NewContent, ext);
                     }
                     else
                     {
-                        // Törlés: Sima diff
                         sectionContent = DiffPatcher.CreateUnifiedDiff(diff.OldContent, diff.NewContent);
                     }
                 }
                 else
                 {
-                    // Egyéb fájlok: Sima diff kontextussal
                     sectionContent = DiffPatcher.CreateUnifiedDiff(diff.OldContent, diff.NewContent, contextLines: 2);
                 }
 
-                // Truncate if too long per file
                 if (sectionContent.Length > maxCharsPerFile)
                 {
                     sectionContent = sectionContent.Substring(0, maxCharsPerFile) + "\n... (content truncated) ...\n";
@@ -166,21 +160,15 @@ namespace LlmContextCollector.Services
 
     public static class CodeStructureDiffHelper
     {
-        // C# Regexes
         private static readonly Regex CsNamespaceRegex = new(@"^\s*namespace\s+([\w\.]+)", RegexOptions.Compiled);
         private static readonly Regex CsClassRegex = new(@"^\s*(?:public|internal|private|protected|static|sealed|abstract|partial|\s)*\s*(class|interface|struct|record|enum)\s+([\w<>]+)", RegexOptions.Compiled);
         private static readonly Regex CsMethodRegex = new(@"^\s*(?:public|internal|private|protected|static|async|virtual|override|new|extern|readonly|\s)*\s*[\w<>[\]?]+\s+(\w+)\s*\(", RegexOptions.Compiled);
         private static readonly Regex CsConstructorRegex = new(@"^\s*(?:public|internal|private|protected|static|\s)*\s*(\w+)\s*\(", RegexOptions.Compiled);
         
-        // JS/TS Regexes
-        // Matches: function myFunc, class MyClass, async function...
         private static readonly Regex JsDefRegex = new(@"^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:function\s+|class\s+)(\w+)", RegexOptions.Compiled);
-        // Matches: const/let/var myVar = ... (generic variable or arrow function assignment)
         private static readonly Regex JsVarRegex = new(@"^\s*(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=", RegexOptions.Compiled);
-        // Matches methods inside classes in JS/TS/Razor:  render() {, myMethod(a: int) {
         private static readonly Regex JsMethodRegex = new(@"^\s*(?:private|public|protected|static|async|\s)*\s*(\w+)\s*\(", RegexOptions.Compiled);
 
-        // Razor Regexes
         private static readonly Regex RazorDirectiveRegex = new(@"^@(page|inject|layout|inherits)\s+", RegexOptions.Compiled);
         private static readonly Regex RazorCodeBlockRegex = new(@"^@(code|functions)\s*", RegexOptions.Compiled);
 
@@ -257,7 +245,6 @@ namespace LlmContextCollector.Services
 
             if (isCs || isRazor)
             {
-                // Common C# logic (Razor uses C# in @code blocks)
                 if (CsNamespaceRegex.IsMatch(line) ||
                     CsClassRegex.IsMatch(line) ||
                     CsMethodRegex.IsMatch(line) ||
@@ -266,17 +253,15 @@ namespace LlmContextCollector.Services
                     return true;
                 }
                 
-                // Razor specific
                 if (isRazor)
                 {
                     if (RazorDirectiveRegex.IsMatch(line) || RazorCodeBlockRegex.IsMatch(line)) return true;
                 }
             }
 
-            if (isJsTs || isRazor) // Razor can contain script blocks or just similar syntax
+            if (isJsTs || isRazor) 
             {
                 if (JsDefRegex.IsMatch(line) || JsVarRegex.IsMatch(line)) return true;
-                // We assume method-like syntax inside a class/object structure
                 if (JsMethodRegex.IsMatch(line) && !trimmed.StartsWith("if") && !trimmed.StartsWith("for") && !trimmed.StartsWith("while") && !trimmed.StartsWith("switch") && !trimmed.StartsWith("catch"))
                 {
                     return true;
@@ -298,8 +283,6 @@ namespace LlmContextCollector.Services
                 
                 int indent = line.TakeWhile(char.IsWhiteSpace).Count();
 
-                // Logic: If indentation decreases, it's likely a parent container.
-                // We also verify it looks like a definition to avoid random lines.
                 if (indent < currentIndent)
                 {
                     if (IsDefinitionLine(line, extension))
@@ -311,7 +294,7 @@ namespace LlmContextCollector.Services
                 }
 
                 if (currentIndent == 0) break;
-                if (changeStartLine - i > 300) break; // Safety break
+                if (changeStartLine - i > 300) break;
             }
 
             return hierarchy;

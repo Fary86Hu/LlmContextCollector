@@ -69,7 +69,7 @@ namespace LlmContextCollector.Services
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "git",
-                    Arguments = "commit -F -", // Read message from stdin
+                    Arguments = "commit -F -",
                     WorkingDirectory = _appState.ProjectRoot,
                     RedirectStandardInput = true,
                     RedirectStandardOutput = true,

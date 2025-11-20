@@ -53,7 +53,7 @@ namespace LlmContextCollector.Services
                                     node.IsContentMatch = true;
                                 }
                             }
-                            catch { /* ignore read errors */ }
+                            catch { }
                         }
 
                         if (isPathMatch || isContentMatch)

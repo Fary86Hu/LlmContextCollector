@@ -27,7 +27,7 @@ namespace LlmContextCollector.Services
         {
             if (string.IsNullOrEmpty(_appState.ProjectRoot) || !_appState.SelectedFilesForContext.Any())
             {
-                return; // Ne mentsünk üres állapotot
+                return;
             }
 
             var currentState = new HistoryEntry

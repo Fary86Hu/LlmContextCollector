@@ -79,9 +79,6 @@ namespace LlmContextCollector
 
             builder.Services.AddSingleton<ITextGenerationProvider, GroqTextGenerationProvider>();
             
-            // --- AI Services (ONNX-based) ---
-            // These services are registered conditionally. If the ONNX model or tokenizer is not found,
-            // dummy ("Null") implementations are used, allowing the app to run without AI search features.
             
             var modelDir = Path.Combine(FileSystem.AppDataDirectory, "models");
             Directory.CreateDirectory(modelDir);
@@ -96,7 +93,6 @@ namespace LlmContextCollector
             {
                 try
                 {
-                    // Register real AI services if models are found
                     var tokenizer = new Tokenizer(tokenizerPath);
                     builder.Services.AddSingleton(tokenizer);
                     builder.Services.AddSingleton<IChunker, TokenizerChunker>();
@@ -112,7 +108,6 @@ namespace LlmContextCollector
                 }
                 catch (Exception ex)
                 {
-                    // If loading fails, fall back to dummy services
                     System.Diagnostics.Debug.WriteLine($"Error initializing ONNX models, AI features will be disabled: {ex.Message}");
                     builder.Services.AddSingleton<IChunker, NullChunker>();
                     builder.Services.AddSingleton<IEmbeddingProvider, NullEmbeddingProvider>();
@@ -120,7 +115,6 @@ namespace LlmContextCollector
             }
             else
             {
-                // Register dummy services if model/tokenizer files are missing
                 builder.Services.AddSingleton<IChunker, NullChunker>();
                 builder.Services.AddSingleton<IEmbeddingProvider, NullEmbeddingProvider>();
             }

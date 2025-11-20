@@ -34,14 +34,12 @@ namespace LlmContextCollector.Services
             var queryVectors = new List<float[]>();
             var rawQueryText = _appState.PromptText;
 
-            // 1. Prompt vector
             if (!string.IsNullOrWhiteSpace(rawQueryText))
             {
                 var promptVector = await _embeddingProvider.EmbedAsync(rawQueryText);
                 if (promptVector.Length > 0) queryVectors.Add(promptVector);
             }
 
-            // 2. Context files centroid vector
             var contextFileChunks = new List<string>();
             foreach (var fileRelPath in _appState.SelectedFilesForContext)
             {
@@ -62,7 +60,7 @@ namespace LlmContextCollector.Services
             }
 
             var multiQuery = new MultiQuery(queryVectors.ToArray());
-            var config = new SearchConfig(); // Use default config for now
+            var config = new SearchConfig(); 
             var contextFileSet = _appState.SelectedFilesForContext.ToHashSet();
 
             if (!searchInCode && !searchInAdo)
@@ -71,7 +69,6 @@ namespace LlmContextCollector.Services
             }
 
             HashSet<string>? filesToIncludeSet = null;
-            // Csak akkor alkalmazunk szűrést, ha nem mindkét opció van bejelölve.
             if (searchInCode != searchInAdo)
             {
                 filesToIncludeSet = new HashSet<string>();
@@ -88,7 +85,6 @@ namespace LlmContextCollector.Services
 
             var results = _semanticSearchService.RankRelevantFiles(multiQuery, rawQueryText, embeddingIndex, chunkContents, config, contextFileSet, filesToInclude: filesToIncludeSet);
 
-            // A 'SimilarTo' mezőt már nem tudjuk egyszerűen kitölteni, mert aggregált lekérdezést használunk.
             results.ForEach(r => r.SimilarTo = null);
             
             return results;
@@ -108,16 +104,14 @@ namespace LlmContextCollector.Services
             var queryVectors = new List<float[]>();
             var rawQueryText = _appState.PromptText;
 
-            // 1. Prompt vector
             if (!string.IsNullOrWhiteSpace(rawQueryText))
             {
                 var promptVector = await _embeddingProvider.EmbedAsync(rawQueryText);
                 if (promptVector.Length > 0) queryVectors.Add(promptVector);
             }
 
-            // 2. Context files centroid vector - use files to score, not just context
             var contextFileChunks = new List<string>();
-            foreach (var fileRelPath in _appState.SelectedFilesForContext) // A lekérdezéshez továbbra is a teljes kontextust használjuk
+            foreach (var fileRelPath in _appState.SelectedFilesForContext)
             {
                 contextFileChunks.AddRange(_indexService.GetChunksForFile(fileRelPath));
             }

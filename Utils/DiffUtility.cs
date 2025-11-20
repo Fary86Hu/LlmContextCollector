@@ -8,7 +8,6 @@ namespace LlmContextCollector.Utils
     {
         public record DiffOpcode(char Tag, int I1, int I2, int J1, int J2);
 
-        // Új struktúrák a soronkénti kezeléshez
         public enum DiffLineType { Context, Add, Delete, Empty }
         public record DiffLineItem(DiffLineType Type, string Content, int? OriginalIndex, int? NewIndex);
 
@@ -24,7 +23,6 @@ namespace LlmContextCollector.Utils
                     GenerateSbsMarkup(opcodes, oldLines, newLines, isLeft: false));
         }
 
-        // Új metódus a strukturált lista generálásához
         public static List<DiffLineItem> GenerateDiffList(string oldText, string newText)
         {
             var oldLines = oldText.Replace("\r\n", "\n").Split('\n');
@@ -36,25 +34,25 @@ namespace LlmContextCollector.Utils
             {
                 switch (op.Tag)
                 {
-                    case 'e': // Equal
+                    case 'e': 
                         for (int i = 0; i < (op.I2 - op.I1); i++)
                         {
                             result.Add(new DiffLineItem(DiffLineType.Context, oldLines[op.I1 + i], op.I1 + i, op.J1 + i));
                         }
                         break;
-                    case 'd': // Delete
+                    case 'd': 
                         for (int i = 0; i < (op.I2 - op.I1); i++)
                         {
                             result.Add(new DiffLineItem(DiffLineType.Delete, oldLines[op.I1 + i], op.I1 + i, null));
                         }
                         break;
-                    case 'i': // Insert
+                    case 'i': 
                         for (int j = 0; j < (op.J2 - op.J1); j++)
                         {
                             result.Add(new DiffLineItem(DiffLineType.Add, newLines[op.J1 + j], null, op.J1 + j));
                         }
                         break;
-                    case 'r': // Replace
+                    case 'r': 
                         for (int i = 0; i < (op.I2 - op.I1); i++)
                         {
                             result.Add(new DiffLineItem(DiffLineType.Delete, oldLines[op.I1 + i], op.I1 + i, null));
@@ -76,19 +74,19 @@ namespace LlmContextCollector.Utils
             {
                 switch (op.Tag)
                 {
-                    case 'e': // Equal
+                    case 'e': 
                         for (int i = op.I1; i < op.I2; i++)
                             sb.AppendLine($"  {HttpUtility.HtmlEncode(oldLines[i])}");
                         break;
-                    case 'd': // Delete
+                    case 'd': 
                         for (int i = op.I1; i < op.I2; i++)
                             sb.AppendLine($"<span class=\"diff-del\">- {HttpUtility.HtmlEncode(oldLines[i])}</span>");
                         break;
-                    case 'i': // Insert
+                    case 'i': 
                         for (int j = op.J1; j < op.J2; j++)
                             sb.AppendLine($"<span class=\"diff-add\">+ {HttpUtility.HtmlEncode(newLines[j])}</span>");
                         break;
-                    case 'r': // Replace
+                    case 'r': 
                         for (int i = op.I1; i < op.I2; i++)
                             sb.AppendLine($"<span class=\"diff-del\">- {HttpUtility.HtmlEncode(oldLines[i])}</span>");
                         for (int j = op.J1; j < op.J2; j++)
@@ -106,11 +104,11 @@ namespace LlmContextCollector.Utils
             {
                 switch (op.Tag)
                 {
-                    case 'e': // Equal
+                    case 'e': 
                         for (int i = op.I1; i < op.I2; i++)
                             sb.AppendLine(HttpUtility.HtmlEncode(oldLines[i]));
                         break;
-                    case 'd': // Delete
+                    case 'd': 
                         for (int i = op.I1; i < op.I2; i++)
                         {
                             if (isLeft)
@@ -119,7 +117,7 @@ namespace LlmContextCollector.Utils
                                 sb.AppendLine("<span class=\"sbs-empty\">&nbsp;</span>");
                         }
                         break;
-                    case 'i': // Insert
+                    case 'i': 
                         for (int j = op.J1; j < op.J2; j++)
                         {
                             if (isLeft)
@@ -128,21 +126,21 @@ namespace LlmContextCollector.Utils
                                 sb.AppendLine($"<span class=\"sbs-add\">{HttpUtility.HtmlEncode(newLines[j])}</span>");
                         }
                         break;
-                    case 'r': // Replace
+                    case 'r': 
                         int delCount = op.I2 - op.I1;
                         int addCount = op.J2 - op.J1;
                         int max = Math.Max(delCount, addCount);
 
                         for (int i = 0; i < max; i++)
                         {
-                            if (isLeft) // Bal oldali panel
+                            if (isLeft) 
                             {
                                 if (i < delCount)
                                     sb.AppendLine($"<span class=\"sbs-del\">{HttpUtility.HtmlEncode(oldLines[op.I1 + i])}</span>");
                                 else
                                     sb.AppendLine("<span class=\"sbs-empty\">&nbsp;</span>");
                             }
-                            else // Jobb oldali panel
+                            else 
                             {
                                 if (i < addCount)
                                     sb.AppendLine($"<span class=\"sbs-add\">{HttpUtility.HtmlEncode(newLines[op.J1 + i])}</span>");
@@ -156,7 +154,6 @@ namespace LlmContextCollector.Utils
             return new MarkupString(sb.ToString());
         }
 
-        // Egyszerűsített SequenceMatcher a Python difflib mintájára
         public static List<DiffOpcode> GetOpcodes(string[] a, string[] b)
         {
             var matcher = new SequenceMatcher(a, b);
@@ -188,9 +185,9 @@ namespace LlmContextCollector.Utils
                     int j2 = bPos;
 
                     char tag = ' ';
-                    if (i1 < i2 && j1 < j2) tag = 'r';      // replace
-                    else if (i1 < i2) tag = 'd';           // delete
-                    else if (j1 < j2) tag = 'i';           // insert
+                    if (i1 < i2 && j1 < j2) tag = 'r';      
+                    else if (i1 < i2) tag = 'd';           
+                    else if (j1 < j2) tag = 'i';           
 
                     if (tag != ' ')
                     {

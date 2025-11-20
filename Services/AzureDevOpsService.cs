@@ -40,7 +40,7 @@ namespace LlmContextCollector.Services
                     var json = await File.ReadAllTextAsync(path);
                     settings = JsonSerializer.Deserialize<AdoProjectSettings>(json);
                 }
-                catch { /* Ignore deserialization errors */ }
+                catch { }
             }
             settings ??= new AdoProjectSettings();
 
@@ -268,7 +268,6 @@ namespace LlmContextCollector.Services
             var sb = new StringBuilder();
             var title = GetFieldAsString(item, "System.Title");
 
-            // Repeat title 3 times at the top to give it more weight in embeddings.
             if (!string.IsNullOrWhiteSpace(title))
             {
                 sb.AppendLine(title);
