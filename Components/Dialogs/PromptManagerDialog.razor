@@ -10,7 +10,6 @@
             </div>
             <div class="modal-body">
                 <div class="prompt-manager-container">
-                    <!-- Bal oldali lista -->
                     <div class="prompt-list-pane">
                         <strong>Mentett Promptok</strong>
                         <div class="prompt-list">
@@ -28,7 +27,6 @@
                         </div>
                     </div>
 
-                    <!-- Jobb oldali szerkesztő -->
                     <div class="prompt-editor-pane">
                         @if (_selectedPrompt != null)
                         {
@@ -79,7 +77,6 @@
 
     private async Task LoadData()
     {
-        // Mély másolatot készítünk, hogy a "Mégsem" gomb ne mentse a változásokat
         _promptsInManager = (await PromptService.GetPromptsAsync()).Select(p => p.Clone()).ToList();
         _systemPrompt = await PromptService.GetSystemPromptAsync();
         _selectedPrompt = null;

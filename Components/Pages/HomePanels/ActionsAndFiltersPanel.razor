@@ -26,7 +26,7 @@
             <div class="extensions-list">
                 @foreach (var ext in AppState.ExtensionFilters.Keys.OrderBy(k => k))
                 {
-                    var currentExt = ext; // Capture loop variable
+                    var currentExt = ext; 
                                           <div>
                                               <input type="checkbox" id="@($"ext-{currentExt}")" @bind="AppState.ExtensionFilters[currentExt]" />
                                               <label for="@($"ext-{currentExt}")">@currentExt</label>
@@ -71,8 +71,6 @@
 
     private async void OnAppStateChanged(object? sender, PropertyChangedEventArgs e)
     {
-        // This panel binds to several AppState properties.
-        // We need to trigger a re-render if they change from an external source (like loading history).
         if (e.PropertyName == nameof(AppState.IgnorePatternsRaw) ||
             e.PropertyName == nameof(AppState.ExtensionFilters) ||
             e.PropertyName == nameof(AppState.ReferenceSearchDepth) ||

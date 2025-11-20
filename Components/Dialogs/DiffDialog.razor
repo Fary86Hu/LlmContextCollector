@@ -9,7 +9,7 @@
 
 @if (IsVisible)
 {
-    <div class="modal-backdrop">
+    <div class="modal-backdrop" @onclick="HideContextMenu">
         <div class="modal-dialog diff-dialog">
             <div class="modal-header">
                 <h3>Változások Elemzése és Elfogadása</h3>
@@ -148,7 +148,15 @@
                         <div class="diff-content-wrapper">
                             @if (_viewMode == "unified")
                             {
-                                <pre class="diff-content unified-diff"><code>@_unifiedDiffMarkup</code></pre>
+                                <div class="diff-content unified-diff-list">
+                                    @foreach (var line in _unifiedDiffLines)
+                                    {
+                                        <div class="diff-row @GetDiffLineClass(line)" @oncontextmenu="(e) => ShowLineContextMenu(e, line)" @oncontextmenu:preventDefault>
+                                            <span class="diff-marker-text">@GetDiffLineMarker(line)</span>
+                                            <span class="diff-text">@line.Content</span>
+                                        </div>
+                                    }
+                                </div>
                             }
                             else
                             {
@@ -201,6 +209,15 @@
     </div>
 }
 
+@if (_showContextMenu)
+{
+    <div class="context-menu" style="@($"top: {_contextMenuY}px; left: {_contextMenuX}px;")" @onclick:stopPropagation>
+        <div class="context-menu-item" @onclick="ApplyLineRevert">
+            Változtatás visszavonása (Reset Line)
+        </div>
+    </div>
+}
+
 @code {
     [Parameter]
     public bool IsVisible { get; set; }
@@ -232,7 +249,9 @@
     private List<DiffResult> _localDiffResults = new();
     private DiffResult? _selectedResult;
     private string _viewMode = "unified";
-    private MarkupString _unifiedDiffMarkup;
+    
+    private List<DiffUtility.DiffLineItem> _unifiedDiffLines = new();
+    
     private MarkupString _sbsLeftMarkup;
     private MarkupString _sbsRightMarkup;
 
@@ -246,12 +265,18 @@
     private bool _isFullResponseView = false;
     private bool _isGitDiffMode = false;
 
-    // New state for Git diff selection
     private GitWorkflowService.DiffMode _selectedDiffMode = GitWorkflowService.DiffMode.Uncommitted;
     private List<string> _allBranches = new();
     private string? _selectedTargetBranch;
     private bool _isLoadingDiffs = false;
     private bool _isRefreshingSuggestions = false;
+    
+    private bool _prevIsVisible = false;
+    
+    private bool _showContextMenu = false;
+    private double _contextMenuX;
+    private double _contextMenuY;
+    private DiffUtility.DiffLineItem? _contextMenuTargetLine;
 
 
     protected override void OnInitialized()
@@ -261,7 +286,7 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (IsVisible)
+        if (IsVisible && !_prevIsVisible)
         {
             _localDiffResults = DiffResults?.ToList() ?? new();
             _isGitDiffMode = string.IsNullOrEmpty(FullLlmResponse);
@@ -271,12 +296,11 @@
                 _suggestedBranch = string.Empty;
                 _suggestedCommit = string.Empty;
                 _hasSuggestions = false;
-                _globalExplanationText = string.Empty; // No initial explanation for git diff
+                _globalExplanationText = string.Empty; 
                 await LoadBranchesAsync();
             }
             else
             {
-                // This is from clipboard or OpenRouter, parse suggestions immediately.
                 ParseGlobalExplanation();
             }
 
@@ -285,6 +309,8 @@
                 SelectResult(_localDiffResults.FirstOrDefault());
             }
         }
+        
+        _prevIsVisible = IsVisible;
     }
 
     private async void OnAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -293,6 +319,75 @@
         {
             await InvokeAsync(StateHasChanged);
         }
+    }
+    
+    private void ShowLineContextMenu(MouseEventArgs e, DiffUtility.DiffLineItem line)
+    {
+        if (line.Type == DiffUtility.DiffLineType.Context) return;
+
+        _contextMenuX = e.ClientX;
+        _contextMenuY = e.ClientY;
+        _contextMenuTargetLine = line;
+        _showContextMenu = true;
+    }
+
+    private void HideContextMenu()
+    {
+        _showContextMenu = false;
+        _contextMenuTargetLine = null;
+    }
+
+    private void ApplyLineRevert()
+    {
+        if (_contextMenuTargetLine == null || _selectedResult == null)
+        {
+            HideContextMenu();
+            return;
+        }
+
+        var targetLine = _contextMenuTargetLine;
+        var currentNewContent = _selectedResult.NewContent.Replace("\r\n", "\n").Split('\n').ToList();
+
+        if (targetLine.Type == DiffUtility.DiffLineType.Add && targetLine.NewIndex.HasValue)
+        {
+            if (targetLine.NewIndex.Value < currentNewContent.Count)
+            {
+                currentNewContent.RemoveAt(targetLine.NewIndex.Value);
+            }
+        }
+        else if (targetLine.Type == DiffUtility.DiffLineType.Delete)
+        {
+            int insertIndex = 0;
+            int lineIndexInView = _unifiedDiffLines.IndexOf(targetLine);
+            
+            if (lineIndexInView > 0)
+            {
+                for (int i = lineIndexInView - 1; i >= 0; i--)
+                {
+                    var prevLine = _unifiedDiffLines[i];
+                    if (prevLine.NewIndex.HasValue)
+                    {
+                        insertIndex = prevLine.NewIndex.Value + 1;
+                        break;
+                    }
+                }
+            }
+
+            if (insertIndex <= currentNewContent.Count)
+            {
+                currentNewContent.Insert(insertIndex, targetLine.Content);
+            }
+        }
+
+        _selectedResult.NewContent = string.Join(Environment.NewLine, currentNewContent);
+        
+        if (_selectedResult.Status == DiffStatus.Deleted && !string.IsNullOrWhiteSpace(_selectedResult.NewContent))
+        {
+            _selectedResult.Status = DiffStatus.Modified;
+        }
+        
+        GenerateDiffView();
+        HideContextMenu();
     }
 
     public void Dispose()
@@ -405,19 +500,41 @@
     {
         if (_selectedResult != null)
         {
-            var (unified, sbsLeft, sbsRight) = DiffUtility.GenerateDiffMarkup(_selectedResult.OldContent, _selectedResult.NewContent);
-            _unifiedDiffMarkup = unified;
+            _unifiedDiffLines = DiffUtility.GenerateDiffList(_selectedResult.OldContent, _selectedResult.NewContent);
+            
+            var (_, sbsLeft, sbsRight) = DiffUtility.GenerateDiffMarkup(_selectedResult.OldContent, _selectedResult.NewContent);
             _sbsLeftMarkup = sbsLeft;
             _sbsRightMarkup = sbsRight;
+            
             GenerateDiffMarkers();
         }
         else
         {
-            _unifiedDiffMarkup = new MarkupString("");
+            _unifiedDiffLines.Clear();
             _sbsLeftMarkup = new MarkupString("");
             _sbsRightMarkup = new MarkupString("");
             _diffMarkers.Clear();
         }
+    }
+
+    private string GetDiffLineClass(DiffUtility.DiffLineItem line)
+    {
+        return line.Type switch
+        {
+            DiffUtility.DiffLineType.Add => "add",
+            DiffUtility.DiffLineType.Delete => "del",
+            _ => ""
+        };
+    }
+
+    private string GetDiffLineMarker(DiffUtility.DiffLineItem line)
+    {
+        return line.Type switch
+        {
+            DiffUtility.DiffLineType.Add => "+",
+            DiffUtility.DiffLineType.Delete => "-",
+            _ => " "
+        };
     }
 
     private void GenerateDiffMarkers()
@@ -444,7 +561,7 @@
                 _ => 0
             });
         }
-        else // sbs
+        else
         {
             totalLines = opcodes.Sum(op => op.Tag switch
             {
@@ -474,7 +591,7 @@
                     case 'r': linesInOp = (op.I2 - op.I1) + (op.J2 - op.J1); markerType = "replace"; break;
                 }
             }
-            else // sbs
+            else
             {
                 switch (op.Tag)
                 {

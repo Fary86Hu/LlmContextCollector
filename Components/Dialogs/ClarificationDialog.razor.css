@@ -18,7 +18,7 @@
 
 .clarification-question p {
     margin: 5px 0 0 0;
-    white-space: pre-wrap; /* Megőrzi a sortöréseket a kérdésben */
+    white-space: pre-wrap;
     background-color: var(--suggestion-box-bg);
     padding: 10px;
     border-radius: 3px;

@@ -1,6 +1,5 @@
 namespace LlmContextCollector.Models
 {
-    // A teljes, JSON fájlban tárolt struktúrát reprezentálja
     public class PromptData
     {
         public GlobalPreferences Preferences { get; set; } = new();
@@ -9,7 +8,6 @@ namespace LlmContextCollector.Models
 
     public class GlobalPreferences
     {
-        // Egyesített rendszer prompt
         public string SystemPrompt { get; set; } = string.Empty;
     }
 }

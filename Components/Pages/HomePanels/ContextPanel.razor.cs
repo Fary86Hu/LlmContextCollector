@@ -80,7 +80,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private int _totalPreviewMatches = 0;
         private bool _isInitialPreviewSearch = true;
         
-        // Checkbox states
         private bool _includePromptInCopy = true;
         private bool _includeSystemPrompt = true;
 
@@ -264,7 +263,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                         currentChars += fileInfo.Length;
                     }
                 }
-                catch { /* Ignore errors for counting */ }
+                catch { }
             }
             _charCount = currentChars;
             _tokenCount = _charCount > 0 ? _charCount / 4 : 0;
@@ -420,7 +419,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         {
             var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
             
-            // Használjuk a checkboxok értékeit (_includePromptInCopy, _includeSystemPrompt)
             var content = await ContextProcessingService.BuildContextForClipboardAsync(
                 _includePromptInCopy, 
                 _includeSystemPrompt, 
@@ -460,7 +458,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             try
             {
                 var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
-                // A tisztázás utáni generálásnál mindig kell a teljes kontextus (system prompt is)
                 var originalContext = await ContextProcessingService.BuildContextForClipboardAsync(
                     true, 
                     true, 
@@ -495,7 +492,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         private bool IsQuestionResponse(string text)
         {
-            // Egyszerű detektálás: ha [Q szám] mintát találunk, az kérdés blokk
             return Regex.IsMatch(text, @"\[Q\d+\]");
         }
 
@@ -508,12 +504,10 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             }
             else
             {
-                // Megpróbáljuk diff-ként feldolgozni
                 var diffArgs = await ContextProcessingService.ProcessChangesFromClipboardAsync(responseContent);
 
                 if (!diffArgs.DiffResults.Any())
                 {
-                    // Ha se kérdés, se diff, akkor valószínűleg hiba vagy sima szöveg
                     await JSRuntime.InvokeVoidAsync("alert", "A válasz nem tartalmazott feldolgozható kódot és kérdéseket sem.\n\nNyers válasz:\n" + (responseContent.Length > 500 ? responseContent.Substring(0, 500) + "..." : responseContent));
                     AppState.StatusText = "A válasz nem értelmezhető kódként vagy kérdésként.";
                 }
@@ -592,7 +586,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             {
                 var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
                 
-                // OpenRouter esetén MINDIG küldjük a teljes promptot (User + System), mert anélkül nem működik a logika.
                 var responseContent = await OpenRouterService.GenerateContentAsync(sortedPaths);
                 
                 await RouteResponseAsync(responseContent);

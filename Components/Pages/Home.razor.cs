@@ -130,25 +130,24 @@ namespace LlmContextCollector.Components.Pages
             var node = payload.Node;
             var e = payload.Args;
 
-            if (e != null) // User click
+            if (e != null)
             {
                 if (!e.CtrlKey)
                 {
                     DeselectAllNodes(AppState.FileTree);
                     node.IsSelectedInTree = true;
                 }
-                else // Ctrl+click
+                else
                 {
-                    node.IsSelectedInTree = !node.IsSelectedInTree; // Toggle
+                    node.IsSelectedInTree = !node.IsSelectedInTree;
                 }
             }
-            else // Programmatic selection from search
+            else
             {
                 DeselectAllNodes(AppState.FileTree);
                 node.IsSelectedInTree = true;
                 AppState.ExpandNodeParents(node);
 
-                // UI frissítés bevárása a scroll előtt
                 await Task.Delay(10); 
                 
                 var elementId = "filenode-" + Convert.ToBase64String(Encoding.UTF8.GetBytes(node.FullPath))
@@ -159,7 +158,6 @@ namespace LlmContextCollector.Components.Pages
                 await JSRuntime.InvokeVoidAsync("scrollToElement", elementId);
             }
 
-            // Synchronize this new tree selection to the list
             var selectedNodes = new List<FileNode>();
             FindSelectedNodes(AppState.FileTree, selectedNodes);
 
@@ -174,7 +172,6 @@ namespace LlmContextCollector.Components.Pages
 
             if (_contextPanelRef != null)
             {
-                // Update preview panel based on the new selection state
                 if (selectedNodes.Count == 1 && !selectedNodes[0].IsDirectory)
                 {
                     var relativePath = Path.GetRelativePath(AppState.ProjectRoot, selectedNodes[0].FullPath).Replace('\\', '/');
@@ -477,7 +474,6 @@ namespace LlmContextCollector.Components.Pages
             AppState.ShowLoading("Azure DevOps work item-ek letöltése...");
             try
             {
-                // Mentsük a beállításokat a letöltés előtt.
                 await AzureDevOpsService.SaveSettingsForCurrentProjectAsync();
 
                 await AzureDevOpsService.DownloadWorkItemsAsync(
@@ -489,7 +485,6 @@ namespace LlmContextCollector.Components.Pages
                     AppState.ProjectRoot,
                     isIncremental);
 
-                // Mentsük a beállításokat a letöltés utáni új időbélyeggel.
                 await AzureDevOpsService.SaveSettingsForCurrentProjectAsync(DateTime.UtcNow);
                 AzureDevOpsService.UpdateAdoPaths(AppState.ProjectRoot);
 

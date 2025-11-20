@@ -36,7 +36,7 @@ namespace LlmContextCollector.AI.Search
             var v = new float[d];
             foreach(var emb in vectors)
             {
-                if (emb.Length != d) continue; // Skip malformed vectors
+                if (emb.Length != d) continue;
                 for (int j = 0; j < d; j++) v[j] += emb[j];
             }
             

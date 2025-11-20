@@ -220,7 +220,7 @@
     background-color: var(--input-bg-color);
     border: 1px solid var(--border-color);
     overflow: auto;
-    min-height: 0; /* Fontos a flex-grow megfelelő működéséhez */
+    min-height: 0;
 }
 
     .preview-box pre {
@@ -228,8 +228,8 @@
         padding: 5px;
         font-family: Consolas, monospace;
         font-size: var(--font-size-sm);
-        white-space: pre-wrap; /* Sortörés megengedése */
-        word-break: break-all; /* Hosszú szavak törése */
+        white-space: pre-wrap;
+        word-break: break-all;
     }
 
 ::deep .highlight {
@@ -256,7 +256,7 @@ html[data-theme="dark"] ::deep .highlight.current {
 
 .bottom-actions {
     display: flex;
-    flex-direction: column; /* Changed to column to stack checkboxes and buttons */
+    flex-direction: column;
     gap: 5px;
     padding-top: 10px;
     border-top: 1px solid var(--border-color);

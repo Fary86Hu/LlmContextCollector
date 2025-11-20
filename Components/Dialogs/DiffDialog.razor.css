@@ -20,7 +20,7 @@
     width: 65%;
     display: flex;
     flex-direction: column;
-    min-height: 0; /* Fontos a flexbox gyermekek megfelelő viselkedéséhez */
+    min-height: 0;
 }
 
 .modal-header .header-controls {
@@ -156,7 +156,7 @@
     border: none;
     padding: 0;
     margin: 0;
-    min-width: 0; /* Critical for flexbox children */
+    min-width: 0;
     display: flex;
     flex-grow: 1;
 }
@@ -246,25 +246,50 @@
     flex-grow: 1;
     display: flex;
     flex-direction: column;
-    min-height: 0; /* Biztosítja, hogy ne nyúljon túl a szülőn */
+    min-height: 0;
 }
 
 
-pre.diff-content {
+pre.diff-content, .unified-diff-list {
     background-color: var(--panel-bg);
     border: 1px solid var(--border-color);
-    padding: 10px;
     margin: 0;
     flex-grow: 1;
     overflow: auto;
     font-family: Consolas, monospace;
 }
 
-::deep .diff-del, ::deep .sbs-del {
+.unified-diff-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.diff-row {
+    display: flex;
+    white-space: pre;
+    min-height: 1.2em;
+}
+.diff-row:hover {
+    background-color: var(--hover-bg-color);
+}
+
+.diff-marker-text {
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+    user-select: none;
+    color: #888;
+}
+
+.diff-text {
+    flex-grow: 1;
+}
+
+.diff-row.del, ::deep .diff-del, ::deep .sbs-del {
     background-color: var(--diff-del-bg);
 }
 
-::deep .diff-add, ::deep .sbs-add {
+.diff-row.add, ::deep .diff-add, ::deep .sbs-add {
     background-color: var(--diff-add-bg);
 }
 

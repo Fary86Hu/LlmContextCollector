@@ -8,6 +8,10 @@ namespace LlmContextCollector.Utils
     {
         public record DiffOpcode(char Tag, int I1, int I2, int J1, int J2);
 
+        // Új struktúrák a soronkénti kezeléshez
+        public enum DiffLineType { Context, Add, Delete, Empty }
+        public record DiffLineItem(DiffLineType Type, string Content, int? OriginalIndex, int? NewIndex);
+
         public static (MarkupString unified, MarkupString sbsLeft, MarkupString sbsRight) GenerateDiffMarkup(string oldText, string newText)
         {
             var oldLines = oldText.Replace("\r\n", "\n").Split('\n');
@@ -18,6 +22,51 @@ namespace LlmContextCollector.Utils
             return (GenerateUnifiedMarkup(opcodes, oldLines, newLines),
                     GenerateSbsMarkup(opcodes, oldLines, newLines, isLeft: true),
                     GenerateSbsMarkup(opcodes, oldLines, newLines, isLeft: false));
+        }
+
+        // Új metódus a strukturált lista generálásához
+        public static List<DiffLineItem> GenerateDiffList(string oldText, string newText)
+        {
+            var oldLines = oldText.Replace("\r\n", "\n").Split('\n');
+            var newLines = newText.Replace("\r\n", "\n").Split('\n');
+            var opcodes = GetOpcodes(oldLines, newLines);
+            var result = new List<DiffLineItem>();
+
+            foreach (var op in opcodes)
+            {
+                switch (op.Tag)
+                {
+                    case 'e': // Equal
+                        for (int i = 0; i < (op.I2 - op.I1); i++)
+                        {
+                            result.Add(new DiffLineItem(DiffLineType.Context, oldLines[op.I1 + i], op.I1 + i, op.J1 + i));
+                        }
+                        break;
+                    case 'd': // Delete
+                        for (int i = 0; i < (op.I2 - op.I1); i++)
+                        {
+                            result.Add(new DiffLineItem(DiffLineType.Delete, oldLines[op.I1 + i], op.I1 + i, null));
+                        }
+                        break;
+                    case 'i': // Insert
+                        for (int j = 0; j < (op.J2 - op.J1); j++)
+                        {
+                            result.Add(new DiffLineItem(DiffLineType.Add, newLines[op.J1 + j], null, op.J1 + j));
+                        }
+                        break;
+                    case 'r': // Replace
+                        for (int i = 0; i < (op.I2 - op.I1); i++)
+                        {
+                            result.Add(new DiffLineItem(DiffLineType.Delete, oldLines[op.I1 + i], op.I1 + i, null));
+                        }
+                        for (int j = 0; j < (op.J2 - op.J1); j++)
+                        {
+                            result.Add(new DiffLineItem(DiffLineType.Add, newLines[op.J1 + j], null, op.J1 + j));
+                        }
+                        break;
+                }
+            }
+            return result;
         }
 
         private static MarkupString GenerateUnifiedMarkup(List<DiffOpcode> opcodes, string[] oldLines, string[] newLines)

@@ -8,7 +8,6 @@ namespace LlmContextCollector.Models
         public DiffStatus Status { get; set; }
         public bool IsSelectedForAccept { get; set; } = true;
         
-        // Új mező a fájl-specifikus magyarázat tárolására
         public string Explanation { get; set; } = string.Empty;
     }
 

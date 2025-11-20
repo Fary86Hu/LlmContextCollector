@@ -100,7 +100,6 @@
     private RelevanceResult? _selectedResult;
     private string _previewContent = string.Empty;
     
-    // New state properties
     private bool _searchInProgramFiles = true;
     private bool _searchInOtherDocuments = false;
     private List<ContextFileViewModel> _contextFilesForSearch = new();
@@ -114,7 +113,6 @@
         public SearchResultViewModel(RelevanceResult result) { Result = result; }
     }
 
-    // New ViewModel for context files
     private class ContextFileViewModel
     {
         public string FilePath { get; set; } = string.Empty;
@@ -157,11 +155,11 @@
         AppState.PromptText = _searchPrompt;
         var filesForContextQuery = _contextFilesForSearch.Where(f => f.IsUsedForContext).Select(f => f.FilePath).ToList();
         
-        if (_searchInOtherDocuments && !_searchInProgramFiles) // Csak ADO keresés
+        if (_searchInOtherDocuments && !_searchInProgramFiles)
         {
             filesForContextQuery = filesForContextQuery.Where(f => f.StartsWith(AdoFilePrefix)).ToList();
         }
-        else if (!_searchInOtherDocuments && _searchInProgramFiles) // Csak kód keresés
+        else if (!_searchInOtherDocuments && _searchInProgramFiles)
         {
             filesForContextQuery = filesForContextQuery.Where(f => !f.StartsWith(AdoFilePrefix)).ToList();
         }

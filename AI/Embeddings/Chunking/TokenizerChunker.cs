@@ -38,7 +38,7 @@ namespace LlmContextCollector.AI.Embeddings.Chunking
                 start += _maxTokens - _overlap;
                 if (start >= end)
                 {
-                    start = end; // Ensure progress
+                    start = end;
                 }
             }
         }
