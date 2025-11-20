@@ -108,6 +108,10 @@
                                     <input type="checkbox" @bind="result.IsSelectedForAccept" @onclick:stopPropagation />
                                     <span class="status-badge @GetStatusClass(result)">@GetStatusText(result)</span>
                                     <span>@result.Path</span>
+                                    @if (!string.IsNullOrEmpty(result.Explanation))
+                                    {
+                                        <span class="comment-indicator" title="Van magyarázat">💬</span>
+                                    }
                                 </div>
                             }
                         </div>
@@ -123,6 +127,14 @@
                     }
                     else if (_selectedResult != null)
                     {
+                         @if (!string.IsNullOrEmpty(_selectedResult.Explanation))
+                        {
+                            <div class="file-explanation-box">
+                                <strong>@_selectedResult.Path - Magyarázat:</strong>
+                                <p>@_selectedResult.Explanation</p>
+                            </div>
+                        }
+                        
                         <div class="diff-view-switcher">
                             <label>
                                 <input type="radio" name="diff-view" value="unified" checked="@(_viewMode == "unified")" @onchange="@(() => SetViewMode("unified"))" />

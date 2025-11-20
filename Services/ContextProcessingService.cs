@@ -112,7 +112,8 @@ namespace LlmContextCollector.Services
                     Path = fileData.Path,
                     OldContent = oldContent,
                     NewContent = fileData.NewContent,
-                    Status = status
+                    Status = status,
+                    Explanation = fileData.Explanation // Átadjuk a parse-olt magyarázatot
                 });
             }
 
