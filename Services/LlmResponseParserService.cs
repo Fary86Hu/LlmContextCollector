@@ -15,8 +15,12 @@ namespace LlmContextCollector.Services
         public (string GlobalExplanation, List<ParsedFile> ParsedFiles) ParseResponse(string text)
         {
             var parsedFiles = new List<ParsedFile>();
+            
+            // Módosított regex: A blokk végét jelző rész (?:\r?\n?```|\z) mostantól elfogadja
+            // a szabályos lezárást VAGY a szöveg abszolút végét (\z) is.
+            // Ez kezeli a csonkolt/befejezetlen LLM válaszokat az utolsó fájlnál.
             var fileBlockRegex = new Regex(
-                @"^(?:Új Fájl|Fájl):\s*(?<path>[^\r\n]+)\s*```[a-zA-Z]*\r?\n(?<code>.*?)\r?\n?```\s*$",
+                @"^(?:Új Fájl|Fájl):\s*(?<path>[^\r\n]+)\s*```[a-zA-Z]*\r?\n(?<code>.*?)(?:\r?\n?```|\z)",
                 RegexOptions.Singleline | RegexOptions.Multiline | RegexOptions.IgnoreCase);
 
             var firstMatch = fileBlockRegex.Match(text);
