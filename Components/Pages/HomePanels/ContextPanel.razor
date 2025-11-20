@@ -10,7 +10,6 @@
                     <option value="@prompt.Id">@prompt.Title</option>
                 }
             </select>
-            <button @onclick="CopyPromptOnly" title="Csak a prompt másolása" style="margin: 0 5px;">📋</button>
             <button @onclick="OnShowPromptManager">Szerkesztés...</button>
             <button @onclick="OnShowSettingsDialog" title="Beállítások" style="margin: 0 5px;">⚙️</button>
         </div>
@@ -19,7 +18,6 @@
             @if (!string.IsNullOrWhiteSpace(AppState.PromptText))
             {
                 <div class="prompt-editor-button-group">
-                    <button class="prompt-editor-btn" @onclick="CopyToClipboardForAnalysis" title="Másolás elemzéshez">🔍</button>
                     <button class="prompt-editor-btn" @onclick="ClearPrompt" title="Prompt törlése">&times;</button>
                 </div>
             }
@@ -98,14 +96,11 @@
 
     <div class="bottom-actions">
         <button @onclick="ProcessGitDiffAsync" disabled="@(!AppState.IsGitRepository)">Git Különbségek</button>
-        <button @onclick="ShowClarificationDialog">Tisztázandó kérdések vágólapról</button>
-        <button @onclick="ProcessChangesFromClipboardAsync">Változások Vágólapról</button>
-        <div>
-            <label><input type="checkbox" @bind="_includePromptInCopy" />Prompt</label>
-            <label><input type="checkbox" @bind="_includeGlobalPrefixInCopy" />Globális</label>
-            <button class="copy-button" @onclick="CopyToClipboard">Másolás vágólapra</button>
-            <button class="copy-button" @onclick="ProcessWithOpenRouterAsync" disabled="@(string.IsNullOrWhiteSpace(AppState.OpenRouterApiKey))" title="Változtatási javaslat kérése az OpenRouter-től">OR Javaslat</button>
-        </div>
+        <div class="main-actions">
+            <button class="copy-button" @onclick="CopyToClipboard" title="Egységesített prompt másolása a rendszer utasításokkal">Másolás vágólapra</button>
+            <button class="copy-button" @onclick="ProcessChangesFromClipboardAsync" title="Vágólap feldolgozása (Kérdés vagy Implementáció)">Feldolgoz</button>
+@*             <button class="copy-button" @onclick="ProcessWithOpenRouterAsync" disabled="@(string.IsNullOrWhiteSpace(AppState.OpenRouterApiKey))" title="Küldés OpenRouter-re (Automatikus döntés)">OR Küldés</button>
+ *@        </div>
     </div>
 </div>
 

@@ -16,63 +16,42 @@ namespace LlmContextCollector.Services
         
         private async Task EnsureLoadedAsync()
         {
-            if (!_promptDataCache.Prompts.Any() && string.IsNullOrEmpty(_promptDataCache.Preferences.GlobalPrefix) && string.IsNullOrEmpty(_promptDataCache.Preferences.DeveloperPrompt))
+            if (!_promptDataCache.Prompts.Any() && string.IsNullOrEmpty(_promptDataCache.Preferences.SystemPrompt))
             {
                  _promptDataCache = await _storage.ReadFromFileAsync<PromptData>(PromptFileName) ?? new PromptData();
                  
-                 // 1. GLOBAL PREFIX: Az Implementáló (Code Generator) Prompt
-                 // Ez felelős azért, hogy a válasz formátuma feldolgozható legyen a DiffDialog számára.
-                 if (string.IsNullOrEmpty(_promptDataCache.Preferences.GlobalPrefix))
+                 // UNIFIED SYSTEM PROMPT
+                 // Ez a prompt kezeli mind a tisztázó kérdéseket, mind az implementációt.
+                 if (string.IsNullOrEmpty(_promptDataCache.Preferences.SystemPrompt))
                  {
-                     _promptDataCache.Preferences.GlobalPrefix = 
-                         "Szenior szoftverfejlesztőként a feladatod a kért kódmódosítások elvégzése.\n" +
-                         "A válaszodat egy gép dolgozza fel, ezért SZIGORÚAN tartsd be az alábbi formátumot:\n\n" +
-                         "1. FÁJLOK DEFINIÁLÁSA:\n" +
-                         "Minden módosított fájlt egy [CHANGE_LOG] blokk vezessen be, majd a fájl fejléce, végül a kódblokk.\n" +
-                         "Formátum:\n" +
-                         "[CHANGE_LOG]\n" +
-                         "Rövid leírás, hogy mit és miért változtattál ebben a fájlban.\n" +
-                         "[/CHANGE_LOG]\n" +
-                         "Meglévő fájl: Fájl: Mappa/FajlNeve.cs\n" +
-                         "Új fájl: Új Fájl: Mappa/UjFajlNeve.cs\n" +
-                         "```csharp\n" +
-                         "// ... TELJES KÓDTARTALOM ...\n" +
-                         "```\n\n" +
-                         "2. KÓD TARTALMA:\n" +
-                         "MINDIG a fájl TELJES, MŰKÖDŐ tartalmát add vissza. TILOS részleges kódot vagy kommenteket (pl. '// ... a többi rész változatlan ...') használni, mert a válaszod felülírja a fájlt.\n\n" +
-                         "3. GLOBÁLIS ÖSSZEFOGLALÓ:\n" +
-                         "A válasz legelején (a fájlok előtt) adj egy rövid felsorolást a változtatásokról.";
-                 }
-
-                 // 2. DEVELOPER PROMPT: Az Architect (Analyst) Prompt
-                 // Ez felelős a feladat tisztázásáért. A [Qx] tageket a ClarificationDialog dolgozza fel.
-                 if (string.IsNullOrEmpty(_promptDataCache.Preferences.DeveloperPrompt))
-                 {
-                     _promptDataCache.Preferences.DeveloperPrompt =
-                         "Ön egy tapasztalt szoftver architect. Az Ön elsődleges feladata, hogy a fejlesztési kéréseket aprólékosan átvizsgálja, mielőtt bármilyen implementáció megkezdődne. Elemeznie kell a megadott kontextust, amely egy felhasználói promptból, egy globális rendszer promptból és több kódfájlból áll.\n\n" +
-                         "A fő célja NEM a kód megírása vagy módosítása. Ehelyett az Ön feladata, hogy azonosítson minden kétértelműséget, hiányzó információt vagy tisztázatlan követelményt.\n\n" +
-                         "ELEMZÉSI SZEMPONTOK:\n" +
-                         "- Specifikusság: Egyértelműek a UI elemek és interakciók?\n" +
-                         "- Teljesség: Minden szükséges fájl megvan a kontextusban?\n" +
-                         "- Konzisztencia: Vannak logikai ellentmondások?\n" +
-                         "- Szélsőséges esetek: Kezelve vannak a hibák és edge case-ek?\n" +
-                         "- Függőségek: Vannak nem említett mellékhatások?\n\n" +
-                         "KIMENETI FORMÁTUM (KÖTELEZŐ):\n" +
-                         "1. ÖSSZEFOGLALÓ: Röviden foglalja össze, hogyan értelmezte a célt.\n\n" +
-                         "2. TISZTÁZANDÓ KÉRDÉSEK:\n" +
-                         "Minden kérdést külön, sorszámozott blokkba kell tenni, hogy a rendszer fel tudja dolgozni őket. A formátum: [Q1]Kérdés szövege...[/Q1], [Q2]Kérdés...[/Q2].\n" +
-                         "Példa:\n" +
-                         "[Q1]\n" +
-                         "Pontosan milyen típusú adatbázist szeretne használni ehhez a funkcióhoz?\n" +
-                         "[/Q1]\n" +
-                         "[Q2]\n" +
-                         "A 'Mentés' gomb lenyomásakor kell validációt futtatni a kliens oldalon is?\n" +
-                         "[/Q2]\n\n" +
-                         "3. HIÁNYZÓ KONTEXTUS:\n" +
-                         "Ha hiányoznak fájlok, listázza őket egyetlen blokkban:\n" +
-                         "[MISSING_CONTEXT]UserService.cs, IRepository.cs[/MISSING_CONTEXT]\n" +
-                         "Ha nincs hiányzó fájl, hagyja üresen ezt a blokkot.\n\n" +
-                         "DÖNTŐ SZABÁLY: NE generáljon semmilyen programkódot (C#, JS, stb.). A válasz kizárólag elemzés és kérdések listája lehet.";
+                     _promptDataCache.Preferences.SystemPrompt =
+                         "Ön egy tapasztalt Szenior Szoftverfejlesztő és Architect.\n\n" +
+                         "FELADAT:\n" +
+                         "Elemezze a megadott kontextust (fájlok) és a felhasználói kérést.\n\n" +
+                         "DÖNTÉSI SZABÁLY (KIZÁRÓ VAGY):\n" +
+                         "A kérés természete alapján válasszon az alábbi két kimeneti mód közül (TILOS keverni őket):\n\n" +
+                         "1. ÚTVONAL: TISZTÁZÁS (Ha a kérés kétértelmű, hiányos, vagy kockázatos feltételezéseket igényel)\n" +
+                         "   - NE generáljon kódot.\n" +
+                         "   - Tegyen fel tisztázó kérdéseket [Qx] formátumban.\n" +
+                         "   - Ha fájlok hiányoznak a kontextusból, listázza őket [MISSING_CONTEXT] blokkban.\n" +
+                         "   - Formátum:\n" +
+                         "     [Q1]Kérdés szövege...[/Q1]\n" +
+                         "     [MISSING_CONTEXT]UserService.cs, IRepository.cs[/MISSING_CONTEXT]\n\n" +
+                         "2. ÚTVONAL: IMPLEMENTÁCIÓ (Ha a kérés egyértelmű és végrehajtható)\n" +
+                         "   - Generálja le a szükséges kódváltoztatásokat.\n" +
+                         "   - NE tegyen fel kérdéseket.\n" +
+                         "   - Kezdje a választ egy rövid szöveges összefoglalóval a változásokról.\n" +
+                         "   - KRITIKUS SZABÁLY: Minden fájl esetén a TELJES, MŰKÖDŐ kódot kell visszaadnia. SZIGORÚAN TILOS a '// ... a többi rész változatlan ...' vagy hasonló placeholder kommentek használata, mivel a válaszod közvetlenül felülírja a fájlt a lemezen!\n" +
+                         "   - Minden fájl módosítást kötelezően az alábbi formátumban adjon meg:\n" +
+                         "     [CHANGE_LOG]\n" +
+                         "     Mit és miért változtatott...\n" +
+                         "     [/CHANGE_LOG]\n" +
+                         "     Fájl: Mappa/FajlNeve.cs\n" +
+                         "     (Vagy új fájl esetén: Új Fájl: Mappa/UjNeve.cs)\n" +
+                         "     ```kiterjesztés\n" +
+                         "     // A FÁJL TELJES TARTALMA (PLACEHOLDEREK NÉLKÜL)\n" +
+                         "     ```" +
+                         "Ha vettél fel új lokalizációkat, akkor azokat mindig írd le a válaszod össefoglaló részének végén, a fájl módosítások elé, a következõ formában:\r\n\r\n  <data name=\"XY\" xml:space=\"preserve\">\r\n    <value>XY</value>\r\n  </data>";
                  }
             }
         }
@@ -83,23 +62,16 @@ namespace LlmContextCollector.Services
             return _promptDataCache.Prompts.OrderBy(p => p.Title).ToList();
         }
 
-        public async Task<string> GetGlobalPrefixAsync()
+        public async Task<string> GetSystemPromptAsync()
         {
             await EnsureLoadedAsync();
-            return _promptDataCache.Preferences.GlobalPrefix;
+            return _promptDataCache.Preferences.SystemPrompt;
         }
         
-        public async Task<string> GetDeveloperPromptAsync()
-        {
-            await EnsureLoadedAsync();
-            return _promptDataCache.Preferences.DeveloperPrompt;
-        }
-
-        public async Task SaveAllAsync(List<PromptTemplate> prompts, string globalPrefix, string developerPrompt)
+        public async Task SaveAllAsync(List<PromptTemplate> prompts, string systemPrompt)
         {
             _promptDataCache.Prompts = prompts;
-            _promptDataCache.Preferences.GlobalPrefix = globalPrefix;
-            _promptDataCache.Preferences.DeveloperPrompt = developerPrompt;
+            _promptDataCache.Preferences.SystemPrompt = systemPrompt;
 
             await _storage.WriteToFileAsync(PromptFileName, _promptDataCache);
         }

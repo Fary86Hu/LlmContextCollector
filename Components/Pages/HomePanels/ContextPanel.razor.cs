@@ -79,8 +79,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private int _currentPreviewMatchIndex = 0;
         private int _totalPreviewMatches = 0;
         private bool _isInitialPreviewSearch = true;
-        private bool _includePromptInCopy = true;
-        private bool _includeGlobalPrefixInCopy = true;
 
         private List<ContextListItem> _sortedFiles = new();
         private string _currentSortKey = "path";
@@ -417,9 +415,10 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private async Task CopyToClipboard()
         {
             var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
+            // Mindig beletesszük a System Prompt-ot és a User Prompt-ot is az új egységesített flow-ban
             var content = await ContextProcessingService.BuildContextForClipboardAsync(
-                _includePromptInCopy, 
-                _includeGlobalPrefixInCopy, 
+                true, 
+                true, 
                 sortedPaths);
 
             if (string.IsNullOrWhiteSpace(content))
@@ -433,55 +432,11 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             AppState.StatusText = $"Tartalom másolva ({_charCount} kar., ~{_tokenCount} token). Előzmény mentve.";
         }
         
-        private async Task CopyToClipboardForAnalysis()
-        {
-            var developerPrompt = await PromptService.GetDeveloperPromptAsync();
-            if (string.IsNullOrWhiteSpace(developerPrompt))
-            {
-                AppState.StatusText = "Nincs fejlesztői prompt beállítva a Prompt Sablon Kezelőben.";
-                return;
-            }
-    
-            var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
-            // We want to include user prompt, global prefix, and files
-            var mainContext = await ContextProcessingService.BuildContextForClipboardAsync(
-                true, // include prompt
-                true, // include global prefix
-                sortedPaths);
-    
-            if (string.IsNullOrWhiteSpace(mainContext))
-            {
-                AppState.StatusText = "Nincs másolható tartalom (se fájl, se prompt).";
-                return;
-            }
-            
-            var separator = "\n\n---\n\n";
-            var finalContent = developerPrompt + separator + mainContext;
-    
-            await OnHistorySaveRequested.InvokeAsync();
-            await Clipboard.SetTextAsync(finalContent);
-            AppState.StatusText = $"Tartalom elemzéshez másolva. Előzmény mentve.";
-        }
-
-        private async Task CopyPromptOnly()
-        {
-            if (!string.IsNullOrWhiteSpace(AppState.PromptText))
-            {
-                await Clipboard.SetTextAsync(AppState.PromptText);
-                AppState.StatusText = "Prompt a vágólapra másolva.";
-            }
-            else
-            {
-                AppState.StatusText = "Nincs prompt a másoláshoz.";
-            }
-        }
-
-
         #region Clarification Dialog
         
-        private async Task ShowClarificationDialog()
+        private async Task ShowClarificationDialog(string content)
         {
-            _clarificationDialogText = await Clipboard.GetTextAsync() ?? string.Empty;
+            _clarificationDialogText = content;
             _isClarificationDialogVisible = true;
             StateHasChanged();
         }
@@ -528,10 +483,41 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             }
         }
 
-
         #endregion
 
-        #region Diff Processing
+        #region Diff Processing & Automatic Routing
+
+        private bool IsQuestionResponse(string text)
+        {
+            // Egyszerű detektálás: ha [Q szám] mintát találunk, az kérdés blokk
+            return Regex.IsMatch(text, @"\[Q\d+\]");
+        }
+
+        private async Task RouteResponseAsync(string responseContent)
+        {
+            if (IsQuestionResponse(responseContent))
+            {
+                AppState.StatusText = "Tisztázó kérdések észlelve. Dialógus megnyitása...";
+                await ShowClarificationDialog(responseContent);
+            }
+            else
+            {
+                // Megpróbáljuk diff-ként feldolgozni
+                var diffArgs = await ContextProcessingService.ProcessChangesFromClipboardAsync(responseContent);
+
+                if (!diffArgs.DiffResults.Any())
+                {
+                    // Ha se kérdés, se diff, akkor valószínűleg hiba vagy sima szöveg
+                    await JSRuntime.InvokeVoidAsync("alert", "A válasz nem tartalmazott feldolgozható kódot és kérdéseket sem.\n\nNyers válasz:\n" + (responseContent.Length > 500 ? responseContent.Substring(0, 500) + "..." : responseContent));
+                    AppState.StatusText = "A válasz nem értelmezhető kódként vagy kérdésként.";
+                }
+                else
+                {
+                    AppState.StatusText = $"{diffArgs.DiffResults.Count} fájl feldolgozva. Változások ablak megnyitva.";
+                    await OnShowDiffDialog.InvokeAsync(diffArgs);
+                }
+            }
+        }
 
         private async Task ProcessGitDiffAsync()
         {
@@ -575,21 +561,11 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 return;
             }
 
-            AppState.ShowLoading("Vágólap tartalmának elemzése...");
+            AppState.ShowLoading("Vágólap tartalmának elemzése (Routing)...");
             await Task.Delay(1);
             try
             {
-                var diffArgs = await ContextProcessingService.ProcessChangesFromClipboardAsync(clipboardText);
-
-                if (!diffArgs.DiffResults.Any())
-                {
-                    await JSRuntime.InvokeVoidAsync("alert", "Nem sikerült fájl-változásokat találni a vágólap tartalmában.");
-                    AppState.StatusText = "Kész. Nem található feldolgozható fájlblokk.";
-                    return;
-                }
-                
-                await OnShowDiffDialog.InvokeAsync(diffArgs);
-                AppState.StatusText = $"{diffArgs.DiffResults.Count} fájl feldolgozva. Változások ablak megnyitva.";
+                await RouteResponseAsync(clipboardText);
             }
             finally
             {
@@ -609,17 +585,10 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             try
             {
                 var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
-                var diffArgs = await OpenRouterService.GenerateDiffFromContextAsync(sortedPaths);
-
-                if (!diffArgs.DiffResults.Any())
-                {
-                    await JSRuntime.InvokeVoidAsync("alert", "Az OpenRouter modell nem adott vissza feldolgozható fájl-változásokat.\n\nMagyarázat:\n" + diffArgs.GlobalExplanation);
-                    AppState.StatusText = "Kész. Az OpenRouter nem adott vissza feldolgozható változásokat.";
-                    return;
-                }
-
-                await OnShowDiffDialog.InvokeAsync(diffArgs);
-                AppState.StatusText = $"{diffArgs.DiffResults.Count} fájl feldolgozva az OpenRouter-től. Változások ablak megnyitva.";
+                // Most már csak a raw szöveget kapjuk vissza
+                var responseContent = await OpenRouterService.GenerateContentAsync(sortedPaths);
+                
+                await RouteResponseAsync(responseContent);
             }
             catch (Exception ex)
             {

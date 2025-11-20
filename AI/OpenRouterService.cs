@@ -35,7 +35,7 @@ namespace LlmContextCollector.AI
             _contextProcessingService = contextProcessingService;
         }
 
-        public async Task<DiffResultArgs> GenerateDiffFromContextAsync(IEnumerable<string> sortedFilePaths)
+        public async Task<string> GenerateContentAsync(IEnumerable<string> sortedFilePaths)
         {
             var apiKey = _appState.OpenRouterApiKey;
             if (string.IsNullOrWhiteSpace(apiKey))
@@ -43,11 +43,12 @@ namespace LlmContextCollector.AI
                 throw new InvalidOperationException("OpenRouter API key is not set. Please configure it in the settings.");
             }
 
+            // Most már a System Prompt-ot is beleépítjük a kontextusba
             var contextString = await _contextProcessingService.BuildContextForClipboardAsync(true, true, sortedFilePaths);
 
             if (string.IsNullOrWhiteSpace(contextString))
             {
-                return new DiffResultArgs("The context is empty. Please add files or a prompt.", new List<DiffResult>(), "");
+                return "The context is empty. Please add files or a prompt.";
             }
 
             var payload = new ChatRequest
@@ -87,12 +88,7 @@ namespace LlmContextCollector.AI
                 ? result.Choices[0].Message?.Content ?? string.Empty
                 : string.Empty;
 
-            if (string.IsNullOrWhiteSpace(responseContent))
-            {
-                return new DiffResultArgs("The model returned an empty response.", new List<DiffResult>(), "");
-            }
-
-            return await _contextProcessingService.ProcessChangesFromClipboardAsync(responseContent);
+            return responseContent;
         }
 
         private sealed class ChatRequest

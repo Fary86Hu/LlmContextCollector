@@ -45,12 +45,9 @@
                     </div>
                 </div>
                  <div class="global-prefix-editor">
-                    <label for="global-prefix">Globális prompt előtag (mindig bekerül a promptok és a fájlok közé):</label>
-                    <textarea id="global-prefix" @bind="_globalPrefix" rows="4"></textarea>
-                </div>
-                <div class="global-prefix-editor">
-                    <label for="developer-prompt">Fejlesztői prompt (a kontextus kétértelműségeinek kereséséhez):</label>
-                    <textarea id="developer-prompt" @bind="_developerPrompt" rows="6"></textarea>
+                    <label for="system-prompt">Rendszer Prompt (Unified):</label>
+                    <p class="hint-text">Ez az utasítás határozza meg a modell viselkedését: döntés a kérdezés (Clarification) és a kódolás (Implementation) között.</p>
+                    <textarea id="system-prompt" @bind="_systemPrompt" rows="10"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
@@ -70,8 +67,7 @@
 
     private List<PromptTemplate> _promptsInManager = new();
     private PromptTemplate? _selectedPrompt;
-    private string _globalPrefix = string.Empty;
-    private string _developerPrompt = string.Empty;
+    private string _systemPrompt = string.Empty;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -85,8 +81,7 @@
     {
         // Mély másolatot készítünk, hogy a "Mégsem" gomb ne mentse a változásokat
         _promptsInManager = (await PromptService.GetPromptsAsync()).Select(p => p.Clone()).ToList();
-        _globalPrefix = await PromptService.GetGlobalPrefixAsync();
-        _developerPrompt = await PromptService.GetDeveloperPromptAsync();
+        _systemPrompt = await PromptService.GetSystemPromptAsync();
         _selectedPrompt = null;
     }
 
@@ -113,7 +108,7 @@
     
     private async Task SaveChanges()
     {
-        await PromptService.SaveAllAsync(_promptsInManager, _globalPrefix, _developerPrompt);
+        await PromptService.SaveAllAsync(_promptsInManager, _systemPrompt);
         await Close();
     }
 

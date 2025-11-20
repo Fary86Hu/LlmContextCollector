@@ -23,7 +23,7 @@ namespace LlmContextCollector.Services
             _llmResponseParserService = llmResponseParserService;
         }
 
-        public async Task<string> BuildContextForClipboardAsync(bool includePrompt, bool includeGlobalPrefix, IEnumerable<string> sortedFilePaths)
+        public async Task<string> BuildContextForClipboardAsync(bool includePrompt, bool includeSystemPrompt, IEnumerable<string> sortedFilePaths)
         {
             var sb = new StringBuilder();
             if (includePrompt && !string.IsNullOrWhiteSpace(_appState.PromptText))
@@ -31,12 +31,14 @@ namespace LlmContextCollector.Services
                 sb.AppendLine(_appState.PromptText);
             }
 
-            if (includeGlobalPrefix)
+            if (includeSystemPrompt)
             {
-                var globalPrefix = await _promptService.GetGlobalPrefixAsync();
-                if (!string.IsNullOrEmpty(globalPrefix))
+                var sysPrompt = await _promptService.GetSystemPromptAsync();
+                if (!string.IsNullOrEmpty(sysPrompt))
                 {
-                    sb.AppendLine(globalPrefix);
+                    sb.AppendLine("\n--- SYSTEM INSTRUCTIONS ---\n");
+                    sb.AppendLine(sysPrompt);
+                    sb.AppendLine("\n--- END SYSTEM INSTRUCTIONS ---\n");
                 }
             }
 
@@ -113,7 +115,7 @@ namespace LlmContextCollector.Services
                     OldContent = oldContent,
                     NewContent = fileData.NewContent,
                     Status = status,
-                    Explanation = fileData.Explanation // Átadjuk a parse-olt magyarázatot
+                    Explanation = fileData.Explanation
                 });
             }
 
