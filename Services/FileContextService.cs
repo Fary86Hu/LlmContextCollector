@@ -28,13 +28,15 @@ namespace LlmContextCollector.Services
                 return;
             }
 
-            bool showLoading = _appState.ReferenceSearchDepth > 0;
+            bool searchReferences = _appState.ReferenceSearchDepth > 0;
+            bool searchReferencing = _appState.IncludeReferencingFiles;
+            bool showLoading = searchReferences || searchReferencing;
 
             try
             {
                 if (showLoading)
                 {
-                    _appState.ShowLoading("Fájlok hozzáadása és referenciák keresése...");
+                    _appState.ShowLoading("Fájlok hozzáadása és kapcsolatok keresése...");
                     await Task.Delay(1);
                 }
 
@@ -73,13 +75,28 @@ namespace LlmContextCollector.Services
                 var currentFiles = _appState.SelectedFilesForContext.ToHashSet();
                 var initialCount = currentFiles.Count;
                 currentFiles.UnionWith(filesFromSelection);
+                
+                var statusMessageParts = new List<string>();
 
-                if (_appState.ReferenceSearchDepth > 0 && filesFromSelection.Any())
+                // 1. Forward Reference Search (Mit használ ez a fájl?)
+                if (searchReferences && filesFromSelection.Any())
                 {
                     var foundRefs = await _referenceFinder.FindReferencesAsync(filesFromSelection.ToList(), _appState.FileTree, projectRootPath, _appState.ReferenceSearchDepth);
                     var newRefsCount = foundRefs.Count(r => !currentFiles.Contains(r));
-                    if (newRefsCount > 0) _appState.StatusText = $"{newRefsCount} új kapcsolódó fájl hozzáadva referenciák alapján.";
+                    if (newRefsCount > 0) statusMessageParts.Add($"{newRefsCount} ref. fájl");
                     currentFiles.UnionWith(foundRefs);
+                }
+
+                // 2. Reverse Reference Search (Ki használja ezt a fájlt?)
+                if (searchReferencing && filesFromSelection.Any())
+                {
+                    // A kereséshez azokat a fájlokat használjuk, amiket a user direktben kijelölt (plusz a companion fájlok),
+                    // nem feltétlenül azokat, amiket az 1. lépésben találtunk (bár lehetne azokat is, de az exponenciális lehet).
+                    // Most csak a közvetlen kijelölés hivatkozóit keressük.
+                    var foundReferencing = await _referenceFinder.FindReferencingFilesAsync(filesFromSelection.ToList(), _appState.FileTree, projectRootPath);
+                    var newReferencingCount = foundReferencing.Count(r => !currentFiles.Contains(r));
+                    if (newReferencingCount > 0) statusMessageParts.Add($"{newReferencingCount} hivatkozó fájl");
+                    currentFiles.UnionWith(foundReferencing);
                 }
 
                 var addedCount = currentFiles.Count - initialCount;
@@ -91,7 +108,12 @@ namespace LlmContextCollector.Services
                         _appState.SelectedFilesForContext.Add(file);
                     }
                     _appState.SaveContextListState();
-                    if (!_appState.StatusText.Contains("referenciák"))
+
+                    if (statusMessageParts.Any())
+                    {
+                        _appState.StatusText = $"{addedCount} új fájl hozzáadva ({string.Join(", ", statusMessageParts)}).";
+                    }
+                    else
                     {
                         _appState.StatusText = $"{addedCount} fájl hozzáadva a kontextushoz.";
                     }

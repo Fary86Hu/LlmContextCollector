@@ -5,21 +5,14 @@ namespace LlmContextCollector.Services
 {
     public class CodeStructureExtractor
     {
-        // Reguláris kifejezések a C#-szerű nyelvek főbb elemeinek kinyerésére
         private static readonly RegexOptions RegexOpts = RegexOptions.Multiline | RegexOptions.Compiled;
 
-        // XML doc kommentek (pl. /// <summary>...)
         private static readonly Regex DocCommentsRegex = new(@"^\s*///.*$", RegexOpts);
         private static readonly Regex UsingRegex = new(@"^\s*using\s+[\w\.]+;", RegexOpts);
-        // Névtér
         private static readonly Regex NamespaceRegex = new(@"^\s*namespace\s+[\w\.]+", RegexOpts);
-        // Osztály, interfész, struct, enum definíciók
         private static readonly Regex TypeDefinitionRegex = new(@"^\s*(?:public|internal|private|protected|static|sealed|abstract|partial)*\s*(class|interface|struct|enum)\s+\w+", RegexOpts);
-        // Property-k (get/set-tel vagy anélkül)
         private static readonly Regex PropertyRegex = new(@"^\s*(?:public|internal|private|protected|static|virtual|override|new|readonly)*\s*[\w\.<>\[\],?]+\s+\w+\s*\{.*(get|set|=>|;)", RegexOpts);
-        // Metódus aláírások (záró {, ; vagy =>)
         private static readonly Regex MethodRegex = new(@"^\s*(?:public|internal|private|protected|static|async|virtual|override|new|extern)*\s*[\w\.<>\[\],?]+\s+\w+\s*\(.*\)\s*(?:where\s+.*)?(?:{|;|=>)", RegexOpts);
-        // CSS osztályok és ID-k
         private static readonly Regex CssClassAndIdRegex = new(@"(?<=[.#])[\w-]+", RegexOpts);
 
 
@@ -39,7 +32,7 @@ namespace LlmContextCollector.Services
                     foreach (var line in lines)
                     {
                         var trimmedLine = line.Trim();
-                        if (string.IsNullOrWhiteSpace(trimmedLine) || trimmedLine.StartsWith("//")) continue; // sima kommentek kihagyása
+                        if (string.IsNullOrWhiteSpace(trimmedLine) || trimmedLine.StartsWith("//")) continue;
 
                         if (DocCommentsRegex.IsMatch(trimmedLine) ||
                             UsingRegex.IsMatch(trimmedLine) ||
@@ -48,16 +41,16 @@ namespace LlmContextCollector.Services
                             PropertyRegex.IsMatch(trimmedLine) ||
                             MethodRegex.IsMatch(trimmedLine))
                         {
-                            structureSb.AppendLine(line); // Eredeti behúzás megtartása
+                            structureSb.AppendLine(line);
                         }
                     }
-                    if (structureSb.Length > 20) // Heurisztika: csak akkor használjuk ha találtunk valami értelmeset
+                    if (structureSb.Length > 20)
                     {
                         sb.Append(structureSb.ToString());
                     }
                     else
                     {
-                        sb.Append(fileContent); // Fallback if no structure found
+                        sb.Append(fileContent);
                     }
                     break;
                 }
@@ -91,7 +84,6 @@ namespace LlmContextCollector.Services
                 }
 
                 default:
-                    // For unstructured files, just use the path and the full content
                     sb.Append(fileContent);
                     break;
             }

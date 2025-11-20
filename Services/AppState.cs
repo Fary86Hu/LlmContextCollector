@@ -87,6 +87,13 @@ namespace LlmContextCollector.Services
             set => SetField(ref _referenceSearchDepth, value);
         }
 
+        private bool _includeReferencingFiles = false;
+        public bool IncludeReferencingFiles
+        {
+            get => _includeReferencingFiles;
+            set => SetField(ref _includeReferencingFiles, value);
+        }
+
         // PROMPT STATE
         private string _promptText = string.Empty;
         public string PromptText

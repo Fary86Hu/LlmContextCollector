@@ -10,6 +10,11 @@
         <div class="ref-finder">
             <label for="ref-depth">Ref. mélység:</label>
             <input type="number" id="ref-depth" min="0" max="5" @bind="AppState.ReferenceSearchDepth" />
+            
+            <div class="checkbox-wrapper" style="margin-left: 10px; display: flex; align-items: center; gap: 4px;">
+                <input type="checkbox" id="ref-include-referencing" @bind="AppState.IncludeReferencingFiles" />
+                <label for="ref-include-referencing" title="Keressen olyan fájlokat is, amelyek hivatkoznak a hozzáadott fájlokra (pl. Program.cs a Service-ek esetén)">Hivatkozók</label>
+            </div>
         </div>
     </div>
 
@@ -70,7 +75,8 @@
         // We need to trigger a re-render if they change from an external source (like loading history).
         if (e.PropertyName == nameof(AppState.IgnorePatternsRaw) ||
             e.PropertyName == nameof(AppState.ExtensionFilters) ||
-            e.PropertyName == nameof(AppState.ReferenceSearchDepth))
+            e.PropertyName == nameof(AppState.ReferenceSearchDepth) ||
+            e.PropertyName == nameof(AppState.IncludeReferencingFiles))
         {
             await InvokeAsync(StateHasChanged);
         }

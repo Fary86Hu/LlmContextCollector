@@ -84,7 +84,6 @@ namespace LlmContextCollector.AI.Search
         {
             var queryNameTokens = KeywordUtil.Tokens(rawQuery);
             
-            // 1. Initial Candidate Selection (Hybrid Score)
             var candidates = index
                 .AsParallel()
                 .Select(kvp =>
@@ -114,7 +113,6 @@ namespace LlmContextCollector.AI.Search
 
             if (!candidates.Any()) return new List<RelevanceResult>();
 
-            // 2. Rerank with MMR for diversity
             var rerankedKeys = new List<string>();
             var candidatePool = new List<(string key, double score)>(candidates);
 
@@ -156,11 +154,10 @@ namespace LlmContextCollector.AI.Search
                 }
                 else
                 {
-                    break; // No more suitable candidates
+                    break;
                 }
             }
 
-            // 3. Aggregate scores at the file level
             var chunksByFile = rerankedKeys
                 .Select(key => new {
                     FilePath = GetPathFromChunkKey(key),
@@ -169,7 +166,6 @@ namespace LlmContextCollector.AI.Search
                 })
                 .GroupBy(x => x.FilePath);
 
-            // 4. Final file scoring by aggregating top-k chunks
             var finalScores = chunksByFile
                 .Select(kvp => {
                     var topChunks = kvp.OrderByDescending(c => c.Score).Take(cfg.TopKPerFile).ToList();

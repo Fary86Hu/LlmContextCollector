@@ -44,8 +44,8 @@ namespace LlmContextCollector.Services
                     _cancellationTokenSource.Cancel();
                     _currentIndexingTask.Wait(TimeSpan.FromSeconds(1));
                 }
-                catch (OperationCanceledException) { /* Elvárt viselkedés */ }
-                catch (AggregateException ae) when (ae.InnerExceptions.All(e => e is OperationCanceledException)) { /* Elvárt viselkedés */ }
+                catch (OperationCanceledException) { }
+                catch (AggregateException ae) when (ae.InnerExceptions.All(e => e is OperationCanceledException)) { }
                 finally
                 {
                     _cancellationTokenSource.Dispose();
@@ -112,11 +112,9 @@ namespace LlmContextCollector.Services
                             var chunkContent = chunks[i];
                             var chunkKey = SemanticSearchService.CreateChunkKey(indexPath, i);
 
-                            // 1. Összeállítjuk a TELJES szöveget, amit beágyazni fogunk.
                             var textToEmbed = $"File Path: {indexPath}\n\nContent:\n{chunkContent}";
-                            _chunkContents[chunkKey] = chunkContent; // A chunk tartalmát (előtag nélkül) továbbra is elmentjük a preview-hoz.
+                            _chunkContents[chunkKey] = chunkContent;
 
-                            // 2. A cache kulcsot a TELJES szöveg alapján generáljuk.
                             var cacheKey = JsonEmbeddingCache.KeyFor(fullPath, textToEmbed, cacheVersionPrefix);
 
                             if (_cache.TryGet(cacheKey, out var vec))
@@ -125,14 +123,13 @@ namespace LlmContextCollector.Services
                             }
                             else
                             {
-                                // 3. Az `itemsToProcess` listába már a teljes szöveget tesszük.
                                 itemsToProcess.Add((cacheKey, chunkKey, textToEmbed));
                             }
                         }
                         processedFiles++;
                         if (processedFiles % 20 == 0) _appState.StatusText = $"{statusPrefix} építése... ({processedFiles}/{corpus.Count} fájl feldolgozva)";
                     }
-                    catch { /* Ignore unreadable files */ }
+                    catch { }
                 }
 
                 if (!corpus.Any()) { _appState.StatusText = $"{statusPrefix} frissítve (nincs fájl)."; return; }
@@ -143,7 +140,7 @@ namespace LlmContextCollector.Services
                 {
                     if (ct.IsCancellationRequested) return;
                     var batch = itemsToProcess.Skip(i).Take(batchSize).ToList();
-                    var textsToEmbedInBatch = batch.Select(c => c.text).ToList(); // Itt már a teljes szöveget használjuk.
+                    var textsToEmbedInBatch = batch.Select(c => c.text).ToList();
                     try
                     {
                         var embeds = await _embeddingProvider.EmbedBatchAsync(textsToEmbedInBatch, ct);

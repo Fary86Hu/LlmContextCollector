@@ -8,10 +8,8 @@ namespace LlmContextCollector.Services
         private static readonly Regex CSharpKeywordsRegex = new Regex(@"\b(public|private|protected|internal|static|class|struct|interface|enum|void|string|int|bool|double|float|decimal|long|short|byte|var|get|set|new|using|namespace|return|if|else|for|foreach|while|do|switch|case|default|break|continue|try|catch|finally|throw|lock|using|yield|base|this|true|false|null|async|await|partial|readonly|virtual|override|sealed|abstract|as|is|in|out|ref|params|checked|unchecked|unsafe|fixed|stackalloc)\b", RegexOptions.Compiled);
         private static readonly Regex CSharpCommonTypesRegex = new Regex(@"\b(object|string|int|bool|double|float|decimal|long|short|byte|List|Dictionary|IEnumerable|Task|IActionResult|ICollection|Exception|PageModel|ComponentBase|DbContext|WebApplication|Program|HttpContext|IServiceCollection|IConfiguration|ILogger|Activator|Attribute|EventArgs|Console|Math|DateTime|Guid|CancellationToken|TaskCompletionSource|Action|Func|Predicate|Tuple|ValueTuple)\b", RegexOptions.Compiled);
         
-        // This regex finds constructs that look like types, including generics.
         private static readonly Regex PotentialTypeRegex = new Regex(@"\b[A-Z][a-zA-Z0-9_]*\b(?:<[A-Za-z0-9_,\s<>]+>)?", RegexOptions.Compiled);
         
-        // This regex extracts individual capitalized words (potential type names) from a larger string.
         private static readonly Regex TypeNamePartRegex = new Regex(@"\b[A-Z][a-zA-Z0-9_]*\b", RegexOptions.Compiled);
 
 
@@ -43,17 +41,13 @@ namespace LlmContextCollector.Services
                     try
                     {
                         var content = await File.ReadAllTextAsync(fullPath);
-                        // Find all constructs that look like types (e.g., "List<Message>", "UserDto").
                         var matches = PotentialTypeRegex.Matches(content);
                         foreach (Match match in matches.Cast<Match>())
                         {
-                            // For each construct, extract all capitalized words, which are potential type names.
-                            // e.g., for "Dictionary<string, UserDto>", it will extract "Dictionary" and "UserDto".
                             var partMatches = TypeNamePartRegex.Matches(match.Value);
                             foreach (Match partMatch in partMatches.Cast<Match>())
                             {
                                 var typeName = partMatch.Value;
-                                // Filter out common C# keywords and built-in types.
                                 if (!string.IsNullOrWhiteSpace(typeName) &&
                                     !CSharpKeywordsRegex.IsMatch(typeName) &&
                                     !CSharpCommonTypesRegex.IsMatch(typeName))
@@ -63,7 +57,7 @@ namespace LlmContextCollector.Services
                             }
                         }
                     }
-                    catch { /* Ignore read errors */ }
+                    catch { }
                 }
 
                 if (!potentialTypeNames.Any()) continue;
@@ -94,7 +88,6 @@ namespace LlmContextCollector.Services
                 }
             }
             
-            // Add companion .cs and .css files for any .razor files found
             var allProjectFilePaths = new HashSet<string>(allProjectFiles.Select(f => Path.GetRelativePath(projectRoot, f.FullPath).Replace('\\', '/')));
             var finalFoundFiles = new HashSet<string>(allFoundFilesRel);
 
@@ -116,8 +109,61 @@ namespace LlmContextCollector.Services
                 }
             }
 
-            // Az eredetileg megadott fájlokat ne adjuk vissza az eredményben
             return finalFoundFiles.Except(new HashSet<string>(startingFilesRel)).ToList();
+        }
+
+        public async Task<List<string>> FindReferencingFilesAsync(List<string> targetFilesRel, List<FileNode> allNodes, string projectRoot)
+        {
+            var referencingFiles = new HashSet<string>();
+            var searchTokens = new HashSet<string>();
+
+            foreach (var path in targetFilesRel)
+            {
+                var fileNameNoExt = Path.GetFileNameWithoutExtension(path);
+                if (!string.IsNullOrWhiteSpace(fileNameNoExt) && fileNameNoExt.Length > 2)
+                {
+                    searchTokens.Add(fileNameNoExt);
+                }
+            }
+
+            if (!searchTokens.Any()) return new List<string>();
+
+            var allProjectFiles = new List<FileNode>();
+            GetAllFileNodes(allNodes, allProjectFiles);
+
+            var targetSet = new HashSet<string>(targetFilesRel);
+            var candidates = allProjectFiles.Where(f => !f.IsDirectory).ToList();
+
+            foreach (var candidate in candidates)
+            {
+                var relPath = Path.GetRelativePath(projectRoot, candidate.FullPath).Replace('\\', '/');
+                if (targetSet.Contains(relPath)) continue;
+
+                var ext = Path.GetExtension(candidate.Name).ToLowerInvariant();
+                if (ext != ".cs" && ext != ".razor" && ext != ".cshtml" && ext != ".js" && ext != ".ts" && ext != ".json" && ext != ".xml")
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var content = await File.ReadAllTextAsync(candidate.FullPath);
+                    
+                    foreach (var token in searchTokens)
+                    {
+                        if (content.Contains(token))
+                        {
+                            referencingFiles.Add(relPath);
+                            break;
+                        }
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            return referencingFiles.ToList();
         }
 
         private void GetAllFileNodes(IEnumerable<FileNode> nodes, List<FileNode> flatList)

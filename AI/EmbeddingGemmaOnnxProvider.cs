@@ -43,7 +43,6 @@ namespace LlmContextCollector.AI.Embeddings
 
             _maxLen = maxLen;
 
-            // I/O nevek autodetekciója
             var inKeys = _session.InputMetadata.Keys.ToArray();
             var outKeys = _session.OutputMetadata.Keys.ToArray();
 
@@ -87,7 +86,6 @@ namespace LlmContextCollector.AI.Embeddings
             var texts = inputs.ToArray();
             if (texts.Length == 0) return Task.FromResult(Array.Empty<float[]>());
 
-            // Tokenizálás + truncation
             var tokenIds = new List<uint[]>();
             var maxSeq = 0;
             foreach (var t in texts)
@@ -99,7 +97,6 @@ namespace LlmContextCollector.AI.Embeddings
             }
             if (maxSeq == 0) return Task.FromResult(texts.Select(_ => Array.Empty<float>()).ToArray());
 
-            // Bemeneti tenzorok [B, L]
             var bsz = texts.Length;
             var inputIds = new DenseTensor<long>(new[] { bsz, maxSeq });
             DenseTensor<long>? attMask = null;
@@ -131,7 +128,7 @@ namespace LlmContextCollector.AI.Embeddings
                 var tensor = outVal.AsTensor<float>();
                 var dims = tensor.Dimensions.ToArray();
 
-                if (dims.Length == 2) // [B, H]
+                if (dims.Length == 2)
                 {
                     var H = dims[1];
                     result = new float[bsz][];
@@ -143,7 +140,7 @@ namespace LlmContextCollector.AI.Embeddings
                         result[b] = v;
                     }
                 }
-                else if (dims.Length == 3) // [B, L, H] -> mean pool maszkolt tokeneken
+                else if (dims.Length == 3)
                 {
                     var L = dims[1];
                     var H = dims[2];

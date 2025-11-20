@@ -29,8 +29,6 @@ namespace LlmContextCollector.Services
                     IsExpanded = true
                 };
                 ScanDirectoryRecursively(rootNode);
-                // Ha a gyökérmappának nincsenek gyermekei a szűrés után, üres listát adunk vissza,
-                // hogy a felületen ne jelenjen meg egy üres, kibonthatatlan gyökérelem.
                 return rootNode.Children.Any() ? new List<FileNode> { rootNode } : new List<FileNode>();
             });
         }
@@ -49,7 +47,7 @@ namespace LlmContextCollector.Services
                 {
                     allPatterns.AddRange(File.ReadAllLines(gitignorePath));
                 }
-                catch { /* Hiba a .gitignore olvasásakor, figyelmen kívül hagyjuk */ }
+                catch { }
             }
             allPatterns.AddRange(_appState.IgnorePatternsRaw.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries));
 
@@ -68,7 +66,7 @@ namespace LlmContextCollector.Services
                         var regex = new Regex("^" + Regex.Escape(p).Replace("\\*", ".*").Replace("\\?", ".") + "$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
                         _wildcardRegexes.Add(regex);
                     }
-                    catch { /* Invalid regex pattern */ }
+                    catch { }
                 }
                 else if (p.Contains('/') || p.Contains('\\'))
                 {
@@ -87,7 +85,6 @@ namespace LlmContextCollector.Services
             {
                 var directoryInfo = new DirectoryInfo(parentNode.FullPath);
 
-                // Könyvtárak feldolgozása "pruning" (lenyesés) logikával
                 foreach (var dir in directoryInfo.GetDirectories())
                 {
                     if (IsIgnored(dir.FullName, isDir: true)) continue;
@@ -97,7 +94,6 @@ namespace LlmContextCollector.Services
                     parentNode.Children.Add(dirNode);
                 }
 
-                // Fájlok feldolgozása a jelenlegi mappában
                 var activeExtensions = _appState.ExtensionFilters
                     .Where(kvp => kvp.Value)
                     .Select(kvp => kvp.Key)
@@ -115,7 +111,6 @@ namespace LlmContextCollector.Services
             }
             catch (UnauthorizedAccessException)
             {
-                // Nem tudjuk olvasni a mappát, kihagyjuk
             }
         }
 
@@ -130,10 +125,8 @@ namespace LlmContextCollector.Services
 
             var name = Path.GetFileName(fullPath);
 
-            // Egyszerű név alapú egyezés (gyors)
             if (_simpleNameIgnores.Contains(name, StringComparer.OrdinalIgnoreCase)) return true;
 
-            // Relatív útvonal alapú egyezés
             foreach (var relPattern in _relativePathIgnores)
             {
                 if (relativePath.Equals(relPattern, StringComparison.OrdinalIgnoreCase) ||
@@ -143,7 +136,6 @@ namespace LlmContextCollector.Services
                 }
             }
 
-            // Wildcard alapú egyezés (lassabb)
             foreach (var regex in _wildcardRegexes)
             {
                 if (regex.IsMatch(name)) return true;
