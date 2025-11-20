@@ -96,10 +96,14 @@
 
     <div class="bottom-actions">
         <button @onclick="ProcessGitDiffAsync" disabled="@(!AppState.IsGitRepository)">Git Különbségek</button>
+        <div class="copy-options">
+            <label title="Felhasználói prompt hozzáadása"><input type="checkbox" @bind="_includePromptInCopy" />Prompt</label>
+            <label title="Rendszer utasítások hozzáadása"><input type="checkbox" @bind="_includeSystemPrompt" />System</label>
+        </div>
         <div class="main-actions">
-            <button class="copy-button" @onclick="CopyToClipboard" title="Egységesített prompt másolása a rendszer utasításokkal">Másolás vágólapra</button>
+            <button class="copy-button" @onclick="CopyToClipboard" title="Vágólapra másolás (a pipáknak megfelelően)">Másolás</button>
             <button class="copy-button" @onclick="ProcessChangesFromClipboardAsync" title="Vágólap feldolgozása (Kérdés vagy Implementáció)">Feldolgoz</button>
-@*             <button class="copy-button" @onclick="ProcessWithOpenRouterAsync" disabled="@(string.IsNullOrWhiteSpace(AppState.OpenRouterApiKey))" title="Küldés OpenRouter-re (Automatikus döntés)">OR Küldés</button>
+@*             <button class="copy-button" @onclick="ProcessWithOpenRouterAsync" disabled="@(string.IsNullOrWhiteSpace(AppState.OpenRouterApiKey))" title="Küldés OpenRouter-re (Mindig teljes prompttal)">OR Küldés</button>
  *@        </div>
     </div>
 </div>

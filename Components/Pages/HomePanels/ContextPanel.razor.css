@@ -256,12 +256,29 @@ html[data-theme="dark"] ::deep .highlight.current {
 
 .bottom-actions {
     display: flex;
-    flex-direction: row;
-    gap: 10px;
-    align-items: center;
+    flex-direction: column; /* Changed to column to stack checkboxes and buttons */
+    gap: 5px;
     padding-top: 10px;
     border-top: 1px solid var(--border-color);
+}
+
+.copy-options {
+    display: flex;
+    gap: 15px;
+    font-size: var(--font-size-sm);
+}
+
+.copy-options label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+}
+
+.main-actions {
+    display: flex;
     justify-content: space-between;
+    gap: 10px;
 }
 
 .horizontal-splitter {

@@ -79,6 +79,10 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private int _currentPreviewMatchIndex = 0;
         private int _totalPreviewMatches = 0;
         private bool _isInitialPreviewSearch = true;
+        
+        // Checkbox states
+        private bool _includePromptInCopy = true;
+        private bool _includeSystemPrompt = true;
 
         private List<ContextListItem> _sortedFiles = new();
         private string _currentSortKey = "path";
@@ -415,10 +419,11 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private async Task CopyToClipboard()
         {
             var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
-            // Mindig beletesszük a System Prompt-ot és a User Prompt-ot is az új egységesített flow-ban
+            
+            // Használjuk a checkboxok értékeit (_includePromptInCopy, _includeSystemPrompt)
             var content = await ContextProcessingService.BuildContextForClipboardAsync(
-                true, 
-                true, 
+                _includePromptInCopy, 
+                _includeSystemPrompt, 
                 sortedPaths);
 
             if (string.IsNullOrWhiteSpace(content))
@@ -455,6 +460,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             try
             {
                 var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
+                // A tisztázás utáni generálásnál mindig kell a teljes kontextus (system prompt is)
                 var originalContext = await ContextProcessingService.BuildContextForClipboardAsync(
                     true, 
                     true, 
@@ -585,7 +591,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             try
             {
                 var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
-                // Most már csak a raw szöveget kapjuk vissza
+                
+                // OpenRouter esetén MINDIG küldjük a teljes promptot (User + System), mert anélkül nem működik a logika.
                 var responseContent = await OpenRouterService.GenerateContentAsync(sortedPaths);
                 
                 await RouteResponseAsync(responseContent);
