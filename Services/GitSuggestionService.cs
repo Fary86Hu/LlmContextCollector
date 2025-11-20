@@ -4,6 +4,7 @@ using LlmContextCollector.Utils;
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Web;
 
 namespace LlmContextCollector.Services
 {
@@ -40,9 +41,9 @@ namespace LlmContextCollector.Services
 
         private string BuildPrompt(List<DiffResult> diffs, string? globalExplanation)
         {
-            var maxRequestTokens = 8192; // Use a reasonable default, as most models support at least 8k context.
+            var maxRequestTokens = 8192;
             var maxOutputTokens = _appState.GroqMaxOutputTokens;
-            var charsPerToken = 4.0;
+            var charsPerToken = 3.5;
             var reserve = 1024;
             var sb = new StringBuilder();
 
@@ -55,41 +56,89 @@ namespace LlmContextCollector.Services
                 sb.AppendLine();
             }
 
-            sb.AppendLine("Based on the following git diff, please suggest a git branch name and a conventional commit message in English.");
-            sb.AppendLine("The branch name should be in kebab-case, prefixed with 'feature/', 'fix/', 'chore/', etc.");
-            sb.AppendLine("The commit message should follow the conventional commit format.");
-            sb.AppendLine("Provide the response in the format: ");
+            sb.AppendLine("Based on the following git diff summary, please suggest a git branch name and a conventional commit message.");
+            sb.AppendLine("The input is structured to show the code hierarchy (e.g. Namespace > Class > Method) for context.");
+            sb.AppendLine("For CSS files, only the file status is provided.");
+            sb.AppendLine("Format:");
             sb.AppendLine("[BRANCH]");
-            sb.AppendLine("branch-name");
-            sb.AppendLine();
+            sb.AppendLine("type/name");
             sb.AppendLine("[COMMIT]");
-            sb.AppendLine("commit-message");
+            sb.AppendLine("type: message");
             sb.AppendLine();
-            sb.AppendLine("--- GIT DIFF ---");
+            sb.AppendLine("--- SUMMARY OF AFFECTED FILES ---");
+            foreach (var d in diffs)
+            {
+                sb.AppendLine($"- {d.Status}: {d.Path}");
+            }
+            sb.AppendLine("--- END SUMMARY ---");
+            sb.AppendLine();
+
+            sb.AppendLine("--- DETAILED CHANGES ---");
 
             var headerLen = sb.Length;
             var inputBudgetTokens = Math.Max(256, maxRequestTokens - maxOutputTokens);
             var inputBudgetChars = (int)(inputBudgetTokens * charsPerToken);
             var remaining = Math.Max(0, inputBudgetChars - headerLen - reserve);
 
+            var maxCharsPerFile = 2500;
+
             foreach (var diff in diffs)
             {
                 if (remaining <= 0) break;
 
-                var fileHeader = $"\n--- File: {diff.Path} ({diff.Status}) ---\n";
-                var diffContent = DiffPatcher.CreateUnifiedDiff(diff.OldContent, diff.NewContent);
-                var section = fileHeader + diffContent;
+                string sectionContent;
+                string ext = Path.GetExtension(diff.Path).ToLowerInvariant();
+                bool isStructureSupported = ext == ".cs" || ext == ".razor" || ext == ".cshtml" || 
+                                            ext == ".js" || ext == ".ts" || ext == ".tsx" || ext == ".jsx";
+                bool isCss = ext == ".css" || ext == ".scss" || ext == ".less" || ext == ".sass";
 
-                if (section.Length <= remaining)
+                if (isCss)
                 {
-                    sb.Append(section);
-                    remaining -= section.Length;
+                    // CSS esetén csak jelzünk, nem adunk diffet
+                    sectionContent = $"(CSS/Style definitions {diff.Status.ToString().ToLower()})";
+                }
+                else if (isStructureSupported)
+                {
+                    if (diff.Status == DiffStatus.New)
+                    {
+                        // Új fájl: Vázlat
+                        sectionContent = CodeStructureDiffHelper.GetFileStructure(diff.NewContent, ext);
+                    }
+                    else if (diff.Status == DiffStatus.Modified || diff.Status == DiffStatus.NewFromModified)
+                    {
+                        // Módosítás: Hierarchia + Diff block
+                        sectionContent = CodeStructureDiffHelper.GetContextualDiff(diff.OldContent, diff.NewContent, ext);
+                    }
+                    else
+                    {
+                        // Törlés: Sima diff
+                        sectionContent = DiffPatcher.CreateUnifiedDiff(diff.OldContent, diff.NewContent);
+                    }
                 }
                 else
                 {
-                    var truncated = TruncateWithNotice(section, remaining, $"[...truncated {diff.Path}...]");
-                    sb.Append(truncated);
-                    remaining -= truncated.Length;
+                    // Egyéb fájlok: Sima diff kontextussal
+                    sectionContent = DiffPatcher.CreateUnifiedDiff(diff.OldContent, diff.NewContent, contextLines: 2);
+                }
+
+                // Truncate if too long per file
+                if (sectionContent.Length > maxCharsPerFile)
+                {
+                    sectionContent = sectionContent.Substring(0, maxCharsPerFile) + "\n... (content truncated) ...\n";
+                }
+
+                var fileBlock = $"\n--- File: {diff.Path} ({diff.Status}) ---\n{sectionContent}";
+
+                if (fileBlock.Length <= remaining)
+                {
+                    sb.Append(fileBlock);
+                    remaining -= fileBlock.Length;
+                }
+                else
+                {
+                    sb.Append(TruncateWithNotice(fileBlock, remaining, "[...global limit reached...]"));
+                    remaining = 0;
+                    break;
                 }
             }
 
@@ -101,10 +150,7 @@ namespace LlmContextCollector.Services
             if (limit <= 0) return "\n" + notice + "\n";
             if (text.Length <= limit) return text;
             var cut = Math.Min(limit, text.Length);
-            var nl = text.LastIndexOf('\n', cut - 1);
-            if (nl <= 0) nl = cut;
-            var prefix = text.Substring(0, nl);
-            return prefix + "\n" + notice + "\n";
+            return text.Substring(0, cut) + "\n" + notice + "\n";
         }
 
         private (string branch, string commit) ParseResponse(string response)
@@ -114,33 +160,198 @@ namespace LlmContextCollector.Services
 
             var branch = branchMatch.Success ? branchMatch.Groups[1].Value.Trim() : "suggestion-not-found";
             var commit = commitMatch.Success ? commitMatch.Groups[1].Value.Trim() : "Could not generate commit message.";
-
             return (branch, commit);
+        }
+    }
+
+    public static class CodeStructureDiffHelper
+    {
+        // C# Regexes
+        private static readonly Regex CsNamespaceRegex = new(@"^\s*namespace\s+([\w\.]+)", RegexOptions.Compiled);
+        private static readonly Regex CsClassRegex = new(@"^\s*(?:public|internal|private|protected|static|sealed|abstract|partial|\s)*\s*(class|interface|struct|record|enum)\s+([\w<>]+)", RegexOptions.Compiled);
+        private static readonly Regex CsMethodRegex = new(@"^\s*(?:public|internal|private|protected|static|async|virtual|override|new|extern|readonly|\s)*\s*[\w<>[\]?]+\s+(\w+)\s*\(", RegexOptions.Compiled);
+        private static readonly Regex CsConstructorRegex = new(@"^\s*(?:public|internal|private|protected|static|\s)*\s*(\w+)\s*\(", RegexOptions.Compiled);
+        
+        // JS/TS Regexes
+        // Matches: function myFunc, class MyClass, async function...
+        private static readonly Regex JsDefRegex = new(@"^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:function\s+|class\s+)(\w+)", RegexOptions.Compiled);
+        // Matches: const/let/var myVar = ... (generic variable or arrow function assignment)
+        private static readonly Regex JsVarRegex = new(@"^\s*(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=", RegexOptions.Compiled);
+        // Matches methods inside classes in JS/TS/Razor:  render() {, myMethod(a: int) {
+        private static readonly Regex JsMethodRegex = new(@"^\s*(?:private|public|protected|static|async|\s)*\s*(\w+)\s*\(", RegexOptions.Compiled);
+
+        // Razor Regexes
+        private static readonly Regex RazorDirectiveRegex = new(@"^@(page|inject|layout|inherits)\s+", RegexOptions.Compiled);
+        private static readonly Regex RazorCodeBlockRegex = new(@"^@(code|functions)\s*", RegexOptions.Compiled);
+
+        public static string GetFileStructure(string content, string extension)
+        {
+            var sb = new StringBuilder();
+            var lines = content.Split('\n');
+
+            foreach (var line in lines)
+            {
+                if (IsDefinitionLine(line, extension))
+                {
+                    var displayLine = line.TrimEnd().TrimEnd('{').TrimEnd();
+                    sb.AppendLine(displayLine);
+                }
+            }
+
+            if (sb.Length == 0) return "(Empty or non-structural file)";
+            return sb.ToString();
+        }
+
+        public static string GetContextualDiff(string oldContent, string newContent, string extension)
+        {
+            var oldLines = oldContent.Replace("\r\n", "\n").Split('\n');
+            var newLines = newContent.Replace("\r\n", "\n").Split('\n');
+            var opcodes = DiffUtility.GetOpcodes(oldLines, newLines);
+
+            var sb = new StringBuilder();
+
+            foreach (var op in opcodes)
+            {
+                if (op.Tag == 'e') continue;
+
+                var contextStack = GetContextHierarchy(oldLines, op.I1, extension);
+                
+                if (contextStack.Any())
+                {
+                    sb.AppendLine();
+                    foreach (var ctx in contextStack)
+                    {
+                        sb.AppendLine(ctx);
+                    }
+                }
+                else
+                {
+                    sb.AppendLine("\n[Global scope / Unknown context]");
+                }
+
+                sb.AppendLine("{diff block}");
+                if (op.Tag == 'd' || op.Tag == 'r')
+                {
+                    for (int i = op.I1; i < op.I2; i++)
+                        sb.AppendLine($"   - {oldLines[i].Trim()}");
+                }
+                if (op.Tag == 'i' || op.Tag == 'r')
+                {
+                    for (int j = op.J1; j < op.J2; j++)
+                        sb.AppendLine($"   + {newLines[j].Trim()}");
+                }
+            }
+
+            return sb.ToString();
+        }
+
+        private static bool IsDefinitionLine(string line, string extension)
+        {
+            if (string.IsNullOrWhiteSpace(line)) return false;
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("//") || trimmed.StartsWith("/*") || trimmed.StartsWith("*")) return false;
+
+            bool isCs = extension == ".cs";
+            bool isRazor = extension == ".razor" || extension == ".cshtml";
+            bool isJsTs = extension == ".js" || extension == ".ts" || extension == ".tsx" || extension == ".jsx";
+
+            if (isCs || isRazor)
+            {
+                // Common C# logic (Razor uses C# in @code blocks)
+                if (CsNamespaceRegex.IsMatch(line) ||
+                    CsClassRegex.IsMatch(line) ||
+                    CsMethodRegex.IsMatch(line) ||
+                    CsConstructorRegex.IsMatch(line))
+                {
+                    return true;
+                }
+                
+                // Razor specific
+                if (isRazor)
+                {
+                    if (RazorDirectiveRegex.IsMatch(line) || RazorCodeBlockRegex.IsMatch(line)) return true;
+                }
+            }
+
+            if (isJsTs || isRazor) // Razor can contain script blocks or just similar syntax
+            {
+                if (JsDefRegex.IsMatch(line) || JsVarRegex.IsMatch(line)) return true;
+                // We assume method-like syntax inside a class/object structure
+                if (JsMethodRegex.IsMatch(line) && !trimmed.StartsWith("if") && !trimmed.StartsWith("for") && !trimmed.StartsWith("while") && !trimmed.StartsWith("switch") && !trimmed.StartsWith("catch"))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static List<string> GetContextHierarchy(string[] lines, int changeStartLine, string extension)
+        {
+            var hierarchy = new List<string>();
+            int currentIndent = int.MaxValue;
+
+            for (int i = changeStartLine - 1; i >= 0; i--)
+            {
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                
+                int indent = line.TakeWhile(char.IsWhiteSpace).Count();
+
+                // Logic: If indentation decreases, it's likely a parent container.
+                // We also verify it looks like a definition to avoid random lines.
+                if (indent < currentIndent)
+                {
+                    if (IsDefinitionLine(line, extension))
+                    {
+                        var display = line.TrimEnd().TrimEnd('{').TrimEnd();
+                        hierarchy.Insert(0, display);
+                        currentIndent = indent;
+                    }
+                }
+
+                if (currentIndent == 0) break;
+                if (changeStartLine - i > 300) break; // Safety break
+            }
+
+            return hierarchy;
         }
     }
 
     public static class DiffPatcher
     {
-        public static string CreateUnifiedDiff(string oldText, string newText)
+        public static string CreateUnifiedDiff(string oldText, string newText, int contextLines = 3)
         {
-            var oldLines = oldText.Split('\n');
-            var newLines = newText.Split('\n');
+            var oldLines = oldText.Replace("\r\n", "\n").Split('\n');
+            var newLines = newText.Replace("\r\n", "\n").Split('\n');
             var opcodes = DiffUtility.GetOpcodes(oldLines, newLines);
 
             var sb = new StringBuilder();
-            foreach (var op in opcodes)
+            
+            for (int opIdx = 0; opIdx < opcodes.Count; opIdx++)
             {
+                var op = opcodes[opIdx];
+                
                 switch (op.Tag)
                 {
+                    case 'e':
+                        if (op.I2 - op.I1 <= contextLines * 2) {
+                             for (int i = op.I1; i < op.I2; i++) sb.AppendLine($"  {oldLines[i]}");
+                        } else {
+                             if (opIdx > 0) for (int i = 0; i < contextLines; i++) sb.AppendLine($"  {oldLines[op.I1 + i]}");
+                             if (opIdx > 0 && opIdx < opcodes.Count - 1) sb.AppendLine("  ...");
+                             if (opIdx < opcodes.Count - 1) for (int i = 0; i < contextLines; i++) sb.AppendLine($"  {oldLines[op.I2 - contextLines + i]}");
+                        }
+                        break;
                     case 'd':
-                        for (int i = op.I1; i < op.I2; i++) sb.AppendLine($"- {oldLines[i].TrimEnd('\r')}");
+                        for (int i = op.I1; i < op.I2; i++) sb.AppendLine($"- {oldLines[i]}");
                         break;
                     case 'i':
-                        for (int j = op.J1; j < op.J2; j++) sb.AppendLine($"+ {newLines[j].TrimEnd('\r')}");
+                        for (int j = op.J1; j < op.J2; j++) sb.AppendLine($"+ {newLines[j]}");
                         break;
                     case 'r':
-                        for (int i = op.I1; i < op.I2; i++) sb.AppendLine($"- {oldLines[i].TrimEnd('\r')}");
-                        for (int j = op.J1; j < op.J2; j++) sb.AppendLine($"+ {newLines[j].TrimEnd('\r')}");
+                        for (int i = op.I1; i < op.I2; i++) sb.AppendLine($"- {oldLines[i]}");
+                        for (int j = op.J1; j < op.J2; j++) sb.AppendLine($"+ {newLines[j]}");
                         break;
                 }
             }
