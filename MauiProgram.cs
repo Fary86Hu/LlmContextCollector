@@ -55,6 +55,7 @@ namespace LlmContextCollector
             builder.Services.AddTransient<FileContextService>();
             builder.Services.AddTransient<QueryBuilders>();
             builder.Services.AddTransient<OpenRouterService>();
+            builder.Services.AddSingleton<BrowserService>();
 
 
 #if WINDOWS

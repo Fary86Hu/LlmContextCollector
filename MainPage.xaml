@@ -1,14 +1,35 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:LlmContextCollector"
-             xmlns:components="clr-namespace:LlmContextCollector.Components"
-             x:Class="LlmContextCollector.MainPage">
+             x:Class="LlmContextCollector.MainPage"
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
 
-    <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
-        <BlazorWebView.RootComponents>
-            <RootComponent Selector="#app" ComponentType="{x:Type components:Routes}" />
-        </BlazorWebView.RootComponents>
-    </BlazorWebView>
+    <Grid>
+        <!-- Eredeti Blazor App -->
+        <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
+            <BlazorWebView.RootComponents>
+                <RootComponent Selector="#app" ComponentType="{x:Type local:Components.Routes}" />
+            </BlazorWebView.RootComponents>
+        </BlazorWebView>
 
+        <!-- Natív Böngésző Overlay -->
+        <Grid x:Name="BrowserOverlay" IsVisible="False" BackgroundColor="#F0F0F0" ZIndex="1000">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Böngésző -->
+            <WebView x:Name="InternalBrowser" Grid.Row="0" BackgroundColor="White" />
+
+            <!-- Vezérlő Sáv -->
+            <StackLayout Grid.Row="1" Orientation="Horizontal" Spacing="10" Padding="10" BackgroundColor="#E0E0E0">
+                <Button Text="Bezárás" Clicked="CloseBrowser_Clicked" BackgroundColor="#888" TextColor="White" WidthRequest="100" />
+                <Label Text="Jelentkezz be, illeszd be a szöveget, majd a válasz generálása után kattints a feldolgozásra." 
+                       VerticalOptions="Center" TextColor="Black" FontSize="12" LineBreakMode="TailTruncation" HorizontalOptions="FillAndExpand" />
+                <Button Text="Válasz Feldolgozása" Clicked="ExtractBrowser_Clicked" BackgroundColor="#0078d4" TextColor="White" WidthRequest="180" FontAttributes="Bold" />
+            </StackLayout>
+        </Grid>
+    </Grid>
 </ContentPage>

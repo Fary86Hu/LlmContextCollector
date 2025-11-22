@@ -292,3 +292,29 @@ html[data-theme="dark"] ::deep .highlight.current {
 .horizontal-splitter:hover {
     background-color: var(--accent-color);
 }
+
+/* BROWSER MODE STYLES */
+.browser-placeholder-mode {
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--placeholder-bg);
+    border: 2px dashed var(--border-color);
+    padding: 20px;
+    text-align: center;
+}
+
+.browser-placeholder-info h3 {
+    margin-top: 0;
+    color: var(--accent-color);
+}
+
+.browser-placeholder-info p {
+    color: var(--text-color);
+    margin-bottom: 15px;
+}
+
+.browser-placeholder-info button {
+    margin-top: 10px;
+}

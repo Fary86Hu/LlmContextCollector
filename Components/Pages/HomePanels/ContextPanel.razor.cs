@@ -39,6 +39,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private RelevanceFinderService RelevanceFinderService { get; set; } = null!;
         [Inject]
         private OpenRouterService OpenRouterService { get; set; } = null!;
+        [Inject]
+        private BrowserService BrowserService { get; set; } = null!;
 
 
         [Parameter]
@@ -93,6 +95,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         
         private bool _isClarificationDialogVisible = false;
         private string _clarificationDialogText = string.Empty;
+        
+        private bool _isBrowserMode = false;
 
         private record ContextListItem(string RelativePath, string DisplayPath, string FileName, long Size, double SemanticScore);
 
@@ -102,6 +106,10 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         {
             AppState.SelectedFilesForContext.CollectionChanged += OnSelectedFilesChanged;
             AppState.PropertyChanged += OnAppStateChanged;
+            
+            BrowserService.OnContentExtracted += HandleBrowserContentExtracted;
+            BrowserService.OnCloseBrowser += HandleBrowserClosed;
+
             UpdateSortedFiles();
             SortFiles();
         }
@@ -434,6 +442,43 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             await Clipboard.SetTextAsync(content);
             AppState.StatusText = $"Tartalom másolva ({_charCount} kar., ~{_tokenCount} token). Előzmény mentve.";
         }
+
+        #region Browser Mode
+
+        private async Task OpenAiStudioBrowser()
+        {
+            // Először másoljuk a kontextust
+            await CopyToClipboard();
+            
+            // Majd nyissuk meg a böngészőt
+            _isBrowserMode = true;
+            StateHasChanged();
+            BrowserService.OpenBrowser("https://aistudio.google.com/");
+        }
+
+        private void CloseBrowserMode()
+        {
+            _isBrowserMode = false;
+            BrowserService.CloseBrowser();
+            StateHasChanged();
+        }
+
+        private void HandleBrowserClosed()
+        {
+            _isBrowserMode = false;
+            InvokeAsync(StateHasChanged);
+        }
+
+        private async Task HandleBrowserContentExtracted(string ignoredContent)
+        {
+            CloseBrowserMode();
+            
+            // A felhasználó kérésére az adatokat közvetlenül a vágólapról vesszük, 
+            // pontosan úgy, mint a külső "Feldolgoz" gomb esetében.
+            await ProcessChangesFromClipboardAsync();
+        }
+
+        #endregion
         
         #region Clarification Dialog
         
@@ -750,6 +795,12 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         {
             AppState.SelectedFilesForContext.CollectionChanged -= OnSelectedFilesChanged;
             AppState.PropertyChanged -= OnAppStateChanged;
+            
+            if (BrowserService != null)
+            {
+                BrowserService.OnContentExtracted -= HandleBrowserContentExtracted;
+                BrowserService.OnCloseBrowser -= HandleBrowserClosed;
+            }
         }
     }
 

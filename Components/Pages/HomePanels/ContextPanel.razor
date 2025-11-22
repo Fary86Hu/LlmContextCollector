@@ -1,98 +1,117 @@
 <!-- JOBB OLDALI PANEL: KONTEXTUS ÉS ELŐNÉZET -->
 <div class="panel panel-right" style="--right-top-flex:@(AppState.RightTopPanelFlex); --right-middle-flex:@(AppState.RightMiddlePanelFlex); --right-bottom-flex:@(AppState.RightBottomPanelFlex);">
-    <div class="right-top-section">
-        <div class="toolbar" style="align-items: center;">
-            <label for="prompt-template" style="margin-right: 5px;">Prompt Sablon:</label>
-            <select id="prompt-template" style="flex-grow: 1;" @bind="AppState.SelectedPromptTemplateId">
-                <option value="@Guid.Empty">(Nincs)</option>
-                @foreach (var prompt in AppState.PromptTemplates)
-                {
-                    <option value="@prompt.Id">@prompt.Title</option>
-                }
-            </select>
-            <button @onclick="OnShowPromptManager">Szerkesztés...</button>
-            <button @onclick="OnShowSettingsDialog" title="Beállítások" style="margin: 0 5px;">⚙️</button>
-        </div>
-        <div class="prompt-container">
-            <textarea class="prompt-editor" placeholder="Írja ide a promptot..." @bind="AppState.PromptText" @bind:event="oninput"></textarea>
-            @if (!string.IsNullOrWhiteSpace(AppState.PromptText))
-            {
-                <div class="prompt-editor-button-group">
-                    <button class="prompt-editor-btn" @onclick="ClearPrompt" title="Prompt törlése">&times;</button>
-                </div>
-            }
-        </div>
-    </div>
-
-    <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightTop"))'></div>
-
-    <div class="right-middle-section">
-        <div class="context-list-header">
-            <h4>Kiválasztott Fájlok (Kontextushoz)</h4>
-        </div>
-        <div class="context-table-container" @onkeydown="HandleListKeyDown" tabindex="0">
-            <table class="context-table">
-                <thead>
-                    <tr>
-                        <th class="sortable @GetSortClass("path")" @onclick='() => SortBy("path")'>Elérési út</th>
-                        <th class="sortable @GetSortClass("name")" @onclick='() => SortBy("name")'>Fájlnév</th>
-                        <th class="sortable @GetSortClass("semantic")" @onclick='() => SortBy("semantic")'>Egyezés</th>
-                        <th class="sortable @GetSortClass("size")" @onclick='() => SortBy("size")'>Méret</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var fileInfo in _sortedFiles)
+    
+    @if (!_isBrowserMode)
+    {
+        <div class="right-top-section">
+            <div class="toolbar" style="align-items: center;">
+                <label for="prompt-template" style="margin-right: 5px;">Prompt Sablon:</label>
+                <select id="prompt-template" style="flex-grow: 1;" @bind="AppState.SelectedPromptTemplateId">
+                    <option value="@Guid.Empty">(Nincs)</option>
+                    @foreach (var prompt in AppState.PromptTemplates)
                     {
-                        <tr @key="fileInfo.RelativePath"
-                            class="@(SelectedItems.Contains(fileInfo.RelativePath) ? "selected" : "")"
-                            @onclick="(e) => OnFileRowClick(e, fileInfo.RelativePath)"
-                            @oncontextmenu="(e) => ShowContextMenuForRow(e, fileInfo.RelativePath)" @oncontextmenu:preventDefault>
-                            <td>@fileInfo.DisplayPath</td>
-                            <td>@fileInfo.FileName</td>
-                            <td style="text-align: right;">@(fileInfo.SemanticScore >= 0 ? fileInfo.SemanticScore.ToString("F2") : "-")</td>
-                            <td style="text-align: right;">@fileInfo.Size.ToString("N0")</td>
-                        </tr>
+                        <option value="@prompt.Id">@prompt.Title</option>
                     }
-                </tbody>
-            </table>
-        </div>
-        <div class="toolbar">
-            <button title="Visszavonás" @onclick="AppState.UndoContextListChange" disabled="@(!AppState.CanUndo)">⮌</button>
-            <button title="Újra" @onclick="AppState.RedoContextListChange" disabled="@(!AppState.CanRedo)">⮍</button>
-            
-            <button style="margin: 0 5px;" @onclick="OnShowDocumentSearchDialog" disabled="@(AppState.IsSemanticIndexBuilding || !IsIndexReady)">Keresés</button>
-            
-            <span style="margin-left:auto;"></span>
-            <span class="char-counter">@_charCount.ToString("N0") kar.</span>
-            <span class="char-counter">~@_tokenCount.ToString("N0") tok.</span>
-            <button @onclick="ClearSelectionList">Lista ürítése</button>
-        </div>
-    </div>
-
-    <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightMiddle"))'></div>
-
-    <div class="right-bottom-section">
-        <div class="preview-header">
-            <h4>Fájl Előnézet</h4>
-            <div class="preview-search-controls">
-                <input type="text" 
-                       placeholder="Keresés..." 
-                       @bind="_previewSearchTerm" 
-                       @bind:event="oninput" 
-                       @onkeyup="HandlePreviewSearchKeyup" />
-                @if (_totalPreviewMatches > 0)
+                </select>
+                <button @onclick="OnShowPromptManager">Szerkesztés...</button>
+                <button @onclick="OnShowSettingsDialog" title="Beállítások" style="margin: 0 5px;">⚙️</button>
+            </div>
+            <div class="prompt-container">
+                <textarea class="prompt-editor" placeholder="Írja ide a promptot..." @bind="AppState.PromptText" @bind:event="oninput"></textarea>
+                @if (!string.IsNullOrWhiteSpace(AppState.PromptText))
                 {
-                    <span class="preview-match-counter">@_currentPreviewMatchIndex/@_totalPreviewMatches</span>
+                    <div class="prompt-editor-button-group">
+                        <button class="prompt-editor-btn" @onclick="ClearPrompt" title="Prompt törlése">&times;</button>
+                    </div>
                 }
-                <button @onclick="FindPreviousInPreview" disabled="@(_totalPreviewMatches == 0)" title="Előző">▲</button>
-                <button @onclick="FindNextInPreview" disabled="@(_totalPreviewMatches == 0)" title="Következő">▼</button>
-                <button @onclick="ClearPreviewSearch" disabled="@(string.IsNullOrEmpty(_previewSearchTerm))" class="clear-btn">&times;</button>
             </div>
         </div>
-        <div id="preview-box" class="preview-box">
-            <pre>@_previewContentMarkup</pre>
+
+        <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightTop"))'></div>
+
+        <div class="right-middle-section">
+            <div class="context-list-header">
+                <h4>Kiválasztott Fájlok (Kontextushoz)</h4>
+            </div>
+            <div class="context-table-container" @onkeydown="HandleListKeyDown" tabindex="0">
+                <table class="context-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable @GetSortClass("path")" @onclick='() => SortBy("path")'>Elérési út</th>
+                            <th class="sortable @GetSortClass("name")" @onclick='() => SortBy("name")'>Fájlnév</th>
+                            <th class="sortable @GetSortClass("semantic")" @onclick='() => SortBy("semantic")'>Egyezés</th>
+                            <th class="sortable @GetSortClass("size")" @onclick='() => SortBy("size")'>Méret</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var fileInfo in _sortedFiles)
+                        {
+                            <tr @key="fileInfo.RelativePath"
+                                class="@(SelectedItems.Contains(fileInfo.RelativePath) ? "selected" : "")"
+                                @onclick="(e) => OnFileRowClick(e, fileInfo.RelativePath)"
+                                @oncontextmenu="(e) => ShowContextMenuForRow(e, fileInfo.RelativePath)" @oncontextmenu:preventDefault>
+                                <td>@fileInfo.DisplayPath</td>
+                                <td>@fileInfo.FileName</td>
+                                <td style="text-align: right;">@(fileInfo.SemanticScore >= 0 ? fileInfo.SemanticScore.ToString("F2") : "-")</td>
+                                <td style="text-align: right;">@fileInfo.Size.ToString("N0")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="toolbar">
+                <button title="Visszavonás" @onclick="AppState.UndoContextListChange" disabled="@(!AppState.CanUndo)">⮌</button>
+                <button title="Újra" @onclick="AppState.RedoContextListChange" disabled="@(!AppState.CanRedo)">⮍</button>
+            
+                <button style="margin: 0 5px;" @onclick="OnShowDocumentSearchDialog" disabled="@(AppState.IsSemanticIndexBuilding || !IsIndexReady)">Keresés</button>
+            
+                <span style="margin-left:auto;"></span>
+                <span class="char-counter">@_charCount.ToString("N0") kar.</span>
+                <span class="char-counter">~@_tokenCount.ToString("N0") tok.</span>
+                <button @onclick="ClearSelectionList">Lista ürítése</button>
+            </div>
         </div>
-    </div>
+
+        <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightMiddle"))'></div>
+
+        <div class="right-bottom-section">
+            <div class="preview-header">
+                <h4>Fájl Előnézet</h4>
+                <div class="preview-search-controls">
+                    <input type="text" 
+                           placeholder="Keresés..." 
+                           @bind="_previewSearchTerm" 
+                           @bind:event="oninput" 
+                           @onkeyup="HandlePreviewSearchKeyup" />
+                    @if (_totalPreviewMatches > 0)
+                    {
+                        <span class="preview-match-counter">@_currentPreviewMatchIndex/@_totalPreviewMatches</span>
+                    }
+                    <button @onclick="FindPreviousInPreview" disabled="@(_totalPreviewMatches == 0)" title="Előző">▲</button>
+                    <button @onclick="FindNextInPreview" disabled="@(_totalPreviewMatches == 0)" title="Következő">▼</button>
+                    <button @onclick="ClearPreviewSearch" disabled="@(string.IsNullOrEmpty(_previewSearchTerm))" class="clear-btn">&times;</button>
+                </div>
+            </div>
+            <div id="preview-box" class="preview-box">
+                <pre>@_previewContentMarkup</pre>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="browser-placeholder-mode">
+            <div class="browser-placeholder-info">
+                <h3>Böngésző Aktív</h3>
+                <p>A böngésző egy külön rétegen nyílt meg.</p>
+                <p>
+                    1. Illeszd be a vágólap tartalmát a böngészőben lévő AI Studióba.<br/>
+                    2. Várd meg a választ.<br/>
+                    3. Kattints a böngésző alján lévő <strong>"Válasz Feldolgozása"</strong> gombra.
+                </p>
+                <button @onclick="CloseBrowserMode">Böngésző elrejtése / Bezárása</button>
+            </div>
+        </div>
+    }
 
     <div class="bottom-actions">
         <div class="copy-options">
@@ -101,10 +120,15 @@
         </div>
         <div class="main-actions">
             <button class="copy-button" @onclick="CopyToClipboard" title="Vágólapra másolás (a pipáknak megfelelően)">Másolás</button>
+            
+            @if (!_isBrowserMode)
+            {
+                <button class="copy-button" @onclick="OpenAiStudioBrowser" title="AI Studio megnyitása belső böngészőben">🌐 AI Studio</button>
+            }
+
             <button @onclick="ProcessGitDiffAsync" disabled="@(!AppState.IsGitRepository)">Git Különbségek</button>
             <button class="copy-button" @onclick="ProcessChangesFromClipboardAsync" title="Vágólap feldolgozása (Kérdés vagy Implementáció)">Feldolgoz</button>
-@*             <button class="copy-button" @onclick="ProcessWithOpenRouterAsync" disabled="@(string.IsNullOrWhiteSpace(AppState.OpenRouterApiKey))" title="Küldés OpenRouter-re (Mindig teljes prompttal)">OR Küldés</button>
- *@        </div>
+        </div>
     </div>
 </div>
 
