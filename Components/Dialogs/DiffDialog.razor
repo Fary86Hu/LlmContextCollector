@@ -188,6 +188,7 @@
             </div>
             <div class="modal-footer">
                 <span>@($"{_localDiffResults.Count(r => r.IsSelectedForAccept)} fájl kijelölve")</span>
+                <button @onclick="RemoveNewCommentsFromSelected" disabled="@(!_localDiffResults.Any(r => r.IsSelectedForAccept))">Új kommentek törlése</button>
                 <button @onclick="Close">Bezárás</button>
                 <button class="primary" @onclick="AcceptSelectedChanges" disabled="@(!_localDiffResults.Any(r => r.IsSelectedForAccept))">
                     Kijelöltek elfogadása
@@ -617,6 +618,30 @@
         if (accepted != null && accepted.Any())
         {
             await OnAccept.InvokeAsync(accepted);
+        }
+    }
+
+    private void RemoveNewCommentsFromSelected()
+    {
+        var selected = _localDiffResults.Where(r => r.IsSelectedForAccept).ToList();
+        int processed = 0;
+        foreach (var result in selected)
+        {
+            if (string.IsNullOrWhiteSpace(result.NewContent)) continue;
+            
+            var cleanedContent = DiffUtility.RemoveNewlyAddedComments(result.OldContent, result.NewContent, result.Path);
+            
+            if (cleanedContent != result.NewContent)
+            {
+                result.NewContent = cleanedContent;
+                processed++;
+            }
+        }
+        
+        if (processed > 0)
+        {
+            GenerateDiffView();
+            StateHasChanged();
         }
     }
 

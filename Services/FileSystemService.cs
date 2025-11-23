@@ -28,13 +28,42 @@ namespace LlmContextCollector.Services
                     IsDirectory = true,
                     IsExpanded = true
                 };
-                ScanDirectoryRecursively(rootNode);
+
+                var extensionCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                ScanDirectoryRecursively(rootNode, extensionCounts);
+
+                // Update AppState statistics
+                _appState.ExtensionCounts = extensionCounts;
+
+                // Sync ExtensionFilters: Add new found extensions
+                foreach (var ext in extensionCounts.Keys)
+                {
+                    if (!_appState.ExtensionFilters.ContainsKey(ext))
+                    {
+                        _appState.ExtensionFilters[ext] = true; // Default to visible for new extensions
+                    }
+                }
+
+                // Sync ExtensionFilters: Remove extensions that no longer exist in the folder
+                var unusedExtensions = _appState.ExtensionFilters.Keys
+                    .Where(k => !extensionCounts.ContainsKey(k))
+                    .ToList();
+
+                foreach (var ext in unusedExtensions)
+                {
+                    _appState.ExtensionFilters.Remove(ext);
+                }
+
+                _appState.NotifyStateChanged(nameof(AppState.ExtensionFilters));
+                _appState.NotifyStateChanged(nameof(AppState.ExtensionCounts));
+
                 return rootNode.Children.Any() ? new List<FileNode> { rootNode } : new List<FileNode>();
             });
         }
 
         private void BuildIgnoreList(string rootPath)
         {
+
             _simpleNameIgnores.Clear();
             _relativePathIgnores.Clear();
             _wildcardRegexes.Clear();
@@ -79,7 +108,7 @@ namespace LlmContextCollector.Services
             }
         }
 
-        private void ScanDirectoryRecursively(FileNode parentNode)
+        private void ScanDirectoryRecursively(FileNode parentNode, Dictionary<string, int> extensionCounts)
         {
             try
             {
@@ -90,21 +119,41 @@ namespace LlmContextCollector.Services
                     if (IsIgnored(dir.FullName, isDir: true)) continue;
 
                     var dirNode = new FileNode { Name = dir.Name, FullPath = dir.FullName, IsDirectory = true, Parent = parentNode };
-                    ScanDirectoryRecursively(dirNode);
-                    parentNode.Children.Add(dirNode);
+                    ScanDirectoryRecursively(dirNode, extensionCounts);
+                    
+                    // Only add directory if it has children (folders or filtered files)
+                    if (dirNode.Children.Any())
+                    {
+                        parentNode.Children.Add(dirNode);
+                    }
                 }
-
-                var activeExtensions = _appState.ExtensionFilters
-                    .Where(kvp => kvp.Value)
-                    .Select(kvp => kvp.Key)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                 foreach (var file in directoryInfo.GetFiles())
                 {
-                    if (!activeExtensions.Contains(file.Extension) || IsIgnored(file.FullName, isDir: false)) continue;
+                    if (IsIgnored(file.FullName, isDir: false)) continue;
 
-                    var fileNode = new FileNode { Name = file.Name, FullPath = file.FullName, IsDirectory = false, Parent = parentNode };
-                    parentNode.Children.Add(fileNode);
+                    var ext = file.Extension.ToLowerInvariant();
+                    if (string.IsNullOrEmpty(ext)) ext = ".noext";
+
+                    // Count the extension regardless of filter state
+                    if (!extensionCounts.ContainsKey(ext))
+                    {
+                        extensionCounts[ext] = 0;
+                    }
+                    extensionCounts[ext]++;
+
+                    // Determine visibility based on current filters (or default to true if new)
+                    bool isVisible = true;
+                    if (_appState.ExtensionFilters.TryGetValue(ext, out var storedValue))
+                    {
+                        isVisible = storedValue;
+                    }
+
+                    if (isVisible)
+                    {
+                        var fileNode = new FileNode { Name = file.Name, FullPath = file.FullName, IsDirectory = false, Parent = parentNode };
+                        parentNode.Children.Add(fileNode);
+                    }
                 }
 
                 parentNode.Children = parentNode.Children.OrderBy(c => !c.IsDirectory).ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToList();
@@ -113,6 +162,7 @@ namespace LlmContextCollector.Services
             {
             }
         }
+
 
         private bool IsIgnored(string fullPath, bool isDir)
         {

@@ -24,20 +24,21 @@
         <div class="filter-section">
             <strong>Aktív fájltípusok:</strong>
             <div class="extensions-list">
-                @foreach (var ext in AppState.ExtensionFilters.Keys.OrderBy(k => k))
+                @foreach (var extKvp in AppState.ExtensionCounts.OrderByDescending(x => x.Value))
                 {
-                    var currentExt = ext; 
-                                          <div>
-                                              <input type="checkbox" id="@($"ext-{currentExt}")" @bind="AppState.ExtensionFilters[currentExt]" />
-                                              <label for="@($"ext-{currentExt}")">@currentExt</label>
-                                          </div>
+                    var currentExt = extKvp.Key;
+                    var count = extKvp.Value;
+                    if (AppState.ExtensionFilters.ContainsKey(currentExt))
+                    {
+                        <div>
+                            <input type="checkbox" id="@($"ext-{currentExt}")" @bind="AppState.ExtensionFilters[currentExt]" />
+                            <label for="@($"ext-{currentExt}")">@currentExt (@count)</label>
+                        </div>
+                    }
                 }
             </div>
-            <div class="add-extension-form">
-                <input @bind="_newExtension" @bind:event="oninput" @onkeyup="HandleNewExtensionKeyup" placeholder=".ext" />
-                <button @onclick="AddNewExtensionFilter">+</button>
-            </div>
         </div>
+
 
         <div class="filter-section">
             <strong>Kizárások:</strong>
@@ -62,8 +63,6 @@
     public EventCallback OnApplyFilters { get; set; }
 
 
-    private string _newExtension = string.Empty;
-
     protected override void OnInitialized()
     {
         AppState.PropertyChanged += OnAppStateChanged;
@@ -73,6 +72,7 @@
     {
         if (e.PropertyName == nameof(AppState.IgnorePatternsRaw) ||
             e.PropertyName == nameof(AppState.ExtensionFilters) ||
+            e.PropertyName == nameof(AppState.ExtensionCounts) ||
             e.PropertyName == nameof(AppState.ReferenceSearchDepth) ||
             e.PropertyName == nameof(AppState.IncludeReferencingFiles))
         {
@@ -80,25 +80,6 @@
         }
     }
 
-    private void HandleNewExtensionKeyup(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter")
-        {
-            AddNewExtensionFilter();
-        }
-    }
-
-    private void AddNewExtensionFilter()
-    {
-        if (string.IsNullOrWhiteSpace(_newExtension)) return;
-        var ext = _newExtension.Trim().ToLower();
-        if (!ext.StartsWith("."))
-        {
-            ext = "." + ext;
-        }
-        AppState.AddExtensionFilter(ext);
-        _newExtension = string.Empty;
-    }
 
     public void Dispose()
     {

@@ -9,11 +9,13 @@ namespace LlmContextCollector.Services
     {
         private readonly AppState _appState;
         private readonly ProjectService _projectService;
+        private readonly ProjectSettingsService _projectSettingsService;
 
-        public HistoryManagerService(AppState appState, ProjectService projectService)
+        public HistoryManagerService(AppState appState, ProjectService projectService, ProjectSettingsService projectSettingsService)
         {
             _appState = appState;
             _projectService = projectService;
+            _projectSettingsService = projectSettingsService;
         }
         
         public async Task ApplyHistoryEntryAsync(HistoryEntry entry)
@@ -43,12 +45,17 @@ namespace LlmContextCollector.Services
                         extensionStateChanged = true;
                     }
                 }
+
+                // Itt töltjük be a projekt-specifikus mentett beállításokat, felülírva az előzményből származókat, ha léteznek.
+                await _projectSettingsService.LoadSettingsForProjectAsync(_appState.ProjectRoot);
+
                 if (extensionStateChanged)
                 {
                     _appState.NotifyStateChanged(nameof(AppState.ExtensionFilters));
                 }
 
                 await _projectService.ReloadProjectAsync(preserveSelection: false);
+
 
                 _appState.SelectedFilesForContext.Clear();
                 foreach (var file in entry.SelectedFiles)

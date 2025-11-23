@@ -52,7 +52,15 @@ namespace LlmContextCollector.Services
             { ".txt", true }, { ".md", true }
         };
 
+        private Dictionary<string, int> _extensionCounts = new();
+        public Dictionary<string, int> ExtensionCounts
+        {
+            get => _extensionCounts;
+            set => SetField(ref _extensionCounts, value);
+        }
+
         private string _ignorePatternsRaw = string.Join("\n", new[]
+
         {
             "node_modules", "vendor", "dist", "build", "target", "__pycache__",
             "bin", "obj", ".git", ".svn", ".hg", ".idea", ".vscode",

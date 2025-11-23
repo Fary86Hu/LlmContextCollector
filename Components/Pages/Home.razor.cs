@@ -42,9 +42,12 @@ namespace LlmContextCollector.Components.Pages
         private FileContextService FileContextService { get; set; } = null!;
         [Inject]
         private IEmbeddingProvider EmbeddingProvider { get; set; } = null!;
+        [Inject]
+        private ProjectSettingsService ProjectSettingsService { get; set; } = null!;
 
 
         private ContextPanel? _contextPanelRef;
+
         private List<string> _selectedInContextList = new();
         private FileNode? _lastInteractionNode;
 
@@ -101,6 +104,12 @@ namespace LlmContextCollector.Components.Pages
 
             try
             {
+                // Beállítások mentése az újratöltés előtt
+                if (!string.IsNullOrEmpty(AppState.ProjectRoot))
+                {
+                    await ProjectSettingsService.SaveSettingsForProjectAsync(AppState.ProjectRoot);
+                }
+
                 await ProjectService.ReloadProjectAsync(preserveSelection);
             }
             finally
@@ -111,6 +120,7 @@ namespace LlmContextCollector.Components.Pages
                 }
             }
         }
+
 
         private void GetAllFileNodes(IEnumerable<FileNode> nodes, List<FileNode> fileNodes)
         {

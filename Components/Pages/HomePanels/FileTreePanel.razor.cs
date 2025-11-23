@@ -19,9 +19,12 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private IFolderPickerService FolderPickerService { get; set; } = null!;
         [Inject]
         private FileTreeFilterService FileTreeFilterService { get; set; } = null!;
+        [Inject]
+        private ProjectSettingsService ProjectSettingsService { get; set; } = null!;
 
         [Parameter]
         public EventCallback OnRequestApplyFiltersAndReload { get; set; }
+
 
         [Parameter]
         public EventCallback<HistoryEntry> OnLoadHistoryEntry { get; set; }
@@ -72,9 +75,12 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             if (!string.IsNullOrEmpty(folderPath))
             {
                 AppState.ProjectRoot = folderPath;
+                // Beállítások betöltése az új mappához
+                await ProjectSettingsService.LoadSettingsForProjectAsync(folderPath);
                 await OnRequestApplyFiltersAndReload.InvokeAsync();
             }
         }
+
 
         protected string FormatHistoryEntry(HistoryEntry entry)
         {
