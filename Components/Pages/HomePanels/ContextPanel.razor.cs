@@ -88,12 +88,14 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private List<ContextListItem> _sortedFiles = new();
         private string _currentSortKey = "path";
         private bool _isSortAscending = true;
+        private string? _lastInteractionPath;
         
         private const string AdoFilePrefix = "[ADO]";
         private Dictionary<string, double> _semanticScores = new();
         private string? _promptForLastSemanticSort;
         
         private bool _isClarificationDialogVisible = false;
+
         private string _clarificationDialogText = string.Empty;
         
         private bool _isBrowserMode = false;
@@ -146,8 +148,39 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private async Task OnFileRowClick(MouseEventArgs e, string fileRelativePath)
         {
             var currentSelection = SelectedItems.ToList();
-    
-            if (e.CtrlKey)
+            
+            bool isRangeSelect = e.ShiftKey || (e.CtrlKey && e.AltKey);
+            bool isMultiSelect = e.CtrlKey && !e.AltKey && !e.ShiftKey;
+
+            if (isRangeSelect && !string.IsNullOrEmpty(_lastInteractionPath))
+            {
+                var visiblePaths = _sortedFiles.Select(f => f.RelativePath).ToList();
+                var startIndex = visiblePaths.IndexOf(_lastInteractionPath);
+                var endIndex = visiblePaths.IndexOf(fileRelativePath);
+
+                if (startIndex != -1 && endIndex != -1)
+                {
+                    var min = Math.Min(startIndex, endIndex);
+                    var max = Math.Max(startIndex, endIndex);
+
+                    // Ha nincs lenyomva a Ctrl (csak Shift), akkor töröljük a többit (standard viselkedés).
+                    // Ha Ctrl is le van nyomva (pl Ctrl+Alt), akkor hozzáadunk (additív).
+                    if (!e.CtrlKey)
+                    {
+                        currentSelection.Clear();
+                    }
+
+                    for (int i = min; i <= max; i++)
+                    {
+                        var path = visiblePaths[i];
+                        if (!currentSelection.Contains(path))
+                        {
+                            currentSelection.Add(path);
+                        }
+                    }
+                }
+            }
+            else if (isMultiSelect)
             {
                 if (currentSelection.Contains(fileRelativePath))
                 {
@@ -157,22 +190,26 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 {
                     currentSelection.Add(fileRelativePath);
                 }
+                _lastInteractionPath = fileRelativePath;
             }
             else 
             {
                 if (currentSelection.Count == 1 && currentSelection[0] == fileRelativePath)
                 {
                     currentSelection.Clear();
+                    _lastInteractionPath = null;
                 }
                 else
                 {
                     currentSelection.Clear();
                     currentSelection.Add(fileRelativePath);
+                    _lastInteractionPath = fileRelativePath;
                 }
             }
     
             await SelectedItemsChanged.InvokeAsync(currentSelection);
         }
+
 
         private async Task ShowContextMenuForRow(MouseEventArgs e, string fileRelativePath)
         {

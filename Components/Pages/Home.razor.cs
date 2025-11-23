@@ -46,8 +46,10 @@ namespace LlmContextCollector.Components.Pages
 
         private ContextPanel? _contextPanelRef;
         private List<string> _selectedInContextList = new();
+        private FileNode? _lastInteractionNode;
 
         private bool isPromptManagerVisible = false;
+
         private bool _isSettingsDialogVisible = false;
         private bool _isAzureDevOpsDialogVisible = false;
         private bool _isDocumentSearchDialogVisible = false;
@@ -132,24 +134,58 @@ namespace LlmContextCollector.Components.Pages
 
             if (e != null)
             {
-                if (!e.CtrlKey)
+                // Range Selection: Shift OR (Ctrl + Alt)
+                bool isRangeSelect = e.ShiftKey || (e.CtrlKey && e.AltKey);
+                bool isMultiSelect = e.CtrlKey && !e.AltKey && !e.ShiftKey;
+
+                if (isRangeSelect && _lastInteractionNode != null)
                 {
-                    DeselectAllNodes(AppState.FileTree);
-                    node.IsSelectedInTree = true;
+                    var visibleNodes = new List<FileNode>();
+                    GetVisibleNodesLinear(AppState.FileTree, visibleNodes);
+
+                    var start = visibleNodes.IndexOf(_lastInteractionNode);
+                    var end = visibleNodes.IndexOf(node);
+
+                    if (start != -1 && end != -1)
+                    {
+                        var low = Math.Min(start, end);
+                        var high = Math.Max(start, end);
+
+                        // Ha nincs lenyomva a Ctrl (csak Shift), akkor töröljük a többit.
+                        // Ha Ctrl is le van nyomva (pl Ctrl+Alt), akkor hozzáadunk a meglévőhöz.
+                        if (!e.CtrlKey)
+                        {
+                            DeselectAllNodes(AppState.FileTree);
+                        }
+
+                        for (int i = low; i <= high; i++)
+                        {
+                            visibleNodes[i].IsSelectedInTree = true;
+                        }
+                    }
+                }
+                else if (isMultiSelect)
+                {
+                    node.IsSelectedInTree = !node.IsSelectedInTree;
+                    _lastInteractionNode = node;
                 }
                 else
                 {
-                    node.IsSelectedInTree = !node.IsSelectedInTree;
+                    DeselectAllNodes(AppState.FileTree);
+                    node.IsSelectedInTree = true;
+                    _lastInteractionNode = node;
                 }
             }
             else
             {
+                // Programmatic selection (e.g. search navigation)
                 DeselectAllNodes(AppState.FileTree);
                 node.IsSelectedInTree = true;
+                _lastInteractionNode = node;
                 AppState.ExpandNodeParents(node);
 
-                await Task.Delay(10); 
-                
+                await Task.Delay(10);
+
                 var elementId = "filenode-" + Convert.ToBase64String(Encoding.UTF8.GetBytes(node.FullPath))
                     .Replace("=", "")
                     .Replace("+", "-")
@@ -190,6 +226,22 @@ namespace LlmContextCollector.Components.Pages
 
             await InvokeAsync(StateHasChanged);
         }
+
+        private void GetVisibleNodesLinear(IEnumerable<FileNode> nodes, List<FileNode> list)
+        {
+            foreach (var node in nodes)
+            {
+                if (!node.IsVisible) continue;
+
+                list.Add(node);
+
+                if (node.IsDirectory && node.IsExpanded)
+                {
+                    GetVisibleNodesLinear(node.Children, list);
+                }
+            }
+        }
+
 
         private async Task HandleContextSelectionChanged(List<string> selectedFiles)
         {

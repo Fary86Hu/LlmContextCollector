@@ -50,7 +50,17 @@ namespace LlmContextCollector.Services
                         "      - A kódban csak a nyelvhez szükséges szintaktikai elemek és eredeti dokumentációs kommentek maradhatnak.\n\n" +
                         "   3. TELJESSÉG ELVE (NO PLACEHOLDERS):\n" +
                         "      - A kódnak fordíthatónak és futtathatónak kell lennie a dobozból kivéve.\n" +
-                        "      - SZIGORÚAN TILOS a '// ... a többi rész változatlan ...' vagy hasonló placeholder kommentek használata, mivel a válaszod közvetlenül felülírja a fájlt a lemezen! Minden sort ki kell írni.\n\n" +
+                        "      - SZIGORÚAN TILOS a '// ... a többi rész változatlan ...' vagy hasonló placeholder kommentek használata, ha a teljes fájlt írod ki.\n\n" +
+                        "   4. RÉSZLEGES MÓDOSÍTÁSOK (SEARCH/REPLACE BLOKKOK):\n" +
+                        "      - Ha egy fájl nagy és csak egy részét módosítod, NE írd ki az egészet. Használd a SEARCH/REPLACE formátumot a code blockon belül.\n" +
+                        "      - Formátum:\n" +
+                        "        <<<<<<< SEARCH\n" +
+                        "        (Eredeti kód részlet, PONTOSAN karakterre egyeznie kell a fájlban lévővel)\n" +
+                        "        =======\n" +
+                        "        (Új kód részlet, amire cserélni kell)\n" +
+                        "        >>>>>>> REPLACE\n" +
+                        "      - Egy fájlon belül több ilyen blokk is lehet.\n" +
+                        "      - A SEARCH blokkban lévő kódnak elegendő kontextust kell tartalmaznia, hogy egyedi legyen.\n\n" +
                         "   - Minden fájl módosítást kötelezően az alábbi formátumban adjon meg:\n" +
                         "     [CHANGE_LOG]\n" +
                         "     Mit és miért változtatott...\n" +
@@ -58,7 +68,7 @@ namespace LlmContextCollector.Services
                         "     Fájl: Mappa/FajlNeve.cs\n" +
                         "     (Vagy új fájl esetén: Új Fájl: Mappa/UjNeve.cs)\n" +
                         "     ```kiterjesztés\n" +
-                        "     // A FÁJL TELJES TARTALMA (PLACEHOLDEREK ÉS META-KOMMENTEK NÉLKÜL)\n" +
+                        "     // A FÁJL TELJES TARTALMA VAGY SEARCH/REPLACE BLOKKOK (META-KOMMENTEK NÉLKÜL)\n" +
                         "     ```\n" +
                         "  -Ha vettél fel új lokalizációkat, akkor azokat mindig írd le a válaszod össefoglaló részének végén, a fájl módosítások elé, a következő formában:\n\n" +
                         "<data name=\"XY\" xml:space=\"preserve\">\n" +
