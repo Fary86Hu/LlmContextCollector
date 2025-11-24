@@ -171,15 +171,28 @@
                              <!-- Side-by-Side Editor Mode -->
                             <div id="sbs-container" class="diff-editor-container" style="gap: 0;">
                                 <div class="editor-pane" style="flex: none; width: @(_sbsLeftPaneWidthPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%">
-                                    <div class="editor-header">Eredeti (Nem szerkeszthető)</div>
-                                    <textarea value="@_selectedResult.OldContent" readonly></textarea>
+                                    <div class="editor-header">Eredeti (Olvasás - Piros: Törölt)</div>
+                                    <!-- SBS Left Pane: Rendered Divs with Gaps -->
+                                    <div id="editor-left-display" class="editor-display-container">
+                                        @foreach (var item in _sbsLeftLines)
+                                        {
+                                            @if (item.IsGap)
+                                            {
+                                                <div class="sbs-gap" style="height: @(item.HeightInLines * 1.5)em;"></div>
+                                            }
+                                            else
+                                            {
+                                                <div class="sbs-line-item @item.CssClass">@item.Content</div>
+                                            }
+                                        }
+                                    </div>
                                 </div>
                                 
                                 <div class="diff-splitter" @onmousedown="StartSbsResize"></div>
                                 
                                 <div class="editor-pane" style="flex: none; width: @((100 - _sbsLeftPaneWidthPercent).ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%">
-                                    <div class="editor-header">Új / Módosított (Szerkeszthető - Zöld: Új sorok)</div>
-                                    <!-- Layered Editor for Green Highlights -->
+                                    <div class="editor-header">Új / Módosított (Szerkeszthető - Zöld: Új)</div>
+                                    <!-- Layered Editor for Green Highlights and Scrollbar Markers -->
                                     <div class="layered-editor-container">
                                         <div id="editor-backdrop" class="editor-backdrop">
                                             @foreach (var isNew in _editorLineHighlights)
@@ -193,11 +206,19 @@
                                                   @bind:event="oninput" 
                                                   @onkeyup="OnContentChanged"
                                                   @onscroll="SyncScroll"></textarea>
+                                                  
+                                        <!-- Scrollbar Markers for SBS Editor -->
+                                        <div class="diff-scrollbar-track">
+                                            @foreach (var marker in _sbsDiffMarkers)
+                                            {
+                                                <div class="diff-marker @marker.Type" style="top: @marker.TopPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%"></div>
+                                            }
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                             <div class="editor-hint">
-                                <small>A módosítások azonnal frissítik a különbségeket. A mentéshez használd a lenti "Commit" vagy "Elfogadás" gombokat.</small>
+                                <small>A bal oldali nézet igazodik a módosításokhoz. Törölt sorok pirossal, beszúrt sorok helye üresen.</small>
                             </div>
                         }
                         else
@@ -214,7 +235,7 @@
                                     }
                                 </div>
                                 <div class="diff-scrollbar-track">
-                                    @foreach (var marker in _diffMarkers)
+                                    @foreach (var marker in _unifiedDiffMarkers)
                                     {
                                         <div class="diff-marker @marker.Type" style="top: @marker.TopPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%"></div>
                                     }
@@ -262,12 +283,20 @@
 }
 
 <script>
-    window.syncEditorScroll = (textareaId, backdropId) => {
+    window.syncEditorScroll = (textareaId, backdropId, leftDisplayId) => {
         const ta = document.getElementById(textareaId);
         const bd = document.getElementById(backdropId);
-        if (ta && bd) {
-             bd.scrollTop = ta.scrollTop;
-             bd.scrollLeft = ta.scrollLeft;
+        const ld = document.getElementById(leftDisplayId);
+        if (ta) {
+            if (bd) {
+                bd.scrollTop = ta.scrollTop;
+                bd.scrollLeft = ta.scrollLeft;
+            }
+            if (ld) {
+                // Simple scrollTop sync. 
+                // Note: Complex alignment with deleted lines might cause minor drift unless line-heights are perfectly strictly equal.
+                ld.scrollTop = ta.scrollTop;
+            }
         }
     };
     window.getElementBoundingClientRect = (elementId) => {
@@ -312,10 +341,16 @@
     private DiffResult? _selectedResult;
     private string _viewMode = "unified";
     
+    // Unified View Data
     private List<DiffUtility.DiffLineItem> _unifiedDiffLines = new();
+    private List<DiffMarkerInfo> _unifiedDiffMarkers = new();
 
+    // SBS View Data
     private record DiffMarkerInfo(string Type, double TopPercent);
-    private List<DiffMarkerInfo> _diffMarkers = new();
+    private List<DiffMarkerInfo> _sbsDiffMarkers = new();
+    
+    private record SbsLeftItem(string Content, bool IsGap, int HeightInLines, string CssClass);
+    private List<SbsLeftItem> _sbsLeftLines = new();
 
     private string _suggestedBranch = string.Empty;
     private string _suggestedCommit = string.Empty;
@@ -475,8 +510,6 @@
         var newLines = _selectedResult.NewContent.Replace("\r\n", "\n").Split('\n');
         var opcodes = DiffUtility.GetOpcodes(oldLines, newLines);
 
-        // We need to map newLines to boolean (isNew/isModified)
-        // Initialize all as false
         var flags = new bool[newLines.Length];
 
         foreach (var op in opcodes)
@@ -495,7 +528,8 @@
 
     private async Task SyncScroll()
     {
-        await JSRuntime.InvokeVoidAsync("syncEditorScroll", "editor-textarea", "editor-backdrop");
+        // Added "editor-left-display" to sync logic
+        await JSRuntime.InvokeVoidAsync("syncEditorScroll", "editor-textarea", "editor-backdrop", "editor-left-display");
     }
 
     // --- Existing Logic ---
@@ -664,10 +698,11 @@
     private void SelectResult(DiffResult? result)
     {
         _selectedResult = result;
-        _viewMode = "unified"; // Reset to unified on new selection, or keep previous per preference
+        // Keep previous view mode preference, default to unified
+        if (string.IsNullOrEmpty(_viewMode)) _viewMode = "unified";
+        
         GenerateDiffView();
         
-        // If we were in SBS mode or switch to it, we need highlights
         if (_viewMode == "sbs")
         {
             UpdateEditorHighlights();
@@ -688,21 +723,132 @@
 
     private void OnContentChanged()
     {
-        GenerateDiffView(); // Background logic for diff markers
-        UpdateEditorHighlights(); // Logic for green bars
+        GenerateDiffView(); 
+        UpdateEditorHighlights(); 
     }
 
     private void GenerateDiffView()
     {
-        if (_selectedResult != null)
+        _unifiedDiffLines.Clear();
+        _unifiedDiffMarkers.Clear();
+        _sbsDiffMarkers.Clear();
+        _sbsLeftLines.Clear();
+
+        if (_selectedResult == null) return;
+
+        // Unified Diff View Generation
+        _unifiedDiffLines = DiffUtility.GenerateDiffList(_selectedResult.OldContent, _selectedResult.NewContent);
+        
+        // Calculate markers and SBS structures
+        var oldText = _selectedResult.OldContent;
+        var newText = _selectedResult.NewContent;
+
+        var oldLines = oldText.Replace("\r\n", "\n").Split('\n');
+        var newLines = newText.Replace("\r\n", "\n").Split('\n');
+        var opcodes = DiffUtility.GetOpcodes(oldLines, newLines);
+
+        // 1. Calculate Unified Markers
+        GenerateUnifiedMarkers(opcodes);
+
+        // 2. Calculate SBS Markers and Left Pane (Alignment)
+        GenerateSbsData(opcodes, oldLines, newLines);
+    }
+    
+    private void GenerateUnifiedMarkers(List<DiffUtility.DiffOpcode> opcodes)
+    {
+        double totalLines = opcodes.Sum(op => op.Tag switch
         {
-            _unifiedDiffLines = DiffUtility.GenerateDiffList(_selectedResult.OldContent, _selectedResult.NewContent);
-            GenerateDiffMarkers();
+            'e' => op.I2 - op.I1,
+            'd' => op.I2 - op.I1,
+            'i' => op.J2 - op.J1,
+            'r' => (op.I2 - op.I1) + (op.J2 - op.J1),
+            _ => 0
+        });
+
+        if (totalLines < 1) return;
+
+        double currentLine = 0;
+        foreach (var op in opcodes)
+        {
+            double linesInOp = 0;
+            string? markerType = null;
+
+            switch (op.Tag)
+            {
+                case 'e': linesInOp = op.I2 - op.I1; break;
+                case 'd': linesInOp = op.I2 - op.I1; markerType = "del"; break;
+                case 'i': linesInOp = op.J2 - op.J1; markerType = "add"; break;
+                case 'r': linesInOp = (op.I2 - op.I1) + (op.J2 - op.J1); markerType = "replace"; break;
+            }
+
+            if (markerType != null)
+            {
+                _unifiedDiffMarkers.Add(new DiffMarkerInfo(markerType, (currentLine / totalLines) * 100));
+            }
+            currentLine += linesInOp;
         }
-        else
+    }
+
+    private void GenerateSbsData(List<DiffUtility.DiffOpcode> opcodes, string[] oldLines, string[] newLines)
+    {
+        double totalNewLines = newLines.Length;
+        // Avoid division by zero
+        if (totalNewLines < 1) totalNewLines = 1;
+
+        // SBS Left Pane generation and Right Pane Markers
+        foreach (var op in opcodes)
         {
-            _unifiedDiffLines.Clear();
-            _diffMarkers.Clear();
+            switch (op.Tag)
+            {
+                case 'e': // Equal
+                    for (int i = op.I1; i < op.I2; i++)
+                    {
+                        _sbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, ""));
+                    }
+                    break;
+
+                case 'd': // Delete (Present in Old, Missing in New)
+                    // Visual marker on right scrollbar? 
+                    // It's a deletion relative to the new file, so it effectively happens at current line position in new file.
+                    double delPosPercent = (op.J1 / totalNewLines) * 100;
+                    _sbsDiffMarkers.Add(new DiffMarkerInfo("del", delPosPercent));
+
+                    // Show on Left Pane
+                    for (int i = op.I1; i < op.I2; i++)
+                    {
+                        _sbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, "sbs-del"));
+                    }
+                    break;
+
+                case 'i': // Insert (Missing in Old, Present in New)
+                    // Visual marker on right scrollbar
+                    double insertStartPercent = (op.J1 / totalNewLines) * 100;
+                    _sbsDiffMarkers.Add(new DiffMarkerInfo("add", insertStartPercent));
+                    
+                    // Show Gap on Left Pane
+                    int lineCount = op.J2 - op.J1;
+                    _sbsLeftLines.Add(new SbsLeftItem("", true, lineCount, ""));
+                    break;
+
+                case 'r': // Replace
+                    // Visual marker
+                    double replaceStartPercent = (op.J1 / totalNewLines) * 100;
+                    _sbsDiffMarkers.Add(new DiffMarkerInfo("replace", replaceStartPercent));
+                    
+                    // Show Deleted lines on Left
+                    for (int i = op.I1; i < op.I2; i++)
+                    {
+                        _sbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, "sbs-del"));
+                    }
+                    // If New block is longer than Old block, we need extra gaps in Left
+                    int oldLen = op.I2 - op.I1;
+                    int newLen = op.J2 - op.J1;
+                    if (newLen > oldLen)
+                    {
+                         _sbsLeftLines.Add(new SbsLeftItem("", true, newLen - oldLen, ""));
+                    }
+                    break;
+            }
         }
     }
 
@@ -725,79 +871,6 @@
             DiffUtility.DiffLineType.Delete => "-",
             _ => " "
         };
-    }
-
-    private void GenerateDiffMarkers()
-    {
-        _diffMarkers.Clear();
-        if (_selectedResult == null) return;
-
-        var oldText = _selectedResult.OldContent;
-        var newText = _selectedResult.NewContent;
-
-        var oldLines = oldText.Replace("\r\n", "\n").Split('\n');
-        var newLines = newText.Replace("\r\n", "\n").Split('\n');
-        var opcodes = DiffUtility.GetOpcodes(oldLines, newLines);
-
-        double totalLines = 0;
-        if (_viewMode == "unified")
-        {
-            totalLines = opcodes.Sum(op => op.Tag switch
-            {
-                'e' => op.I2 - op.I1,
-                'd' => op.I2 - op.I1,
-                'i' => op.J2 - op.J1,
-                'r' => (op.I2 - op.I1) + (op.J2 - op.J1),
-                _ => 0
-            });
-        }
-        else
-        {
-            totalLines = opcodes.Sum(op => op.Tag switch
-            {
-                'e' => op.I2 - op.I1,
-                'd' => op.I2 - op.I1,
-                'i' => op.J2 - op.J1,
-                'r' => Math.Max(op.I2 - op.I1, op.J2 - op.J1),
-                _ => 0
-            });
-        }
-
-        if (totalLines < 1) return;
-
-        double currentLine = 0;
-        foreach (var op in opcodes)
-        {
-            double linesInOp = 0;
-            string? markerType = null;
-
-            if (_viewMode == "unified")
-            {
-                switch (op.Tag)
-                {
-                    case 'e': linesInOp = op.I2 - op.I1; break;
-                    case 'd': linesInOp = op.I2 - op.I1; markerType = "del"; break;
-                    case 'i': linesInOp = op.J2 - op.J1; markerType = "add"; break;
-                    case 'r': linesInOp = (op.I2 - op.I1) + (op.J2 - op.J1); markerType = "replace"; break;
-                }
-            }
-            else
-            {
-                switch (op.Tag)
-                {
-                    case 'e': linesInOp = op.I2 - op.I1; break;
-                    case 'd': linesInOp = op.I2 - op.I1; markerType = "del"; break;
-                    case 'i': linesInOp = op.J2 - op.J1; markerType = "add"; break;
-                    case 'r': linesInOp = Math.Max(op.I2 - op.I1, op.J2 - op.J1); markerType = "replace"; break;
-                }
-            }
-
-            if (markerType != null)
-            {
-                _diffMarkers.Add(new DiffMarkerInfo(markerType, (currentLine / totalLines) * 100));
-            }
-            currentLine += linesInOp;
-        }
     }
 
 
