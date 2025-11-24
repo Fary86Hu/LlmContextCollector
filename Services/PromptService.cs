@@ -65,8 +65,9 @@ namespace LlmContextCollector.Services
                         "     [CHANGE_LOG]\n" +
                         "     Mit és miért változtatott... Itt a kommentek helye, ha le akarsz írni valami magyarázatot, akkor ide tedd meg\n" +
                         "     [/CHANGE_LOG]\n" +
-                        "     Fájl: {Mappa1/Mappa2..}/{FajlNeve}.{kiterjesztés}" +
-                        "     // A FÁJL TELJES TARTALMA VAGY SEARCH/REPLACE BLOKKOK (META-KOMMENTEK NÉLKÜL)\n" +
+                        "     Fájl: {Mappa1/Mappa2..}/{FajlNeve}.{kiterjesztés}\n" +
+                        "     ```\n" +
+                        "     (A FÁJL TELJES TARTALMA VAGY SEARCH/REPLACE BLOKKOK META-KOMMENTEK NÉLKÜL)\n" +
                         "     ```\n" +
                         "  -Ha vettél fel új lokalizációkat, akkor azokat mindig írd le a válaszod össefoglaló részének végén, a fájl módosítások elé, a következő formában:\n\n" +
                         "  <data name=\"XY\" xml:space=\"preserve\">\n" +

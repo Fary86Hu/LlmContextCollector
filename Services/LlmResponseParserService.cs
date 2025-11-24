@@ -19,8 +19,10 @@ namespace LlmContextCollector.Services
         {
             var parsedFiles = new List<ParsedFile>();
 
+            // Támogatjuk mind a keretezett (```code```), mind a keret nélküli (nyers) formátumot.
+            // A regex két csoportot használ alternatívaként a tartalomhoz, mindkettő 'code' néven (NET Regex feature).
             var fileBlockRegex = new Regex(
-                @"(?:^|\n)(?:Új Fájl|Fájl):\s*(?<path>[^\r\n]+)\s*```[a-zA-Z0-9]*\r?\n(?<code>.*?)(?:\r?\n?```(?=\s*(?:(?:\r?\n){2,}|$|Új Fájl|Fájl|\[CHANGE_LOG\]))|\z)",
+                @"(?:^|\n)(?:Új Fájl|Fájl):\s*(?<path>[^\r\n]+)\s*(?:(?:```[a-zA-Z0-9]*\r?\n(?<code>[\s\S]*?)```)|(?<code>[\s\S]*?))(?=\s*(?:Új Fájl|Fájl|\[CHANGE_LOG\])|$|\z)",
                 RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
             var changeLogRegex = new Regex(@"\[CHANGE_LOG\](.*?)\[/CHANGE_LOG\]", RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.Compiled);

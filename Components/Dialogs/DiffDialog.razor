@@ -145,50 +145,77 @@
                         }
                         
                         <div class="diff-view-switcher">
-                            <label>
-                                <input type="radio" name="diff-view" value="unified" checked="@(_viewMode == "unified")" @onchange="@(() => SetViewMode("unified"))" />
-                                Egységes nézet
-                            </label>
-                            <label>
-                                <input type="radio" name="diff-view" value="sbs" checked="@(_viewMode == "sbs")" @onchange="@(() => SetViewMode("sbs"))" />
-                                Side-by-Side
-                            </label>
+                            <div class="view-modes">
+                                <label>
+                                    <input type="radio" name="diff-view" value="unified" checked="@(_viewMode == "unified")" @onchange="@(() => SetViewMode("unified"))" disabled="@_isEditMode" />
+                                    Egységes nézet
+                                </label>
+                                <label>
+                                    <input type="radio" name="diff-view" value="sbs" checked="@(_viewMode == "sbs")" @onchange="@(() => SetViewMode("sbs"))" disabled="@_isEditMode" />
+                                    Side-by-Side
+                                </label>
+                            </div>
+                            <button class="edit-toggle-btn @(_isEditMode ? "active" : "")" @onclick="ToggleEditMode">
+                                @(_isEditMode ? "👁️ Vissza az Előnézethez" : "✏️ Tartalom Szerkesztése")
+                            </button>
                         </div>
-                        <div class="diff-content-wrapper">
-                            @if (_viewMode == "unified")
-                            {
-                                <div class="diff-content unified-diff-list">
-                                    @foreach (var line in _unifiedDiffLines)
-                                    {
-                                        <div class="diff-row @GetDiffLineClass(line)" @oncontextmenu="(e) => ShowLineContextMenu(e, line)" @oncontextmenu:preventDefault>
-                                            <span class="diff-marker-text">@GetDiffLineMarker(line)</span>
-                                            <span class="diff-text">@line.Content</span>
+
+                        @if (_isEditMode)
+                        {
+                            <div class="diff-editor-container">
+                                <div class="editor-pane">
+                                    <div class="editor-header">Eredeti (Nem szerkeszthető)</div>
+                                    <textarea value="@_selectedResult.OldContent" readonly></textarea>
+                                </div>
+                                <div class="editor-pane">
+                                    <div class="editor-header">Új / Módosított (Szerkeszthető)</div>
+                                    <textarea @bind="_selectedResult.NewContent" @bind:event="oninput" @onkeyup="OnContentChanged"></textarea>
+                                </div>
+                            </div>
+                            <div class="editor-hint">
+                                <small>A módosítások azonnal frissítik a különbségeket. A mentéshez használd a lenti "Commit" vagy "Elfogadás" gombokat.</small>
+                            </div>
+                        }
+
+                        else
+                        {
+                            <div class="diff-content-wrapper">
+                                @if (_viewMode == "unified")
+                                {
+                                    <div class="diff-content unified-diff-list">
+                                        @foreach (var line in _unifiedDiffLines)
+                                        {
+                                            <div class="diff-row @GetDiffLineClass(line)" @oncontextmenu="(e) => ShowLineContextMenu(e, line)" @oncontextmenu:preventDefault>
+                                                <span class="diff-marker-text">@GetDiffLineMarker(line)</span>
+                                                <span class="diff-text">@line.Content</span>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="sbs-diff-container">
+                                        <div class="sbs-pane">
+                                            <strong>Eredeti</strong>
+                                            <pre class="diff-content"><code>@_sbsLeftMarkup</code></pre>
                                         </div>
+                                        <div class="sbs-pane">
+                                            <strong>Módosított</strong>
+                                            <pre class="diff-content"><code>@_sbsRightMarkup</code></pre>
+                                        </div>
+                                    </div>
+                                }
+                                <div class="diff-scrollbar-track">
+                                    @foreach (var marker in _diffMarkers)
+                                    {
+                                        <div class="diff-marker @marker.Type" style="top: @marker.TopPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%"></div>
                                     }
                                 </div>
-                            }
-                            else
-                            {
-                                <div class="sbs-diff-container">
-                                    <div class="sbs-pane">
-                                        <strong>Eredeti</strong>
-                                        <pre class="diff-content"><code>@_sbsLeftMarkup</code></pre>
-                                    </div>
-                                    <div class="sbs-pane">
-                                        <strong>Módosított</strong>
-                                        <pre class="diff-content"><code>@_sbsRightMarkup</code></pre>
-                                    </div>
-                                </div>
-                            }
-                            <div class="diff-scrollbar-track">
-                                @foreach (var marker in _diffMarkers)
-                                {
-                                    <div class="diff-marker @marker.Type" style="top: @marker.TopPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%"></div>
-                                }
                             </div>
-                        </div>
+                        }
                     }
                     else
+
                     {
                         <div class="editor-placeholder">Válassz egy fájlt a változások megtekintéséhez. Vagy válassz másik különbség forrást.</div>
                     }
@@ -259,6 +286,7 @@
     private List<DiffResult> _localDiffResults = new();
     private DiffResult? _selectedResult;
     private string _viewMode = "unified";
+    private bool _isEditMode = false;
     
     private List<DiffUtility.DiffLineItem> _unifiedDiffLines = new();
     
@@ -274,6 +302,7 @@
     private bool _hasSuggestions = false;
     private bool _isFullResponseView = false;
     private bool _isGitDiffMode = false;
+
 
     private GitWorkflowService.DiffMode _selectedDiffMode = GitWorkflowService.DiffMode.Uncommitted;
     private List<string> _allBranches = new();
@@ -496,6 +525,7 @@
     {
         _selectedResult = result;
         _viewMode = "unified";
+        _isEditMode = false;
         GenerateDiffView();
     }
 
@@ -503,6 +533,24 @@
     {
         if (_viewMode == newMode) return;
         _viewMode = newMode;
+        GenerateDiffView();
+    }
+    
+    private void ToggleEditMode()
+    {
+        _isEditMode = !_isEditMode;
+        if (!_isEditMode)
+        {
+            // Amikor kilépünk a szerkesztésből, frissítsük a nézetet biztos ami biztos
+            GenerateDiffView();
+        }
+    }
+
+    private void OnContentChanged()
+    {
+        // Ha szerkesztés közben vagyunk, élőben frissíthetjük a diff jelölőket a háttérben,
+        // így ha a felhasználó visszavált, azonnal látja.
+        // Opcionális: itt lehetne debounce-ot használni, ha nagyon lassú lenne.
         GenerateDiffView();
     }
 
@@ -526,6 +574,7 @@
             _diffMarkers.Clear();
         }
     }
+
 
     private string GetDiffLineClass(DiffUtility.DiffLineItem line)
     {
@@ -688,10 +737,12 @@
     {
         _selectedResult = null;
         _isFullResponseView = false;
+        _isEditMode = false;
         _localDiffResults.Clear();
         _allBranches.Clear();
         await OnClose.InvokeAsync();
     }
+
 
     private async Task RevertFile(DiffResult result)
     {
