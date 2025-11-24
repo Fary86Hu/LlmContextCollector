@@ -1,26 +1,45 @@
 .diff-dialog {
-    width: 90vw;
+    width: 95vw;
+    height: 90vh;
+    display: flex;
+    flex-direction: column;
 }
 
 .diff-body {
     display: flex;
-    gap: 15px;
+    gap: 0;
     overflow: hidden;
+    flex-grow: 1;
 }
 
 .diff-left-pane {
-    width: 35%;
     display: flex;
     flex-direction: column;
     min-height: 0;
     overflow-y: auto;
+    padding-right: 5px;
+}
+
+.diff-splitter {
+    width: 5px;
+    background-color: var(--bg-color);
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    cursor: col-resize;
+    flex-shrink: 0;
+    z-index: 10;
+}
+
+.diff-splitter:hover {
+    background-color: var(--accent-color);
 }
 
 .diff-right-pane {
-    width: 65%;
     display: flex;
     flex-direction: column;
     min-height: 0;
+    padding-left: 5px;
+    flex-grow: 1; /* Fallback */
 }
 
 .modal-header .header-controls {
@@ -159,12 +178,15 @@
     min-width: 0;
     display: flex;
     flex-grow: 1;
+    overflow: hidden;
+    flex-direction: column;
 }
 
 .diff-file-list {
     flex-grow: 1;
     border: 1px solid var(--border-color);
     background-color: var(--panel-bg);
+    overflow-y: auto;
 }
 
 .diff-file-item {
@@ -300,6 +322,7 @@
     flex: 1;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .editor-header {
@@ -307,29 +330,73 @@
     font-size: var(--font-size-sm);
     margin-bottom: 3px;
     color: var(--text-color-light);
+    flex-shrink: 0;
 }
 
-.editor-pane textarea {
+/* Layered Editor Styles */
+.layered-editor-container {
+    position: relative;
     flex-grow: 1;
-    resize: none;
-    font-family: Consolas, monospace;
-    font-size: var(--font-size-sm);
-    white-space: pre;
-    overflow: auto;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
     background-color: var(--panel-bg);
 }
 
-.editor-pane textarea[readonly] {
-    background-color: var(--input-disabled-bg-color);
-    color: var(--text-color-light);
+.editor-backdrop, .editor-textarea, .editor-pane textarea[readonly] {
+    font-family: Consolas, monospace;
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    padding: 5px;
+    box-sizing: border-box;
+    white-space: pre; /* Essential for alignment */
+    overflow: auto;
+    width: 100%;
+    height: 100%;
+    border: none;
+    margin: 0;
 }
 
-.editor-hint {
+.editor-pane textarea[readonly] {
+    resize: none;
+    background-color: var(--input-disabled-bg-color);
+    color: var(--text-color-light);
+    border: 1px solid var(--border-color); 
+}
 
+.editor-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    color: transparent; /* Text hidden */
+    pointer-events: none; /* Let clicks pass through */
+    background-color: var(--panel-bg);
+}
+
+.editor-textarea {
+    position: relative;
+    z-index: 2;
+    background-color: transparent;
+    color: var(--text-color);
+    resize: none;
+}
+
+.line-bg {
+    width: 100%;
+    height: 1.5em; /* Must match line-height */
+}
+
+.line-bg.is-new {
+    background-color: rgba(42, 157, 143, 0.2); /* Light Green */
+}
+
+
+.editor-hint {
     font-size: 0.8em;
     color: var(--text-color-light);
     margin-top: -5px;
     margin-bottom: 5px;
+    flex-shrink: 0;
 }
 
 

@@ -166,9 +166,12 @@ namespace LlmContextCollector.Services
                 if (replaceBlock.StartsWith("\n")) replaceBlock = replaceBlock.Substring(1);
                 else if (replaceBlock.StartsWith("\r\n")) replaceBlock = replaceBlock.Substring(2);
 
+                replaceBlock = replaceBlock.TrimEnd('\r', '\n');
+
                 // Normalize search block for matching
                 searchBlock = searchBlock.Replace("\r\n", "\n");
                 replaceBlock = replaceBlock.Replace("\r\n", "\n");
+
 
                 // Simple string replace. 
                 // Note: This replaces ALL occurrences. Robust logic assumes unique context provided by LLM.

@@ -9,9 +9,12 @@
 @implements IDisposable
 
 @if (IsVisible)
-
 {
-    <div class="modal-backdrop" @onclick="HideContextMenu">
+    <div class="modal-backdrop" 
+         @onclick="HideContextMenu" 
+         @onmousemove="OnMouseMove" 
+         @onmouseup="StopPaneResize"
+         @onmouseleave="StopPaneResize">
         <div class="modal-dialog diff-dialog">
             <div class="modal-header">
                 <h3>Változások Elemzése és Elfogadása</h3>
@@ -26,7 +29,8 @@
                 </div>
             </div>
             <div class="modal-body diff-body">
-                <div class="diff-left-pane">
+                <!-- BAL OLDALI PANEL -->
+                <div class="diff-left-pane" style="width: @(_leftPaneWidthPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;">
                     @if (_isGitDiffMode)
                     {
                         <div class="diff-selector-box">
@@ -126,7 +130,12 @@
 
                     </fieldset>
                 </div>
-                <div class="diff-right-pane">
+
+                <!-- SPLITTER -->
+                <div class="diff-splitter" @onmousedown="StartPaneResize"></div>
+
+                <!-- JOBB OLDALI PANEL -->
+                <div class="diff-right-pane" style="width: @((100 - _leftPaneWidthPercent).ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;">
                     @if (_isFullResponseView)
                     {
                         <div class="full-response-view">
@@ -168,8 +177,22 @@
                                     <textarea value="@_selectedResult.OldContent" readonly></textarea>
                                 </div>
                                 <div class="editor-pane">
-                                    <div class="editor-header">Új / Módosított (Szerkeszthető)</div>
-                                    <textarea @bind="_selectedResult.NewContent" @bind:event="oninput" @onkeyup="OnContentChanged"></textarea>
+                                    <div class="editor-header">Új / Módosított (Szerkeszthető - Zöld: Új sorok)</div>
+                                    <!-- Layered Editor for Green Highlights -->
+                                    <div class="layered-editor-container">
+                                        <div id="editor-backdrop" class="editor-backdrop">
+                                            @foreach (var isNew in _editorLineHighlights)
+                                            {
+                                                <div class="line-bg @(isNew ? "is-new" : "")">&nbsp;</div>
+                                            }
+                                        </div>
+                                        <textarea id="editor-textarea" 
+                                                  class="editor-textarea"
+                                                  @bind="_selectedResult.NewContent" 
+                                                  @bind:event="oninput" 
+                                                  @onkeyup="OnContentChanged"
+                                                  @onscroll="SyncScroll"></textarea>
+                                    </div>
                                 </div>
                             </div>
                             <div class="editor-hint">
@@ -215,7 +238,6 @@
                         }
                     }
                     else
-
                     {
                         <div class="editor-placeholder">Válassz egy fájlt a változások megtekintéséhez. Vagy válassz másik különbség forrást.</div>
                     }
@@ -226,7 +248,6 @@
                 <span>@($"{_localDiffResults.Count(r => r.IsSelectedForAccept)} fájl kijelölve")</span>
                 <button @onclick="Close">Bezárás</button>
                 <button class="primary" @onclick="AcceptSelectedChanges" disabled="@(!_localDiffResults.Any(r => r.IsSelectedForAccept))">
-
                     Kijelöltek elfogadása
                 </button>
                 @{
@@ -254,6 +275,17 @@
         </div>
     </div>
 }
+
+<script>
+    window.syncEditorScroll = (textareaId, backdropId) => {
+        const ta = document.getElementById(textareaId);
+        const bd = document.getElementById(backdropId);
+        if (ta && bd) {
+             bd.scrollTop = ta.scrollTop;
+             bd.scrollLeft = ta.scrollLeft;
+        }
+    };
+</script>
 
 @code {
     [Parameter]
@@ -317,6 +349,14 @@
     private double _contextMenuY;
     private DiffUtility.DiffLineItem? _contextMenuTargetLine;
 
+    // --- Resizing ---
+    private double _leftPaneWidthPercent = 35.0;
+    private bool _isResizingPane = false;
+    private double _windowWidth = 0;
+    
+    // --- Editor Highlights ---
+    private List<bool> _editorLineHighlights = new();
+
 
     protected override void OnInitialized()
     {
@@ -360,6 +400,89 @@
         }
     }
     
+    // --- Resizing Logic ---
+    private async Task StartPaneResize(MouseEventArgs e)
+    {
+        _isResizingPane = true;
+        try
+        {
+            _windowWidth = await JSRuntime.InvokeAsync<double>("eval", "window.innerWidth");
+        }
+        catch
+        {
+            _windowWidth = 1920; // Fallback
+        }
+    }
+
+    private void StopPaneResize(MouseEventArgs e)
+    {
+        _isResizingPane = false;
+    }
+
+    private void OnMouseMove(MouseEventArgs e)
+    {
+        if (_isResizingPane && _windowWidth > 0)
+        {
+            // Calculate percentage based on window width
+            // Assuming the dialog has some margin, but using client width roughly works
+            
+            // Adjust for dialog margin (approx 5% total or center alignment)
+            // Let's rely on clientX relative to window
+            var percent = (e.ClientX / _windowWidth) * 100;
+            // Clamp
+            if (percent < 10) percent = 10;
+            if (percent > 90) percent = 90;
+            
+            // Since dialog width is 95vw, we need to normalize. 
+            // clientX is screen coordinate. Dialog is centered.
+            // Simple approx: 
+            var dialogWidth = _windowWidth * 0.95;
+            var dialogLeft = (_windowWidth - dialogWidth) / 2;
+            var relX = e.ClientX - dialogLeft;
+            var relPercent = (relX / dialogWidth) * 100;
+            
+            if (relPercent < 15) relPercent = 15;
+            if (relPercent > 85) relPercent = 85;
+
+            _leftPaneWidthPercent = relPercent;
+        }
+    }
+
+    // --- Editor Logic ---
+    private void UpdateEditorHighlights()
+    {
+        _editorLineHighlights.Clear();
+        if (_selectedResult == null) return;
+
+        var oldLines = _selectedResult.OldContent.Replace("\r\n", "\n").Split('\n');
+        var newLines = _selectedResult.NewContent.Replace("\r\n", "\n").Split('\n');
+        var opcodes = DiffUtility.GetOpcodes(oldLines, newLines);
+
+        // We need to map newLines to boolean (isNew/isModified)
+        // Initialize all as false
+        var flags = new bool[newLines.Length];
+
+        foreach (var op in opcodes)
+        {
+            if (op.Tag == 'i' || op.Tag == 'r') // Insert or Replace -> These lines in 'new' are Green
+            {
+                for (int j = op.J1; j < op.J2; j++)
+                {
+                    if (j < flags.Length) flags[j] = true;
+                }
+            }
+        }
+        
+        _editorLineHighlights.AddRange(flags);
+    }
+
+    private async Task SyncScroll()
+    {
+        await JSRuntime.InvokeVoidAsync("syncEditorScroll", "editor-textarea", "editor-backdrop");
+    }
+
+    // --- Existing Logic ---
+
     private void ShowLineContextMenu(MouseEventArgs e, DiffUtility.DiffLineItem line)
     {
         if (line.Type == DiffUtility.DiffLineType.Context) return;
@@ -539,19 +662,20 @@
     private void ToggleEditMode()
     {
         _isEditMode = !_isEditMode;
-        if (!_isEditMode)
+        if (_isEditMode)
         {
-            // Amikor kilépünk a szerkesztésből, frissítsük a nézetet biztos ami biztos
+            UpdateEditorHighlights();
+        }
+        else
+        {
             GenerateDiffView();
         }
     }
 
     private void OnContentChanged()
     {
-        // Ha szerkesztés közben vagyunk, élőben frissíthetjük a diff jelölőket a háttérben,
-        // így ha a felhasználó visszavált, azonnal látja.
-        // Opcionális: itt lehetne debounce-ot használni, ha nagyon lassú lenne.
-        GenerateDiffView();
+        GenerateDiffView(); // Background logic for diff markers
+        UpdateEditorHighlights(); // Logic for green bars
     }
 
     private void GenerateDiffView()
@@ -754,13 +878,11 @@
             try
             {
                 await GitWorkflowService.DiscardFileChangesAsync(result);
-                // Ha ez volt a kiválasztott, töröljük a kijelölést
                 if (_selectedResult == result)
                 {
                     _selectedResult = null;
                     GenerateDiffView();
                 }
-                // Lista újratöltése
                 await LoadSelectedDiffsAsync();
             }
             catch (Exception ex)
@@ -770,7 +892,6 @@
         }
         else
         {
-            // LLM módban csak kivesszük a listából (eldobjuk a javaslatot)
             _localDiffResults.Remove(result);
             if (_selectedResult == result)
             {
