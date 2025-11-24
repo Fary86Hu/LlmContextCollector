@@ -484,10 +484,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         private async Task OpenAiStudioBrowser()
         {
-            // Először másoljuk a kontextust
             await CopyToClipboard();
             
-            // Majd nyissuk meg a böngészőt
             _isBrowserMode = true;
             StateHasChanged();
             BrowserService.OpenBrowser("https://aistudio.google.com/");
@@ -509,9 +507,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private async Task HandleBrowserContentExtracted(string ignoredContent)
         {
             CloseBrowserMode();
-            
-            // A felhasználó kérésére az adatokat közvetlenül a vágólapról vesszük, 
-            // pontosan úgy, mint a külső "Feldolgoz" gomb esetében.
             await ProcessChangesFromClipboardAsync();
         }
 

@@ -46,7 +46,6 @@ namespace LlmContextCollector.Services
                     }
                 }
 
-                // Itt töltjük be a projekt-specifikus mentett beállításokat, felülírva az előzményből származókat, ha léteznek.
                 await _projectSettingsService.LoadSettingsForProjectAsync(_appState.ProjectRoot);
 
                 if (extensionStateChanged)

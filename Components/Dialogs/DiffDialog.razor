@@ -29,7 +29,6 @@
                 </div>
             </div>
             <div class="modal-body diff-body">
-                <!-- BAL OLDALI PANEL -->
                 <div class="diff-left-pane" style="width: @(_leftPaneWidthPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;">
                     @if (_isGitDiffMode)
                     {
@@ -131,10 +130,8 @@
                     </fieldset>
                 </div>
 
-                <!-- SPLITTER -->
                 <div class="diff-splitter" @onmousedown="StartPaneResize"></div>
 
-                <!-- JOBB OLDALI PANEL -->
                 <div class="diff-right-pane" style="width: @((100 - _leftPaneWidthPercent).ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;">
                     @if (_isFullResponseView)
                     {
@@ -168,11 +165,9 @@
 
                         @if (_viewMode == "sbs")
                         {
-                             <!-- Side-by-Side Editor Mode -->
                             <div id="sbs-container" class="diff-editor-container" style="gap: 0;">
                                 <div class="editor-pane" style="flex: none; width: @(_sbsLeftPaneWidthPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%">
                                     <div class="editor-header">Eredeti (Olvasás - Piros: Törölt)</div>
-                                    <!-- SBS Left Pane: Rendered Divs with Gaps -->
                                     <div id="editor-left-display" class="editor-display-container">
                                         @foreach (var item in _sbsLeftLines)
                                         {
@@ -192,7 +187,6 @@
                                 
                                 <div class="editor-pane" style="flex: none; width: @((100 - _sbsLeftPaneWidthPercent).ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%">
                                     <div class="editor-header">Új / Módosított (Szerkeszthető - Zöld: Új)</div>
-                                    <!-- Layered Editor for Green Highlights and Scrollbar Markers -->
                                     <div class="layered-editor-container">
                                         <div id="editor-backdrop" class="editor-backdrop">
                                             @foreach (var isNew in _editorLineHighlights)
@@ -207,7 +201,6 @@
                                                   @onkeyup="OnContentChanged"
                                                   @onscroll="SyncScroll"></textarea>
                                                   
-                                        <!-- Scrollbar Markers for SBS Editor -->
                                         <div class="diff-scrollbar-track">
                                             @foreach (var marker in _sbsDiffMarkers)
                                             {
@@ -223,7 +216,6 @@
                         }
                         else
                         {
-                            <!-- Unified View -->
                             <div class="diff-content-wrapper">
                                 <div class="diff-content unified-diff-list">
                                     @foreach (var line in _unifiedDiffLines)
@@ -440,7 +432,7 @@
         }
         catch
         {
-            _windowWidth = 1920; // Fallback
+            _windowWidth = 1920;
         }
     }
 
@@ -514,7 +506,7 @@
 
         foreach (var op in opcodes)
         {
-            if (op.Tag == 'i' || op.Tag == 'r') // Insert or Replace -> These lines in 'new' are Green
+            if (op.Tag == 'i' || op.Tag == 'r')
             {
                 for (int j = op.J1; j < op.J2; j++)
                 {
@@ -528,7 +520,6 @@
 
     private async Task SyncScroll()
     {
-        // Added "editor-left-display" to sync logic
         await JSRuntime.InvokeVoidAsync("syncEditorScroll", "editor-textarea", "editor-backdrop", "editor-left-display");
     }
 
@@ -698,7 +689,6 @@
     private void SelectResult(DiffResult? result)
     {
         _selectedResult = result;
-        // Keep previous view mode preference, default to unified
         if (string.IsNullOrEmpty(_viewMode)) _viewMode = "unified";
         
         GenerateDiffView();
@@ -736,10 +726,8 @@
 
         if (_selectedResult == null) return;
 
-        // Unified Diff View Generation
         _unifiedDiffLines = DiffUtility.GenerateDiffList(_selectedResult.OldContent, _selectedResult.NewContent);
         
-        // Calculate markers and SBS structures
         var oldText = _selectedResult.OldContent;
         var newText = _selectedResult.NewContent;
 
@@ -747,10 +735,8 @@
         var newLines = newText.Replace("\r\n", "\n").Split('\n');
         var opcodes = DiffUtility.GetOpcodes(oldLines, newLines);
 
-        // 1. Calculate Unified Markers
         GenerateUnifiedMarkers(opcodes);
 
-        // 2. Calculate SBS Markers and Left Pane (Alignment)
         GenerateSbsData(opcodes, oldLines, newLines);
     }
     
@@ -792,55 +778,45 @@
     private void GenerateSbsData(List<DiffUtility.DiffOpcode> opcodes, string[] oldLines, string[] newLines)
     {
         double totalNewLines = newLines.Length;
-        // Avoid division by zero
         if (totalNewLines < 1) totalNewLines = 1;
 
-        // SBS Left Pane generation and Right Pane Markers
         foreach (var op in opcodes)
         {
             switch (op.Tag)
             {
-                case 'e': // Equal
+                case 'e':
                     for (int i = op.I1; i < op.I2; i++)
                     {
                         _sbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, ""));
                     }
                     break;
 
-                case 'd': // Delete (Present in Old, Missing in New)
-                    // Visual marker on right scrollbar? 
-                    // It's a deletion relative to the new file, so it effectively happens at current line position in new file.
+                case 'd':
                     double delPosPercent = (op.J1 / totalNewLines) * 100;
                     _sbsDiffMarkers.Add(new DiffMarkerInfo("del", delPosPercent));
 
-                    // Show on Left Pane
                     for (int i = op.I1; i < op.I2; i++)
                     {
                         _sbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, "sbs-del"));
                     }
                     break;
 
-                case 'i': // Insert (Missing in Old, Present in New)
-                    // Visual marker on right scrollbar
+                case 'i':
                     double insertStartPercent = (op.J1 / totalNewLines) * 100;
                     _sbsDiffMarkers.Add(new DiffMarkerInfo("add", insertStartPercent));
                     
-                    // Show Gap on Left Pane
                     int lineCount = op.J2 - op.J1;
                     _sbsLeftLines.Add(new SbsLeftItem("", true, lineCount, ""));
                     break;
 
-                case 'r': // Replace
-                    // Visual marker
+                case 'r':
                     double replaceStartPercent = (op.J1 / totalNewLines) * 100;
                     _sbsDiffMarkers.Add(new DiffMarkerInfo("replace", replaceStartPercent));
                     
-                    // Show Deleted lines on Left
                     for (int i = op.I1; i < op.I2; i++)
                     {
                         _sbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, "sbs-del"));
                     }
-                    // If New block is longer than Old block, we need extra gaps in Left
                     int oldLen = op.I2 - op.I1;
                     int newLen = op.J2 - op.J1;
                     if (newLen > oldLen)

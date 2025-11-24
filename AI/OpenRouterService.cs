@@ -43,7 +43,6 @@ namespace LlmContextCollector.AI
                 throw new InvalidOperationException("OpenRouter API key is not set. Please configure it in the settings.");
             }
 
-            // Most már a System Prompt-ot is beleépítjük a kontextusba
             var contextString = await _contextProcessingService.BuildContextForClipboardAsync(true, true, sortedFilePaths);
 
             if (string.IsNullOrWhiteSpace(contextString))

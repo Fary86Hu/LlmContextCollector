@@ -32,19 +32,16 @@ namespace LlmContextCollector.Services
                 var extensionCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 ScanDirectoryRecursively(rootNode, extensionCounts);
 
-                // Update AppState statistics
                 _appState.ExtensionCounts = extensionCounts;
 
-                // Sync ExtensionFilters: Add new found extensions
                 foreach (var ext in extensionCounts.Keys)
                 {
                     if (!_appState.ExtensionFilters.ContainsKey(ext))
                     {
-                        _appState.ExtensionFilters[ext] = true; // Default to visible for new extensions
+                        _appState.ExtensionFilters[ext] = true;
                     }
                 }
 
-                // Sync ExtensionFilters: Remove extensions that no longer exist in the folder
                 var unusedExtensions = _appState.ExtensionFilters.Keys
                     .Where(k => !extensionCounts.ContainsKey(k))
                     .ToList();
@@ -121,7 +118,6 @@ namespace LlmContextCollector.Services
                     var dirNode = new FileNode { Name = dir.Name, FullPath = dir.FullName, IsDirectory = true, Parent = parentNode };
                     ScanDirectoryRecursively(dirNode, extensionCounts);
                     
-                    // Only add directory if it has children (folders or filtered files)
                     if (dirNode.Children.Any())
                     {
                         parentNode.Children.Add(dirNode);
@@ -135,14 +131,12 @@ namespace LlmContextCollector.Services
                     var ext = file.Extension.ToLowerInvariant();
                     if (string.IsNullOrEmpty(ext)) ext = ".noext";
 
-                    // Count the extension regardless of filter state
                     if (!extensionCounts.ContainsKey(ext))
                     {
                         extensionCounts[ext] = 0;
                     }
                     extensionCounts[ext]++;
 
-                    // Determine visibility based on current filters (or default to true if new)
                     bool isVisible = true;
                     if (_appState.ExtensionFilters.TryGetValue(ext, out var storedValue))
                     {

@@ -16,7 +16,6 @@ namespace LlmContextCollector
 
         private void MainPage_Loaded(object? sender, EventArgs e)
         {
-            // Service feloldása
             var services = this.Handler?.MauiContext?.Services;
             if (services != null)
             {

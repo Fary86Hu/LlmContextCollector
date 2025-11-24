@@ -246,7 +246,6 @@ namespace LlmContextCollector.Services
 
             if (diffResult.Status == DiffStatus.New)
             {
-                // Untracked file -> Delete from disk
                 if (File.Exists(fullPath))
                 {
                     File.Delete(fullPath);
@@ -254,8 +253,6 @@ namespace LlmContextCollector.Services
             }
             else
             {
-                // Modified or Deleted -> Git Restore
-                // We use the relative path for git commands
                 await _gitService.DiscardChangesAsync(diffResult.Path);
             }
         }
