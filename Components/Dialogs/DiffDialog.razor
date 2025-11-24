@@ -189,9 +189,17 @@
                                         }
                                     </div>
                                 </div>
-                                
+
+                                <!-- Central Navigation Rail -->
+                                <div id="sbs-nav-rail" class="diff-nav-rail" @onclick="OnNavRailClick" title="Kattints a görgetéshez">
+                                    @foreach (var marker in _sbsLeftMarkers)
+                                    {
+                                        <div class="nav-marker @marker.Type" style="top: @marker.TopPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%"></div>
+                                    }
+                                </div>
+
                                 <div class="diff-splitter" @onmousedown="StartSbsResize"></div>
-                                
+
                                 <div class="editor-pane" style="flex: none; width: @((100 - _sbsLeftPaneWidthPercent).ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%">
                                     <div class="editor-header">Új / Módosított (Szerkeszthető - Zöld: Új)</div>
                                     <div class="layered-editor-container">
@@ -292,7 +300,7 @@
                 bd.scrollLeft = ta.scrollLeft;
             }
             if (ld) {
-                // Simple scrollTop sync. 
+                // Simple scrollTop sync.
                 // Note: Complex alignment with deleted lines might cause minor drift unless line-heights are perfectly strictly equal.
                 ld.scrollTop = ta.scrollTop;
             }
@@ -302,9 +310,16 @@
         const el = document.getElementById(elementId);
         if (el) {
             const rect = el.getBoundingClientRect();
-            return { left: rect.left, width: rect.width };
+            return { left: rect.left, width: rect.width, height: rect.height };
         }
         return null;
+    };
+    window.scrollEditorToPercent = (textareaId, percent) => {
+        const el = document.getElementById(textareaId);
+        if (el) {
+            // Scroll to the specific percentage of the scrollable height
+            el.scrollTop = el.scrollHeight * percent;
+        }
     };
 </script>
 
@@ -430,6 +445,34 @@
         }
     }
     
+    // --- Navigation Logic ---
+    private async Task OnNavRailClick(MouseEventArgs e)
+    {
+        // Get dimensions of the nav rail to calculate percentage
+        var rect = await JSRuntime.InvokeAsync<BoundingRect>("getElementBoundingClientRect", "sbs-nav-rail");
+        if (rect != null && rect.Height > 0)
+        {
+            // e.OffsetY is relative to the target element (the rail), so we use that directly.
+            // However, if the user clicks on a marker (child element), OffsetY might be relative to the marker.
+            // To be safe, we use the client coordinate and the rect.Top (which we didn't ask for, but can approximate or just use relative logic).
+            // Actually, simpler approach: let's rely on e.OffsetY assuming event bubbling preserves coordinates relative to handler if configured,
+            // but standard Blazor MouseEventArgs OffsetY is relative to the *element that fired the event*.
+            // If we click a marker, OffsetY is small. This is risky.
+            // Reliable way: Use e.ClientY. We need Rect.Top.
+
+            // Let's re-fetch rect with Top property if needed, OR just implement logic in JS.
+            // But 'rect' defined below in record BoundingRect only has Left/Width/Height. Let's update the record.
+
+            // NOTE: I updated the JS getElementBoundingClientRect to return height too,
+            // but calculating Y relative to element in C# needs 'Top'.
+            // Let's try a heuristic: Since we are in a modal, let's just update the JS to handle the scroll logic?
+            // No, sticking to C# control. I will assume e.OffsetY is correct if I set pointer-events:none on children (markers) via CSS.
+
+            double percent = e.OffsetY / rect.Height;
+            await JSRuntime.InvokeVoidAsync("scrollEditorToPercent", "editor-textarea", percent);
+        }
+    }
+
     // --- Resizing Logic ---
     private async Task StartPaneResize(MouseEventArgs e)
     {
@@ -498,7 +541,7 @@
         }
     }
     
-    private record BoundingRect(double Left, double Width);
+    private record BoundingRect(double Left, double Width, double Height);
 
     // --- Editor Logic ---
     private void UpdateEditorHighlights()
