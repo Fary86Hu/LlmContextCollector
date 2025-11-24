@@ -49,6 +49,7 @@
     <div class="context-menu" style="@($"top: {_contextMenuY}px; left: {_contextMenuX}px;")" @onclick:stopPropagation>
         <div class="context-menu-item" @onclick="AddSelectedFilesToContext">Hozzáadás a kontextushoz</div>
         <div class="context-menu-item" @onclick="ExcludeSelectedFromTree">Kijelöltek kizárása</div>
+        <div class="context-menu-item" @onclick="CopySelectedFilesContentFromTree">Tartalom másolása</div>
         <div class="context-menu-item" @onclick="CopySelectedNodeName">Név másolása</div>
         <div class="context-menu-item" @onclick="CopySelectedNodePath">Elérési út másolása</div>
     </div>
@@ -58,8 +59,10 @@
 {
     <div class="context-menu" style="@($"top: {_contextMenuY}px; left: {_contextMenuX}px;")" @onclick:stopPropagation>
         <div class="context-menu-item" @onclick="RemoveSelectedFilesFromContext">Eltávolítás</div>
+        <div class="context-menu-item" @onclick="CopySelectedFilesContentFromList">Tartalom másolása</div>
     </div>
 }
+
 
 <PromptManagerDialog IsVisible="isPromptManagerVisible" OnClose="OnPromptManagerClose" />
 <SettingsDialog IsVisible="_isSettingsDialogVisible" OnClose="OnSettingsDialogClose" />

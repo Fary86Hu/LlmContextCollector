@@ -239,5 +239,25 @@ namespace LlmContextCollector.Services
             await _gitService.PushAsync(branchName);
             _appState.StatusText = $"Sikeres push a(z) '{branchName}' branch-re!";
         }
+
+        public async Task DiscardFileChangesAsync(DiffResult diffResult)
+        {
+            var fullPath = Path.Combine(_appState.ProjectRoot, diffResult.Path.Replace('/', Path.DirectorySeparatorChar));
+
+            if (diffResult.Status == DiffStatus.New)
+            {
+                // Untracked file -> Delete from disk
+                if (File.Exists(fullPath))
+                {
+                    File.Delete(fullPath);
+                }
+            }
+            else
+            {
+                // Modified or Deleted -> Git Restore
+                // We use the relative path for git commands
+                await _gitService.DiscardChangesAsync(diffResult.Path);
+            }
+        }
     }
 }

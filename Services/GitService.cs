@@ -97,5 +97,13 @@ namespace LlmContextCollector.Services
         {
             await RunGitCommandAsync($"push --set-upstream origin {branchName}", throwOnError: true);
         }
+
+        public async Task DiscardChangesAsync(string filePath)
+        {
+            // Unstage and discard changes in working directory
+            // --source=HEAD ensures we revert to the last commit state
+            // --staged --worktree handles both staged and unstaged changes
+            await RunGitCommandAsync($"restore --source=HEAD --staged --worktree \"{filePath}\"", throwOnError: true);
+        }
     }
 }

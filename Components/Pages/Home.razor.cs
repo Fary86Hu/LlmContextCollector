@@ -455,7 +455,95 @@ namespace LlmContextCollector.Components.Pages
             }
         }
 
+        private async Task CopySelectedFilesContentFromTree()
+        {
+            HideContextMenus();
+            var selectedNodes = new List<FileNode>();
+            FindSelectedNodes(AppState.FileTree, selectedNodes);
+
+            var paths = selectedNodes
+                .Where(n => !n.IsDirectory)
+                .Select(n => n.FullPath)
+                .ToList();
+
+            if (!paths.Any())
+            {
+                AppState.StatusText = "Nincs fájl kiválasztva.";
+                return;
+            }
+
+            await CopyFilesContentToClipboard(paths);
+        }
+
+        private async Task CopySelectedFilesContentFromList()
+        {
+            HideContextMenus();
+            if (!_selectedInContextList.Any()) return;
+
+            var paths = new List<string>();
+            foreach (var relPath in _selectedInContextList)
+            {
+                if (relPath.StartsWith("[ADO]"))
+                {
+                    if (!string.IsNullOrEmpty(AppState.AdoDocsPath))
+                    {
+                        paths.Add(Path.Combine(AppState.AdoDocsPath, relPath.Substring(5)));
+                    }
+                }
+                else if (!string.IsNullOrEmpty(AppState.ProjectRoot))
+                {
+                    paths.Add(Path.Combine(AppState.ProjectRoot, relPath.Replace('/', Path.DirectorySeparatorChar)));
+                }
+            }
+
+            await CopyFilesContentToClipboard(paths);
+        }
+
+        private async Task CopyFilesContentToClipboard(List<string> paths)
+        {
+            if (!paths.Any()) return;
+
+            try
+            {
+                var sb = new StringBuilder();
+                if (paths.Count == 1)
+                {
+                    if (File.Exists(paths[0]))
+                    {
+                        sb.Append(await File.ReadAllTextAsync(paths[0]));
+                    }
+                }
+                else
+                {
+                    foreach (var path in paths)
+                    {
+                        if (File.Exists(path))
+                        {
+                            sb.AppendLine($"// --- Fájl: {Path.GetFileName(path)} ---");
+                            sb.AppendLine(await File.ReadAllTextAsync(path));
+                            sb.AppendLine();
+                        }
+                    }
+                }
+
+                if (sb.Length > 0)
+                {
+                    await Clipboard.SetTextAsync(sb.ToString());
+                    AppState.StatusText = $"{paths.Count} fájl tartalma másolva a vágólapra.";
+                }
+                else
+                {
+                    AppState.StatusText = "Nem sikerült tartalmat olvasni a kijelölt fájlokból.";
+                }
+            }
+            catch (Exception ex)
+            {
+                AppState.StatusText = $"Hiba a tartalom másolása közben: {ex.Message}";
+            }
+        }
+
         #endregion
+
 
         #region History
 

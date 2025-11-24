@@ -6,6 +6,7 @@ namespace LlmContextCollector
     public partial class MainPage : ContentPage
     {
         private BrowserService? _browserService;
+        private string? _lastLoadedUrl;
 
         public MainPage()
         {
@@ -33,7 +34,11 @@ namespace LlmContextCollector
         {
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                InternalBrowser.Source = url;
+                if (_lastLoadedUrl != url)
+                {
+                    InternalBrowser.Source = url;
+                    _lastLoadedUrl = url;
+                }
                 BrowserOverlay.IsVisible = true;
             });
         }
@@ -43,7 +48,7 @@ namespace LlmContextCollector
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 BrowserOverlay.IsVisible = false;
-                InternalBrowser.Source = "about:blank";
+                // InternalBrowser.Source = "about:blank"; // Kikommentelve a memória megőrzése érdekében
             });
         }
 

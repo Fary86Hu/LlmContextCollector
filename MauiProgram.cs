@@ -28,6 +28,10 @@ namespace LlmContextCollector
 
             builder.Services.AddMauiBlazorWebView();
 
+#if WINDOWS
+            Environment.SetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--use-angle=d3d9");
+#endif
+
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();
             builder.Logging.AddDebug();

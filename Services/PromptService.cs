@@ -63,15 +63,13 @@ namespace LlmContextCollector.Services
                         "      - A SEARCH blokkban lévő kódnak elegendő kontextust kell tartalmaznia, hogy egyedi legyen.\n\n" +
                         "   - Minden fájl módosítást kötelezően az alábbi formátumban adjon meg:\n" +
                         "     [CHANGE_LOG]\n" +
-                        "     Mit és miért változtatott...\n" +
+                        "     Mit és miért változtatott... Itt a kommentek helye, ha le akarsz írni valami magyarázatot, akkor ide tedd meg\n" +
                         "     [/CHANGE_LOG]\n" +
-                        "     Fájl: Mappa/FajlNeve.cs\n" +
-                        "     (Vagy új fájl esetén: Új Fájl: Mappa/UjNeve.cs)\n" +
-                        "     ```kiterjesztés\n" +
+                        "     Fájl: {Mappa1/Mappa2..}/{FajlNeve}.{kiterjesztés}" +
                         "     // A FÁJL TELJES TARTALMA VAGY SEARCH/REPLACE BLOKKOK (META-KOMMENTEK NÉLKÜL)\n" +
                         "     ```\n" +
                         "  -Ha vettél fel új lokalizációkat, akkor azokat mindig írd le a válaszod össefoglaló részének végén, a fájl módosítások elé, a következő formában:\n\n" +
-                        "<data name=\"XY\" xml:space=\"preserve\">\n" +
+                        "  <data name=\"XY\" xml:space=\"preserve\">\n" +
                         "    <value>XY</value>\n" +
                         "  </data>";
                 }

@@ -5,9 +5,11 @@
 @inject AppState AppState
 @inject GitWorkflowService GitWorkflowService
 @inject GitSuggestionService GitSuggestionService
+@inject IJSRuntime JSRuntime
 @implements IDisposable
 
 @if (IsVisible)
+
 {
     <div class="modal-backdrop" @onclick="HideContextMenu">
         <div class="modal-dialog diff-dialog">
@@ -107,14 +109,21 @@
                                      @onclick="() => SelectResult(result)">
                                     <input type="checkbox" @bind="result.IsSelectedForAccept" @onclick:stopPropagation />
                                     <span class="status-badge @GetStatusClass(result)">@GetStatusText(result)</span>
-                                    <span>@result.Path</span>
-                                    @if (!string.IsNullOrEmpty(result.Explanation))
-                                    {
-                                        <span class="comment-indicator" title="Van magyarázat">💬</span>
-                                    }
+                                    <span class="file-path-text" title="@result.Path">@result.Path</span>
+                                    
+                                    <div class="item-actions">
+                                        @if (!string.IsNullOrEmpty(result.Explanation))
+                                        {
+                                            <span class="comment-indicator" title="Van magyarázat">💬</span>
+                                        }
+                                        <button class="reset-btn" @onclick="() => RevertFile(result)" @onclick:stopPropagation title="Változások eldobása / visszaállítása">
+                                            ↩️
+                                        </button>
+                                    </div>
                                 </div>
                             }
                         </div>
+
                     </fieldset>
                 </div>
                 <div class="diff-right-pane">
@@ -188,9 +197,9 @@
             </div>
             <div class="modal-footer">
                 <span>@($"{_localDiffResults.Count(r => r.IsSelectedForAccept)} fájl kijelölve")</span>
-                <button @onclick="RemoveNewCommentsFromSelected" disabled="@(!_localDiffResults.Any(r => r.IsSelectedForAccept))">Új kommentek törlése</button>
                 <button @onclick="Close">Bezárás</button>
                 <button class="primary" @onclick="AcceptSelectedChanges" disabled="@(!_localDiffResults.Any(r => r.IsSelectedForAccept))">
+
                     Kijelöltek elfogadása
                 </button>
                 @{
@@ -621,31 +630,8 @@
         }
     }
 
-    private void RemoveNewCommentsFromSelected()
-    {
-        var selected = _localDiffResults.Where(r => r.IsSelectedForAccept).ToList();
-        int processed = 0;
-        foreach (var result in selected)
-        {
-            if (string.IsNullOrWhiteSpace(result.NewContent)) continue;
-            
-            var cleanedContent = DiffUtility.RemoveNewlyAddedComments(result.OldContent, result.NewContent, result.Path);
-            
-            if (cleanedContent != result.NewContent)
-            {
-                result.NewContent = cleanedContent;
-                processed++;
-            }
-        }
-        
-        if (processed > 0)
-        {
-            GenerateDiffView();
-            StateHasChanged();
-        }
-    }
-
     private async Task CreateBranch()
+
     {
         if (!string.IsNullOrWhiteSpace(_suggestedBranch))
         {
@@ -705,5 +691,42 @@
         _localDiffResults.Clear();
         _allBranches.Clear();
         await OnClose.InvokeAsync();
+    }
+
+    private async Task RevertFile(DiffResult result)
+    {
+        if (_isGitDiffMode)
+        {
+            bool confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Biztosan visszaállítod/törlöd a fájlt?\n\n{result.Path}\n\nEz a művelet NEM vonható vissza!");
+            if (!confirmed) return;
+
+            try
+            {
+                await GitWorkflowService.DiscardFileChangesAsync(result);
+                // Ha ez volt a kiválasztott, töröljük a kijelölést
+                if (_selectedResult == result)
+                {
+                    _selectedResult = null;
+                    GenerateDiffView();
+                }
+                // Lista újratöltése
+                await LoadSelectedDiffsAsync();
+            }
+            catch (Exception ex)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"Hiba a visszaállítás során: {ex.Message}");
+            }
+        }
+        else
+        {
+            // LLM módban csak kivesszük a listából (eldobjuk a javaslatot)
+            _localDiffResults.Remove(result);
+            if (_selectedResult == result)
+            {
+                _selectedResult = null;
+                GenerateDiffView();
+            }
+            StateHasChanged();
+        }
     }
 }
