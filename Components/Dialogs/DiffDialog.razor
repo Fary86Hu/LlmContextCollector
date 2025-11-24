@@ -156,27 +156,28 @@
                         <div class="diff-view-switcher">
                             <div class="view-modes">
                                 <label>
-                                    <input type="radio" name="diff-view" value="unified" checked="@(_viewMode == "unified")" @onchange="@(() => SetViewMode("unified"))" disabled="@_isEditMode" />
-                                    Egységes nézet
+                                    <input type="radio" name="diff-view" value="unified" checked="@(_viewMode == "unified")" @onchange="@(() => SetViewMode("unified"))" />
+                                    Egységes nézet (Olvasás)
                                 </label>
                                 <label>
-                                    <input type="radio" name="diff-view" value="sbs" checked="@(_viewMode == "sbs")" @onchange="@(() => SetViewMode("sbs"))" disabled="@_isEditMode" />
-                                    Side-by-Side
+                                    <input type="radio" name="diff-view" value="sbs" checked="@(_viewMode == "sbs")" @onchange="@(() => SetViewMode("sbs"))" />
+                                    Side-by-Side (Szerkesztés)
                                 </label>
                             </div>
-                            <button class="edit-toggle-btn @(_isEditMode ? "active" : "")" @onclick="ToggleEditMode">
-                                @(_isEditMode ? "👁️ Vissza az Előnézethez" : "✏️ Tartalom Szerkesztése")
-                            </button>
                         </div>
 
-                        @if (_isEditMode)
+                        @if (_viewMode == "sbs")
                         {
-                            <div class="diff-editor-container">
-                                <div class="editor-pane">
+                             <!-- Side-by-Side Editor Mode -->
+                            <div id="sbs-container" class="diff-editor-container" style="gap: 0;">
+                                <div class="editor-pane" style="flex: none; width: @(_sbsLeftPaneWidthPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%">
                                     <div class="editor-header">Eredeti (Nem szerkeszthető)</div>
                                     <textarea value="@_selectedResult.OldContent" readonly></textarea>
                                 </div>
-                                <div class="editor-pane">
+                                
+                                <div class="diff-splitter" @onmousedown="StartSbsResize"></div>
+                                
+                                <div class="editor-pane" style="flex: none; width: @((100 - _sbsLeftPaneWidthPercent).ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%">
                                     <div class="editor-header">Új / Módosított (Szerkeszthető - Zöld: Új sorok)</div>
                                     <!-- Layered Editor for Green Highlights -->
                                     <div class="layered-editor-container">
@@ -199,35 +200,19 @@
                                 <small>A módosítások azonnal frissítik a különbségeket. A mentéshez használd a lenti "Commit" vagy "Elfogadás" gombokat.</small>
                             </div>
                         }
-
                         else
                         {
+                            <!-- Unified View -->
                             <div class="diff-content-wrapper">
-                                @if (_viewMode == "unified")
-                                {
-                                    <div class="diff-content unified-diff-list">
-                                        @foreach (var line in _unifiedDiffLines)
-                                        {
-                                            <div class="diff-row @GetDiffLineClass(line)" @oncontextmenu="(e) => ShowLineContextMenu(e, line)" @oncontextmenu:preventDefault>
-                                                <span class="diff-marker-text">@GetDiffLineMarker(line)</span>
-                                                <span class="diff-text">@line.Content</span>
-                                            </div>
-                                        }
-                                    </div>
-                                }
-                                else
-                                {
-                                    <div class="sbs-diff-container">
-                                        <div class="sbs-pane">
-                                            <strong>Eredeti</strong>
-                                            <pre class="diff-content"><code>@_sbsLeftMarkup</code></pre>
+                                <div class="diff-content unified-diff-list">
+                                    @foreach (var line in _unifiedDiffLines)
+                                    {
+                                        <div class="diff-row @GetDiffLineClass(line)" @oncontextmenu="(e) => ShowLineContextMenu(e, line)" @oncontextmenu:preventDefault>
+                                            <span class="diff-marker-text">@GetDiffLineMarker(line)</span>
+                                            <span class="diff-text">@line.Content</span>
                                         </div>
-                                        <div class="sbs-pane">
-                                            <strong>Módosított</strong>
-                                            <pre class="diff-content"><code>@_sbsRightMarkup</code></pre>
-                                        </div>
-                                    </div>
-                                }
+                                    }
+                                </div>
                                 <div class="diff-scrollbar-track">
                                     @foreach (var marker in _diffMarkers)
                                     {
@@ -285,6 +270,14 @@
              bd.scrollLeft = ta.scrollLeft;
         }
     };
+    window.getElementBoundingClientRect = (elementId) => {
+        const el = document.getElementById(elementId);
+        if (el) {
+            const rect = el.getBoundingClientRect();
+            return { left: rect.left, width: rect.width };
+        }
+        return null;
+    };
 </script>
 
 @code {
@@ -318,12 +311,8 @@
     private List<DiffResult> _localDiffResults = new();
     private DiffResult? _selectedResult;
     private string _viewMode = "unified";
-    private bool _isEditMode = false;
     
     private List<DiffUtility.DiffLineItem> _unifiedDiffLines = new();
-    
-    private MarkupString _sbsLeftMarkup;
-    private MarkupString _sbsRightMarkup;
 
     private record DiffMarkerInfo(string Type, double TopPercent);
     private List<DiffMarkerInfo> _diffMarkers = new();
@@ -353,6 +342,12 @@
     private double _leftPaneWidthPercent = 35.0;
     private bool _isResizingPane = false;
     private double _windowWidth = 0;
+
+    // --- SBS Resizing ---
+    private double _sbsLeftPaneWidthPercent = 50.0;
+    private bool _isResizingSbs = false;
+    private double _sbsContainerLeft = 0;
+    private double _sbsContainerWidth = 0;
     
     // --- Editor Highlights ---
     private List<bool> _editorLineHighlights = new();
@@ -414,28 +409,38 @@
         }
     }
 
+    private async Task StartSbsResize(MouseEventArgs e)
+    {
+        _isResizingSbs = true;
+        try
+        {
+            var rect = await JSRuntime.InvokeAsync<BoundingRect>("getElementBoundingClientRect", "sbs-container");
+            if (rect != null)
+            {
+                _sbsContainerLeft = rect.Left;
+                _sbsContainerWidth = rect.Width;
+            }
+        }
+        catch
+        {
+            _isResizingSbs = false;
+        }
+    }
+
     private void StopPaneResize(MouseEventArgs e)
     {
         _isResizingPane = false;
+        _isResizingSbs = false;
     }
 
     private void OnMouseMove(MouseEventArgs e)
     {
         if (_isResizingPane && _windowWidth > 0)
         {
-            // Calculate percentage based on window width
-            // Assuming the dialog has some margin, but using client width roughly works
-            
-            // Adjust for dialog margin (approx 5% total or center alignment)
-            // Let's rely on clientX relative to window
             var percent = (e.ClientX / _windowWidth) * 100;
-            // Clamp
             if (percent < 10) percent = 10;
             if (percent > 90) percent = 90;
             
-            // Since dialog width is 95vw, we need to normalize. 
-            // clientX is screen coordinate. Dialog is centered.
-            // Simple approx: 
             var dialogWidth = _windowWidth * 0.95;
             var dialogLeft = (_windowWidth - dialogWidth) / 2;
             var relX = e.ClientX - dialogLeft;
@@ -446,7 +451,19 @@
 
             _leftPaneWidthPercent = relPercent;
         }
+        else if (_isResizingSbs && _sbsContainerWidth > 0)
+        {
+            var relX = e.ClientX - _sbsContainerLeft;
+            var percent = (relX / _sbsContainerWidth) * 100;
+            
+            if (percent < 10) percent = 10;
+            if (percent > 90) percent = 90;
+            
+            _sbsLeftPaneWidthPercent = percent;
+        }
     }
+    
+    private record BoundingRect(double Left, double Width);
 
     // --- Editor Logic ---
     private void UpdateEditorHighlights()
@@ -647,9 +664,14 @@
     private void SelectResult(DiffResult? result)
     {
         _selectedResult = result;
-        _viewMode = "unified";
-        _isEditMode = false;
+        _viewMode = "unified"; // Reset to unified on new selection, or keep previous per preference
         GenerateDiffView();
+        
+        // If we were in SBS mode or switch to it, we need highlights
+        if (_viewMode == "sbs")
+        {
+            UpdateEditorHighlights();
+        }
     }
 
     private void SetViewMode(string newMode)
@@ -657,18 +679,10 @@
         if (_viewMode == newMode) return;
         _viewMode = newMode;
         GenerateDiffView();
-    }
-    
-    private void ToggleEditMode()
-    {
-        _isEditMode = !_isEditMode;
-        if (_isEditMode)
+        
+        if (_viewMode == "sbs")
         {
             UpdateEditorHighlights();
-        }
-        else
-        {
-            GenerateDiffView();
         }
     }
 
@@ -683,18 +697,11 @@
         if (_selectedResult != null)
         {
             _unifiedDiffLines = DiffUtility.GenerateDiffList(_selectedResult.OldContent, _selectedResult.NewContent);
-            
-            var (_, sbsLeft, sbsRight) = DiffUtility.GenerateDiffMarkup(_selectedResult.OldContent, _selectedResult.NewContent);
-            _sbsLeftMarkup = sbsLeft;
-            _sbsRightMarkup = sbsRight;
-            
             GenerateDiffMarkers();
         }
         else
         {
             _unifiedDiffLines.Clear();
-            _sbsLeftMarkup = new MarkupString("");
-            _sbsRightMarkup = new MarkupString("");
             _diffMarkers.Clear();
         }
     }
@@ -861,7 +868,6 @@
     {
         _selectedResult = null;
         _isFullResponseView = false;
-        _isEditMode = false;
         _localDiffResults.Clear();
         _allBranches.Clear();
         await OnClose.InvokeAsync();

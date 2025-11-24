@@ -298,31 +298,21 @@
         margin-right: 15px;
     }
 
-.edit-toggle-btn {
-    padding: 4px 10px;
-    font-size: 0.9em;
-}
-
-.edit-toggle-btn.active {
-    background-color: var(--selected-bg-color);
-    color: var(--selected-text-color);
-    border-color: var(--selected-bg-color);
-}
-
 .diff-editor-container {
     flex-grow: 1;
     display: flex;
-    gap: 10px;
+    gap: 0; /* Splitter handles gap */
     min-height: 0;
     overflow: hidden;
     margin-bottom: 5px;
 }
 
 .editor-pane {
-    flex: 1;
+    /* Flex and width managed inline for splitter */
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    padding: 0 5px; /* Add some padding inside pane */
 }
 
 .editor-header {
