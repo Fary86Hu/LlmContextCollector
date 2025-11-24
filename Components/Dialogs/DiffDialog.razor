@@ -181,6 +181,13 @@
                                             }
                                         }
                                     </div>
+                                    @* Scrollbar markers for the Left Pane *@
+                                    <div class="diff-scrollbar-track">
+                                        @foreach (var marker in _sbsLeftMarkers)
+                                        {
+                                            <div class="diff-marker @marker.Type" style="top: @marker.TopPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%"></div>
+                                        }
+                                    </div>
                                 </div>
                                 
                                 <div class="diff-splitter" @onmousedown="StartSbsResize"></div>
@@ -339,7 +346,8 @@
 
     // SBS View Data
     private record DiffMarkerInfo(string Type, double TopPercent);
-    private List<DiffMarkerInfo> _sbsDiffMarkers = new();
+    private List<DiffMarkerInfo> _sbsDiffMarkers = new();      // Right pane markers
+    private List<DiffMarkerInfo> _sbsLeftMarkers = new();      // Left pane markers
     
     private record SbsLeftItem(string Content, bool IsGap, int HeightInLines, string CssClass);
     private List<SbsLeftItem> _sbsLeftLines = new();
@@ -722,6 +730,7 @@
         _unifiedDiffLines.Clear();
         _unifiedDiffMarkers.Clear();
         _sbsDiffMarkers.Clear();
+        _sbsLeftMarkers.Clear();
         _sbsLeftLines.Clear();
 
         if (_selectedResult == null) return;
@@ -777,9 +786,11 @@
 
     private void GenerateSbsData(List<DiffUtility.DiffOpcode> opcodes, string[] oldLines, string[] newLines)
     {
+        // 1. Build Right Side Markers (based on New Content logic)
         double totalNewLines = newLines.Length;
         if (totalNewLines < 1) totalNewLines = 1;
 
+        // 2. Build Left Side Content (_sbsLeftLines)
         foreach (var op in opcodes)
         {
             switch (op.Tag)
@@ -792,6 +803,7 @@
                     break;
 
                 case 'd':
+                    // Marker for Right Side (showing where delete happened relative to new content)
                     double delPosPercent = (op.J1 / totalNewLines) * 100;
                     _sbsDiffMarkers.Add(new DiffMarkerInfo("del", delPosPercent));
 
@@ -802,14 +814,17 @@
                     break;
 
                 case 'i':
+                    // Marker for Right Side (Insert)
                     double insertStartPercent = (op.J1 / totalNewLines) * 100;
                     _sbsDiffMarkers.Add(new DiffMarkerInfo("add", insertStartPercent));
                     
+                    // Add GAP to Left Side to maintain alignment
                     int lineCount = op.J2 - op.J1;
                     _sbsLeftLines.Add(new SbsLeftItem("", true, lineCount, ""));
                     break;
 
                 case 'r':
+                    // Marker for Right Side (Replace)
                     double replaceStartPercent = (op.J1 / totalNewLines) * 100;
                     _sbsDiffMarkers.Add(new DiffMarkerInfo("replace", replaceStartPercent));
                     
@@ -819,12 +834,38 @@
                     }
                     int oldLen = op.I2 - op.I1;
                     int newLen = op.J2 - op.J1;
+                    
+                    // If new content is longer, we need a gap on the left to sync up
                     if (newLen > oldLen)
                     {
                          _sbsLeftLines.Add(new SbsLeftItem("", true, newLen - oldLen, ""));
                     }
                     break;
             }
+        }
+
+        // 3. Build Left Side Markers (based on the Visual Left Pane height including gaps)
+        double totalLeftVisualLines = _sbsLeftLines.Sum(x => x.HeightInLines);
+        if (totalLeftVisualLines < 1) totalLeftVisualLines = 1;
+
+        double currentVisualLine = 0;
+        foreach (var item in _sbsLeftLines)
+        {
+            if (item.IsGap)
+            {
+                // This gap corresponds to an insertion on the right. 
+                // We mark it green on the left scrollbar to show "stuff happens here".
+                double top = (currentVisualLine / totalLeftVisualLines) * 100;
+                _sbsLeftMarkers.Add(new DiffMarkerInfo("add", top));
+            }
+            else if (!string.IsNullOrEmpty(item.CssClass) && item.CssClass.Contains("sbs-del"))
+            {
+                // Deleted content
+                double top = (currentVisualLine / totalLeftVisualLines) * 100;
+                _sbsLeftMarkers.Add(new DiffMarkerInfo("del", top));
+            }
+            
+            currentVisualLine += item.HeightInLines;
         }
     }
 
