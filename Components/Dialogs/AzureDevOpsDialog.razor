@@ -31,6 +31,11 @@
                         <input id="ado-pat" type="password" @bind="AppState.AzureDevOpsPat" />
                     </div>
 
+                    <div class="ado-form-group" style="display: flex; align-items: center; margin-top: 10px;">
+                        <input id="ado-mine" type="checkbox" style="width: auto; margin-right: 10px;" @bind="AppState.AdoDownloadOnlyMine" />
+                        <label for="ado-mine" style="margin-bottom: 0; cursor: pointer;">Csak a hozzám rendelt elemek letöltése</label>
+                    </div>
+
                     @if (AppState.AdoLastDownloadDate.HasValue)
                     {
                         <div class="ado-incremental-info">

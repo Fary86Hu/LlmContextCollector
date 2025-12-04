@@ -49,6 +49,7 @@ namespace LlmContextCollector.Services
             _appState.AzureDevOpsRepository = settings.Repository;
             _appState.AzureDevOpsIterationPath = settings.IterationPath;
             _appState.AzureDevOpsPat = settings.Pat;
+            _appState.AdoDownloadOnlyMine = settings.DownloadOnlyMine;
             _appState.AdoLastDownloadDate = settings.LastFullDownloadUtc;
         }
 
@@ -64,6 +65,7 @@ namespace LlmContextCollector.Services
                 Repository = _appState.AzureDevOpsRepository,
                 IterationPath = _appState.AzureDevOpsIterationPath,
                 Pat = _appState.AzureDevOpsPat,
+                DownloadOnlyMine = _appState.AdoDownloadOnlyMine,
                 LastFullDownloadUtc = newDownloadTimestamp ?? _appState.AdoLastDownloadDate
             };
             var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
@@ -92,12 +94,24 @@ namespace LlmContextCollector.Services
             _appState.AdoDocsExist = newExist;
         }
 
-        public async Task DownloadWorkItemsAsync(string orgUrl, string project, string pat, string repoName, string iterationPath, string projectRoot, bool isIncremental)
+        public async Task DownloadWorkItemsAsync(string orgUrl, string project, string pat, string repoName, string iterationPath, string projectRoot, bool isIncremental, bool onlyMine)
         {
             if (string.IsNullOrWhiteSpace(projectRoot) || !Directory.Exists(projectRoot))
             {
                 throw new InvalidOperationException("Érvénytelen projekt mappa van beállítva.");
             }
+            if (string.IsNullOrWhiteSpace(orgUrl)) throw new ArgumentException("A szervezet URL megadása kötelező.");
+            if (string.IsNullOrWhiteSpace(project)) throw new ArgumentException("A projekt név megadása kötelező.");
+            if (string.IsNullOrWhiteSpace(pat)) throw new ArgumentException("A PAT megadása kötelező.");
+
+            // Sanitization and Encoding Prep
+            orgUrl = orgUrl.Trim().TrimEnd('/');
+            project = project.Trim();
+            pat = pat.Trim();
+            iterationPath = iterationPath?.Trim() ?? string.Empty;
+            
+            // Safe encoded project name for URL paths
+            var encodedProject = Uri.EscapeDataString(project);
 
             var client = _httpClientFactory.CreateClient("AzureDevOps");
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
@@ -111,7 +125,7 @@ namespace LlmContextCollector.Services
             string? repoId = null;
             if (!string.IsNullOrWhiteSpace(repoName))
             {
-                repoId = await GetRepositoryIdAsync(client, orgUrl, project, repoName);
+                repoId = await GetRepositoryIdAsync(client, orgUrl, project, repoName.Trim());
             }
 
             var projectFolderName = new DirectoryInfo(projectRoot).Name;
@@ -143,10 +157,18 @@ namespace LlmContextCollector.Services
             }
             else
             {
+                // Safe project name for WIQL query (handle single quotes)
+                var safeProjectName = project.Replace("'", "''");
+
                 var queryBuilder = new StringBuilder();
-                queryBuilder.Append($"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{project}'");
+                queryBuilder.Append($"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{safeProjectName}'");
                 queryBuilder.Append(" AND [System.State] NOT IN ('New', 'To Do', 'Proposed', 'Backlog', 'Ötlet', 'New idea')");
                 queryBuilder.Append(" AND [System.WorkItemType] IN ('Task','User Story','Bug')");
+
+                if (onlyMine)
+                {
+                    queryBuilder.Append(" AND [System.AssignedTo] = @Me");
+                }
 
                 if (!string.IsNullOrWhiteSpace(iterationPath))
                 {
@@ -156,7 +178,10 @@ namespace LlmContextCollector.Services
                 
                 if (isIncremental && _appState.AdoLastDownloadDate.HasValue)
                 {
-                    queryBuilder.Append($" AND [System.ChangedDate] > '{_appState.AdoLastDownloadDate.Value:o}'");
+                    // WIQL dátum formátum fix: a nanoszekundumos pontosság (pl. 'o' formátum) hibát okozhat.
+                    // "yyyy-MM-ddTHH:mm:ssZ" formátumot használunk helyette.
+                    var dateStr = _appState.AdoLastDownloadDate.Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
+                    queryBuilder.Append($" AND [System.ChangedDate] > '{dateStr}'");
                 }
 
                 var wiqlQuery = new
@@ -164,8 +189,15 @@ namespace LlmContextCollector.Services
                     query = queryBuilder.ToString()
                 };
                 var wiqlContent = new StringContent(JsonSerializer.Serialize(wiqlQuery), Encoding.UTF8, "application/json");
-                var wiqlResponse = await client.PostAsync($"{orgUrl}/{project}/_apis/wit/wiql?api-version=6.0", wiqlContent);
-                wiqlResponse.EnsureSuccessStatusCode();
+                
+                // Use encodedProject in URL
+                var wiqlResponse = await client.PostAsync($"{orgUrl}/{encodedProject}/_apis/wit/wiql?api-version=6.0", wiqlContent);
+                
+                if (!wiqlResponse.IsSuccessStatusCode)
+                {
+                    var errorBody = await wiqlResponse.Content.ReadAsStringAsync();
+                    throw new HttpRequestException($"WIQL Query Failed ({wiqlResponse.StatusCode}): {errorBody}");
+                }
 
                 var wiqlResult = await JsonSerializer.DeserializeAsync<WiqlResponse>(await wiqlResponse.Content.ReadAsStreamAsync(), _jsonOptions);
                 if (wiqlResult == null || !wiqlResult.WorkItems.Any())
@@ -180,7 +212,9 @@ namespace LlmContextCollector.Services
             {
                 var batchIds = workItemIds.Skip(i).Take(batchSize);
                 var idsString = string.Join(",", batchIds);
-                var detailsResponse = await client.GetAsync($"{orgUrl}/{project}/_apis/wit/workitems?ids={idsString}&$expand=all&api-version=6.0");
+                
+                // Use encodedProject in URL
+                var detailsResponse = await client.GetAsync($"{orgUrl}/{encodedProject}/_apis/wit/workitems?ids={idsString}&$expand=all&api-version=6.0");
                 if (!detailsResponse.IsSuccessStatusCode) continue;
 
                 var detailsResult = await JsonSerializer.DeserializeAsync<WorkItemListResponse>(await detailsResponse.Content.ReadAsStreamAsync(), _jsonOptions);
@@ -204,9 +238,11 @@ namespace LlmContextCollector.Services
         {
             var prIds = await GetAllPullRequestIdsAsync(client, orgUrl, project, repoId);
             var wiIds = new HashSet<int>();
+            var encodedProject = Uri.EscapeDataString(project);
+
             foreach (var prId in prIds)
             {
-                var resp = await client.GetAsync($"{orgUrl}/{project}/_apis/git/repositories/{repoId}/pullRequests/{prId}/workitems?api-version=7.1");
+                var resp = await client.GetAsync($"{orgUrl}/{encodedProject}/_apis/git/repositories/{repoId}/pullRequests/{prId}/workitems?api-version=7.1");
                 if (!resp.IsSuccessStatusCode) continue;
                 var list = await JsonSerializer.DeserializeAsync<ResourceRefListResponse>(await resp.Content.ReadAsStreamAsync(), _jsonOptions);
                 if (list?.Value == null) continue;
@@ -225,13 +261,15 @@ namespace LlmContextCollector.Services
         {
             var result = new List<int>();
             var statuses = new[] { "active", "completed", "abandoned" };
+            var encodedProject = Uri.EscapeDataString(project);
+
             foreach (var status in statuses)
             {
                 int skip = 0;
                 const int pageSize = 100;
                 while (true)
                 {
-                    var url = $"{orgUrl}/{project}/_apis/git/repositories/{repoId}/pullrequests?searchCriteria.status={status}&$top={pageSize}&$skip={skip}&api-version=7.1";
+                    var url = $"{orgUrl}/{encodedProject}/_apis/git/repositories/{repoId}/pullrequests?searchCriteria.status={status}&$top={pageSize}&$skip={skip}&api-version=7.1";
                     var resp = await client.GetAsync(url);
                     if (!resp.IsSuccessStatusCode) break;
                     var list = await JsonSerializer.DeserializeAsync<GitPullRequestListResponse>(await resp.Content.ReadAsStreamAsync(), _jsonOptions);
@@ -247,8 +285,14 @@ namespace LlmContextCollector.Services
 
         private async Task<string?> GetRepositoryIdAsync(HttpClient client, string orgUrl, string project, string repoName)
         {
-            var response = await client.GetAsync($"{orgUrl}/{project}/_apis/git/repositories?api-version=6.0");
-            response.EnsureSuccessStatusCode();
+            var encodedProject = Uri.EscapeDataString(project);
+            var response = await client.GetAsync($"{orgUrl}/{encodedProject}/_apis/git/repositories?api-version=6.0");
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                 var errorBody = await response.Content.ReadAsStringAsync();
+                 throw new HttpRequestException($"GetRepositoryIdAsync Failed ({response.StatusCode}): {errorBody}");
+            }
 
             var repoList = await JsonSerializer.DeserializeAsync<GitRepositoryListResponse>(
                 await response.Content.ReadAsStreamAsync(), _jsonOptions);

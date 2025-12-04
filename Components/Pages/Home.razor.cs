@@ -633,7 +633,8 @@ namespace LlmContextCollector.Components.Pages
                     AppState.AzureDevOpsRepository,
                     AppState.AzureDevOpsIterationPath,
                     AppState.ProjectRoot,
-                    isIncremental);
+                    isIncremental,
+                    AppState.AdoDownloadOnlyMine);
 
                 await AzureDevOpsService.SaveSettingsForCurrentProjectAsync(DateTime.UtcNow);
                 AzureDevOpsService.UpdateAdoPaths(AppState.ProjectRoot);

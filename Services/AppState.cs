@@ -214,6 +214,9 @@ namespace LlmContextCollector.Services
         private DateTime? _adoLastDownloadDate;
         public DateTime? AdoLastDownloadDate { get => _adoLastDownloadDate; set => SetField(ref _adoLastDownloadDate, value); }
 
+        private bool _adoDownloadOnlyMine = false;
+        public bool AdoDownloadOnlyMine { get => _adoDownloadOnlyMine; set => SetField(ref _adoDownloadOnlyMine, value); }
+
         public string LastLlmGlobalExplanation { get; set; } = string.Empty;
 
         private bool _isDiffDialogVisible = false;
