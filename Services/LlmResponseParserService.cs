@@ -2,6 +2,7 @@ using LlmContextCollector.Models;
 using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using System.Linq;
+using System;
 
 namespace LlmContextCollector.Services
 {
@@ -19,81 +20,107 @@ namespace LlmContextCollector.Services
         {
             var parsedFiles = new List<ParsedFile>();
 
-            // Támogatjuk mind a keretezett (```code```), mind a keret nélküli (nyers) formátumot.
-            // A regex két csoportot használ alternatívaként a tartalomhoz, mindkettő 'code' néven (NET Regex feature).
-            var fileBlockRegex = new Regex(
-                @"(?:^|\n)(?:Új Fájl|Fájl):\s*(?<path>[^\r\n]+)\s*(?:(?:```[a-zA-Z0-9]*\r?\n(?<code>[\s\S]*?)```)|(?<code>[\s\S]*?))(?=\s*(?:Új Fájl|Fájl|\[CHANGE_LOG\])|$|\z)",
-                RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-            var changeLogRegex = new Regex(@"\[CHANGE_LOG\](.*?)\[/CHANGE_LOG\]", RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-            var matches = fileBlockRegex.Matches(text);
+            // Csak a fejléceket keressük Regex-szel, ez gyors és biztonságos
+            var headerRegex = new Regex(@"(?:^|\n)(?<type>Új Fájl|Fájl):\s*(?<path>[^\r\n]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            var matches = headerRegex.Matches(text);
 
             string globalExplanation = "";
-            int lastMatchEndIndex = 0;
+            string nextFileExplanation = "";
 
+            // 1. Globális magyarázat kinyerése (az első fájl előtt)
             if (matches.Count > 0)
             {
-                var firstMatchIndex = matches[0].Index;
-                var preText = text.Substring(0, firstMatchIndex);
-
-                var logMatch = changeLogRegex.Match(preText);
-                if (logMatch.Success)
-                {
-                    globalExplanation = preText.Substring(0, logMatch.Index).Trim();
-                }
-                else
-                {
-                    globalExplanation = preText.Trim();
-                }
+                var preamble = text.Substring(0, matches[0].Index);
+                (globalExplanation, nextFileExplanation) = ExtractExplanationAndLog(preamble);
             }
             else
             {
                 globalExplanation = text.Trim();
             }
 
+            // 2. Fájlok feldolgozása
             for (int i = 0; i < matches.Count; i++)
             {
                 var match = matches[i];
+                var typeStr = match.Groups["type"].Value;
                 var path = match.Groups["path"].Value.Trim().Replace('\\', '/');
-                var code = match.Groups["code"].Value.Trim();
+                var status = typeStr.StartsWith("Új", StringComparison.OrdinalIgnoreCase) ? DiffStatus.New : DiffStatus.Modified;
 
-                var status = match.Value.TrimStart().StartsWith("Új", StringComparison.OrdinalIgnoreCase)
-                             ? DiffStatus.New
-                             : DiffStatus.Modified;
+                // A tartalom kezdete a fejléc után
+                int contentStart = match.Index + match.Length;
 
-                string explanation = "";
+                // A tartalom vége a következő fejléc kezdete, vagy a szöveg vége
+                int contentEnd = (i == matches.Count - 1) ? text.Length : matches[i + 1].Index;
 
-                int searchStart = (i == 0) ? 0 : matches[i - 1].Index + matches[i - 1].Length;
-                int searchEnd = match.Index;
+                // Nyers blokk a két fejléc között
+                string rawBlock = text.Substring(contentStart, contentEnd - contentStart);
 
-                if (searchEnd > searchStart)
-                {
-                    string gapText = text.Substring(searchStart, searchEnd - searchStart);
-                    var logMatch = changeLogRegex.Match(gapText);
-                    if (logMatch.Success)
-                    {
-                        explanation = logMatch.Groups[1].Value.Trim();
-                    }
-                    else
-                    {
-                        if (i > 0 && !string.IsNullOrWhiteSpace(gapText))
-                        {
-                            explanation = gapText.Trim();
-                        }
-                    }
-                }
+                // Szétválasztjuk a kódot és a következő fájlhoz tartozó log-ot (ha van a blokk végén)
+                var (codePart, nextLog) = ExtractExplanationAndLog(rawBlock, looksForLogAtEnd: true);
+
+                // Markdown tisztítás (ha van ``` keret)
+                string cleanCode = RemoveMarkdownFences(codePart);
 
                 parsedFiles.Add(new ParsedFile
                 {
                     Path = path,
-                    NewContent = code,
+                    NewContent = cleanCode,
                     Status = status,
-                    Explanation = explanation
+                    Explanation = nextFileExplanation // Az előző iterációból (vagy preamble-ből) jött log
                 });
+
+                // A most talált log a következő fájlhoz tartozik
+                nextFileExplanation = nextLog;
             }
 
             return (globalExplanation, parsedFiles);
+        }
+
+        private (string content, string log) ExtractExplanationAndLog(string text, bool looksForLogAtEnd = false)
+        {
+            var logStartMarker = "[CHANGE_LOG]";
+            var logEndMarker = "[/CHANGE_LOG]";
+
+            int logStart = text.LastIndexOf(logStartMarker, StringComparison.OrdinalIgnoreCase);
+            int logEnd = text.LastIndexOf(logEndMarker, StringComparison.OrdinalIgnoreCase);
+
+            if (logStart != -1 && logEnd != -1 && logEnd > logStart)
+            {
+                // Van log a szövegben
+                string log = text.Substring(logStart + logStartMarker.Length, logEnd - (logStart + logStartMarker.Length)).Trim();
+
+                // Ha a log a blokk végén van (tipikus eset: Fájl A kódja ... [CHANGE_LOG]...[/CHANGE_LOG] Fájl B)
+                // Akkor a tartalom a log előtti rész.
+                string content = text.Substring(0, logStart).Trim();
+
+                return (content, log);
+            }
+
+            // Nincs log, az egész tartalom a content (kivéve ha preamble, ott fordítva lehetne, de a standard formátum szerint a log a fájlhoz kötődik)
+            return (text.Trim(), "");
+        }
+
+        private string RemoveMarkdownFences(string code)
+        {
+            code = code.Trim();
+            // Egyszerű ellenőrzés: ha ```-al kezdődik
+            if (code.StartsWith("```"))
+            {
+                int firstNewLine = code.IndexOf('\n');
+                if (firstNewLine != -1)
+                {
+                    // Levágjuk az első sort (```csharp)
+                    code = code.Substring(firstNewLine + 1);
+
+                    // Levágjuk az utolsó ```-t ha van
+                    int lastFence = code.LastIndexOf("```");
+                    if (lastFence != -1)
+                    {
+                        code = code.Substring(0, lastFence);
+                    }
+                }
+            }
+            return code.Trim();
         }
     }
 }

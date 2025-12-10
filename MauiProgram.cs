@@ -29,7 +29,8 @@ namespace LlmContextCollector
             builder.Services.AddMauiBlazorWebView();
 
 #if WINDOWS
-            Environment.SetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--use-angle=d3d9");
+                        Environment.SetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+                "--use-angle=d3d9 --enable-features=OverlayScrollbar");
 #endif
 
 #if DEBUG

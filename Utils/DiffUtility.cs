@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Components;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Web;
 
 namespace LlmContextCollector.Utils
@@ -35,25 +34,25 @@ namespace LlmContextCollector.Utils
             {
                 switch (op.Tag)
                 {
-                    case 'e': 
+                    case 'e':
                         for (int i = 0; i < (op.I2 - op.I1); i++)
                         {
                             result.Add(new DiffLineItem(DiffLineType.Context, oldLines[op.I1 + i], op.I1 + i, op.J1 + i));
                         }
                         break;
-                    case 'd': 
+                    case 'd':
                         for (int i = 0; i < (op.I2 - op.I1); i++)
                         {
                             result.Add(new DiffLineItem(DiffLineType.Delete, oldLines[op.I1 + i], op.I1 + i, null));
                         }
                         break;
-                    case 'i': 
+                    case 'i':
                         for (int j = 0; j < (op.J2 - op.J1); j++)
                         {
                             result.Add(new DiffLineItem(DiffLineType.Add, newLines[op.J1 + j], null, op.J1 + j));
                         }
                         break;
-                    case 'r': 
+                    case 'r':
                         for (int i = 0; i < (op.I2 - op.I1); i++)
                         {
                             result.Add(new DiffLineItem(DiffLineType.Delete, oldLines[op.I1 + i], op.I1 + i, null));
@@ -69,26 +68,25 @@ namespace LlmContextCollector.Utils
         }
 
         private static MarkupString GenerateUnifiedMarkup(List<DiffOpcode> opcodes, string[] oldLines, string[] newLines)
-
         {
             var sb = new StringBuilder();
             foreach (var op in opcodes)
             {
                 switch (op.Tag)
                 {
-                    case 'e': 
+                    case 'e':
                         for (int i = op.I1; i < op.I2; i++)
                             sb.AppendLine($"  {HttpUtility.HtmlEncode(oldLines[i])}");
                         break;
-                    case 'd': 
+                    case 'd':
                         for (int i = op.I1; i < op.I2; i++)
                             sb.AppendLine($"<span class=\"diff-del\">- {HttpUtility.HtmlEncode(oldLines[i])}</span>");
                         break;
-                    case 'i': 
+                    case 'i':
                         for (int j = op.J1; j < op.J2; j++)
                             sb.AppendLine($"<span class=\"diff-add\">+ {HttpUtility.HtmlEncode(newLines[j])}</span>");
                         break;
-                    case 'r': 
+                    case 'r':
                         for (int i = op.I1; i < op.I2; i++)
                             sb.AppendLine($"<span class=\"diff-del\">- {HttpUtility.HtmlEncode(oldLines[i])}</span>");
                         for (int j = op.J1; j < op.J2; j++)
@@ -106,11 +104,11 @@ namespace LlmContextCollector.Utils
             {
                 switch (op.Tag)
                 {
-                    case 'e': 
+                    case 'e':
                         for (int i = op.I1; i < op.I2; i++)
                             sb.AppendLine(HttpUtility.HtmlEncode(oldLines[i]));
                         break;
-                    case 'd': 
+                    case 'd':
                         for (int i = op.I1; i < op.I2; i++)
                         {
                             if (isLeft)
@@ -119,7 +117,7 @@ namespace LlmContextCollector.Utils
                                 sb.AppendLine("<span class=\"sbs-empty\">&nbsp;</span>");
                         }
                         break;
-                    case 'i': 
+                    case 'i':
                         for (int j = op.J1; j < op.J2; j++)
                         {
                             if (isLeft)
@@ -128,21 +126,21 @@ namespace LlmContextCollector.Utils
                                 sb.AppendLine($"<span class=\"sbs-add\">{HttpUtility.HtmlEncode(newLines[j])}</span>");
                         }
                         break;
-                    case 'r': 
+                    case 'r':
                         int delCount = op.I2 - op.I1;
                         int addCount = op.J2 - op.J1;
                         int max = Math.Max(delCount, addCount);
 
                         for (int i = 0; i < max; i++)
                         {
-                            if (isLeft) 
+                            if (isLeft)
                             {
                                 if (i < delCount)
                                     sb.AppendLine($"<span class=\"sbs-del\">{HttpUtility.HtmlEncode(oldLines[op.I1 + i])}</span>");
                                 else
                                     sb.AppendLine("<span class=\"sbs-empty\">&nbsp;</span>");
                             }
-                            else 
+                            else
                             {
                                 if (i < addCount)
                                     sb.AppendLine($"<span class=\"sbs-add\">{HttpUtility.HtmlEncode(newLines[op.J1 + i])}</span>");
@@ -158,142 +156,163 @@ namespace LlmContextCollector.Utils
 
         public static List<DiffOpcode> GetOpcodes(string[] a, string[] b)
         {
-            var matcher = new SequenceMatcher(a, b);
-            return matcher.GetOpcodes();
+            return MyersDiff.GetDiffOpcodes(a, b);
         }
 
-        private class SequenceMatcher
+        private static class MyersDiff
         {
-            private readonly string[] _a;
-            private readonly string[] _b;
-            private readonly List<DiffOpcode> _opcodes = new();
-
-            public SequenceMatcher(string[] a, string[] b)
+            public static List<DiffOpcode> GetDiffOpcodes(string[] textA, string[] textB)
             {
-                _a = a;
-                _b = b;
-            }
+                var diffs = Compute(textA, textB);
+                var opcodes = new List<DiffOpcode>();
 
-            public List<DiffOpcode> GetOpcodes()
-            {
-                if (_opcodes.Any()) return _opcodes;
+                int idxA = 0;
+                int idxB = 0;
 
-                var matchingBlocks = GetMatchingBlocks();
-
-                int i1 = 0, j1 = 0;
-                foreach (var (aPos, bPos, size) in matchingBlocks)
+                foreach (var diff in diffs)
                 {
-                    int i2 = aPos;
-                    int j2 = bPos;
-
-                    char tag = ' ';
-                    if (i1 < i2 && j1 < j2) tag = 'r';      
-                    else if (i1 < i2) tag = 'd';           
-                    else if (j1 < j2) tag = 'i';           
-
-                    if (tag != ' ')
+                    if (diff.IndexA > idxA || diff.IndexB > idxB)
                     {
-                        _opcodes.Add(new DiffOpcode(tag, i1, i2, j1, j2));
-                    }
-
-                    if (size > 0)
-                    {
-                        _opcodes.Add(new DiffOpcode('e', i2, i2 + size, j2, j2 + size));
-                    }
-
-                    i1 = i2 + size;
-                    j1 = j2 + size;
-                }
-                return _opcodes;
-            }
-
-            private List<(int a, int b, int size)> GetMatchingBlocks()
-            {
-                var n = _a.Length;
-                var m = _b.Length;
-                var matchingBlocks = new List<(int, int, int)>();
-                var queue = new Queue<(int, int, int, int)>();
-                queue.Enqueue((0, n, 0, m));
-                var b2j = CreateB2J(_b);
-
-                while (queue.Any())
-                {
-                    var (alo, ahi, blo, bhi) = queue.Dequeue();
-                    var (i, j, k) = FindLongestMatch(alo, ahi, blo, bhi, b2j);
-                    if (k > 0)
-                    {
-                        matchingBlocks.Add((i, j, k));
-                        if (alo < i && blo < j)
-                            queue.Enqueue((alo, i, blo, j));
-                        if (i + k < ahi && j + k < bhi)
-                            queue.Enqueue((i + k, ahi, j + k, bhi));
-                    }
-                }
-                matchingBlocks.Sort();
-
-                var finalBlocks = new List<(int, int, int)>();
-                if (matchingBlocks.Any())
-                {
-                    var lastA = -1; var lastB = -1; var lastSize = -1;
-                    foreach (var (a, b, size) in matchingBlocks)
-                    {
-                        if (lastA + lastSize == a && lastB + lastSize == b)
+                        int len = diff.IndexA - idxA;
+                        if (len > 0)
                         {
-                            lastSize += size;
+                            opcodes.Add(new DiffOpcode('e', idxA, idxA + len, idxB, idxB + len));
+                            idxA += len;
+                            idxB += len;
+                        }
+                    }
+
+                    if (diff.Type == ChangeType.Delete)
+                    {
+                        opcodes.Add(new DiffOpcode('d', idxA, idxA + 1, idxB, idxB));
+                        idxA++;
+                    }
+                    else if (diff.Type == ChangeType.Insert)
+                    {
+                        opcodes.Add(new DiffOpcode('i', idxA, idxA, idxB, idxB + 1));
+                        idxB++;
+                    }
+                }
+
+                if (idxA < textA.Length || idxB < textB.Length)
+                {
+                    opcodes.Add(new DiffOpcode('e', idxA, textA.Length, idxB, textB.Length));
+                }
+
+                return MergeAdjacentOpcodes(opcodes);
+            }
+
+            private static List<DiffOpcode> MergeAdjacentOpcodes(List<DiffOpcode> ops)
+            {
+                if (ops.Count == 0) return ops;
+                var merged = new List<DiffOpcode>();
+                var current = ops[0];
+
+                for (int i = 1; i < ops.Count; i++)
+                {
+                    var next = ops[i];
+                    if (current.Tag == next.Tag && current.I2 == next.I1 && current.J2 == next.J1)
+                    {
+                        current = new DiffOpcode(current.Tag, current.I1, next.I2, current.J1, next.J2);
+                    }
+                    else
+                    {
+                        merged.Add(current);
+                        current = next;
+                    }
+                }
+                merged.Add(current);
+                return merged;
+            }
+
+            private enum ChangeType { Insert, Delete }
+            private record DiffChange(ChangeType Type, int IndexA, int IndexB);
+
+            private static List<DiffChange> Compute(string[] textA, string[] textB)
+            {
+                int n = textA.Length;
+                int m = textB.Length;
+                int max = n + m;
+                var v = new int[2 * max + 1];
+                var trace = new List<Dictionary<int, int>>();
+
+                for (int d = 0; d <= max; d++)
+                {
+                    var vCopy = new Dictionary<int, int>();
+                    for (int k = -d; k <= d; k += 2)
+                    {
+                        int x;
+                        if (k == -d || (k != d && v[k - 1 + max] < v[k + 1 + max]))
+                        {
+                            x = v[k + 1 + max];
                         }
                         else
                         {
-                            if (lastSize > 0) finalBlocks.Add((lastA, lastB, lastSize));
-                            lastA = a; lastB = b; lastSize = size;
+                            x = v[k - 1 + max] + 1;
                         }
-                    }
-                    if (lastSize > 0) finalBlocks.Add((lastA, lastB, lastSize));
-                }
 
-                finalBlocks.Add((n, m, 0));
-                return finalBlocks;
-            }
-
-            private Dictionary<string, List<int>> CreateB2J(string[] b)
-            {
-                var b2j = new Dictionary<string, List<int>>();
-                for (int i = 0; i < b.Length; i++)
-                {
-                    if (!b2j.ContainsKey(b[i]))
-                        b2j[b[i]] = new List<int>();
-                    b2j[b[i]].Add(i);
-                }
-                return b2j;
-            }
-
-            private (int, int, int) FindLongestMatch(int alo, int ahi, int blo, int bhi, Dictionary<string, List<int>> b2j)
-            {
-                int best_i = alo, best_j = blo, best_size = 0;
-                var j2len = new Dictionary<int, int>();
-
-                for (int i = alo; i < ahi; i++)
-                {
-                    var new_j2len = new Dictionary<int, int>();
-                    if (b2j.TryGetValue(_a[i], out var js))
-                    {
-                        foreach (int j in js)
+                        int y = x - k;
+                        while (x < n && y < m && textA[x] == textB[y])
                         {
-                            if (j < blo) continue;
-                            if (j >= bhi) break;
+                            x++;
+                            y++;
+                        }
 
-                            int k = (j2len.ContainsKey(j - 1) ? j2len[j - 1] : 0) + 1;
-                            new_j2len[j] = k;
-                            if (k > best_size)
-                            {
-                                best_i = i - k + 1;
-                                best_j = j - k + 1;
-                                best_size = k;
-                            }
+                        v[k + max] = x;
+                        vCopy[k] = x;
+
+                        if (x >= n && y >= m)
+                        {
+                            return Backtrack(trace, textA, textB, vCopy, d);
                         }
                     }
-                    j2len = new_j2len;
+                    trace.Add(vCopy);
                 }
-                return (best_i, best_j, best_size);
+                return new List<DiffChange>();
+            }
+
+            private static List<DiffChange> Backtrack(List<Dictionary<int, int>> trace, string[] textA, string[] textB, Dictionary<int, int> lastV, int d)
+            {
+                var changes = new List<DiffChange>();
+                int x = textA.Length;
+                int y = textB.Length;
+
+                for (int k = d; k > 0; k--)
+                {
+                    var v = trace[k - 1];
+                    int diag = x - y;
+                    int prevK;
+
+                    if (diag == -k || (diag != k && v.ContainsKey(diag + 1) && v.ContainsKey(diag - 1) && v[diag - 1] < v[diag + 1]))
+                    {
+                        prevK = diag + 1;
+                    }
+                    else
+                    {
+                        prevK = diag - 1;
+                    }
+
+                    int prevX = v[prevK];
+                    int prevY = prevX - prevK;
+
+                    while (x > prevX && y > prevY)
+                    {
+                        x--; y--;
+                    }
+
+                    if (x == prevX)
+                    {
+                        changes.Add(new DiffChange(ChangeType.Insert, x, y - 1));
+                        y--;
+                    }
+                    else
+                    {
+                        changes.Add(new DiffChange(ChangeType.Delete, x - 1, y));
+                        x--;
+                    }
+                }
+                changes.Reverse();
+                return changes;
             }
         }
     }

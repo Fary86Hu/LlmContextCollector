@@ -38,7 +38,6 @@
                         <tr>
                             <th class="sortable @GetSortClass("path")" @onclick='() => SortBy("path")'>Elérési út</th>
                             <th class="sortable @GetSortClass("name")" @onclick='() => SortBy("name")'>Fájlnév</th>
-                            <th class="sortable @GetSortClass("semantic")" @onclick='() => SortBy("semantic")'>Egyezés</th>
                             <th class="sortable @GetSortClass("size")" @onclick='() => SortBy("size")'>Méret</th>
                         </tr>
                     </thead>
@@ -51,7 +50,6 @@
                                 @oncontextmenu="(e) => ShowContextMenuForRow(e, fileInfo.RelativePath)" @oncontextmenu:preventDefault>
                                 <td>@fileInfo.DisplayPath</td>
                                 <td>@fileInfo.FileName</td>
-                                <td style="text-align: right;">@(fileInfo.SemanticScore >= 0 ? fileInfo.SemanticScore.ToString("F2") : "-")</td>
                                 <td style="text-align: right;">@fileInfo.Size.ToString("N0")</td>
                             </tr>
                         }
