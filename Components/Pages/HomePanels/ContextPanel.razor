@@ -39,6 +39,7 @@
                             <th class="sortable @GetSortClass("path")" @onclick='() => SortBy("path")'>Elérési út</th>
                             <th class="sortable @GetSortClass("name")" @onclick='() => SortBy("name")'>Fájlnév</th>
                             <th class="sortable @GetSortClass("size")" @onclick='() => SortBy("size")'>Méret</th>
+                            <th>Műveletek</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -51,6 +52,11 @@
                                 <td>@fileInfo.DisplayPath</td>
                                 <td>@fileInfo.FileName</td>
                                 <td style="text-align: right;">@fileInfo.Size.ToString("N0")</td>
+                                <td class="actions-cell" @onclick:stopPropagation>
+                                    <button class="icon-btn-small" title="Referenciák hozzáadása (1 mélység)" @onclick="() => OnAddReferencesClick(fileInfo.RelativePath)">🔗</button>
+                                    <button class="icon-btn-small" title="Hivatkozó fájlok hozzáadása" @onclick="() => OnAddReferencingClick(fileInfo.RelativePath)">👈</button>
+                                    <button class="icon-btn-small delete-btn" title="Törlés a listából" @onclick="() => OnRemoveItemClick(fileInfo.RelativePath)">🗑️</button>
+                                </td>
                             </tr>
                         }
                     </tbody>
@@ -75,17 +81,23 @@
             <div class="preview-header">
                 <h4>Fájl Előnézet</h4>
                 <div class="preview-search-controls">
+                    <div class="ref-toggle" title="Referenciák megjelenítése/elrejtése. Zöld: Kontextusban, Kék: Nincs kontextusban.">
+                        <input type="checkbox" id="chk-refs" checked="@_showReferences" @onchange="ToggleReferences" />
+                        <label for="chk-refs">Ref.</label>
+                    </div>
+                    
                     <input type="text" 
                            placeholder="Keresés..." 
                            @bind="_previewSearchTerm" 
                            @bind:event="oninput" 
-                           @onkeyup="HandlePreviewSearchKeyup" />
+                           @onkeyup="HandlePreviewSearchKeyup" 
+                           disabled="@_showReferences" />
                     @if (_totalPreviewMatches > 0)
                     {
                         <span class="preview-match-counter">@_currentPreviewMatchIndex/@_totalPreviewMatches</span>
                     }
-                    <button @onclick="FindPreviousInPreview" disabled="@(_totalPreviewMatches == 0)" title="Előző">▲</button>
-                    <button @onclick="FindNextInPreview" disabled="@(_totalPreviewMatches == 0)" title="Következő">▼</button>
+                    <button @onclick="FindPreviousInPreview" disabled="@(_totalPreviewMatches == 0 || _showReferences)" title="Előző">▲</button>
+                    <button @onclick="FindNextInPreview" disabled="@(_totalPreviewMatches == 0 || _showReferences)" title="Következő">▼</button>
                     <button @onclick="ClearPreviewSearch" disabled="@(string.IsNullOrEmpty(_previewSearchTerm))" class="clear-btn">&times;</button>
                 </div>
             </div>
@@ -109,6 +121,22 @@
             </div>
         </div>
     }
+    
+    <script>
+        window.initializePreviewInteractions = (dotNetObj) => {
+            const box = document.getElementById('preview-box');
+            if(box) {
+                box.addEventListener('click', (e) => {
+                    const target = e.target.closest('.ref-badge');
+                    if (target && target.dataset.typeName) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dotNetObj.invokeMethodAsync('OnReferenceClicked', target.dataset.typeName);
+                    }
+                });
+            }
+        };
+    </script>
 
     <div class="bottom-actions">
         <div class="copy-options">

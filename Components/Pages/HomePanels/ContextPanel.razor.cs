@@ -38,6 +38,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         [Inject]
         private RelevanceFinderService RelevanceFinderService { get; set; } = null!;
         [Inject]
+        private ReferenceFinderService ReferenceFinderService { get; set; } = null!;
+        [Inject]
         private OpenRouterService OpenRouterService { get; set; } = null!;
         [Inject]
         private BrowserService BrowserService { get; set; } = null!;
@@ -82,6 +84,10 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private int _totalPreviewMatches = 0;
         private bool _isInitialPreviewSearch = true;
         
+        private bool _showReferences = false;
+        private Dictionary<string, string> _projectTypeMap = new(StringComparer.OrdinalIgnoreCase);
+        private DotNetObjectReference<ContextPanel>? _objRef;
+
         private bool _includePromptInCopy = true;
         private bool _includeSystemPrompt = true;
 
@@ -104,8 +110,9 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         private bool IsIndexReady => EmbeddingIndexService.GetIndex()?.Any() ?? false;
 
-        protected override void OnInitialized()
+        protected override async Task OnInitializedAsync()
         {
+            _objRef = DotNetObjectReference.Create(this);
             AppState.SelectedFilesForContext.CollectionChanged += OnSelectedFilesChanged;
             AppState.PropertyChanged += OnAppStateChanged;
             
@@ -114,6 +121,14 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
             UpdateSortedFiles();
             SortFiles();
+        }
+
+        protected override async Task OnAfterRenderAsync(bool firstRender)
+        {
+            if (firstRender)
+            {
+                await JSRuntime.InvokeVoidAsync("initializePreviewInteractions", _objRef);
+            }
         }
 
         private async void OnAppStateChanged(object? sender, PropertyChangedEventArgs e)
@@ -134,6 +149,11 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             UpdateCounts();
             UpdateSortedFiles();
             SortFiles();
+            if (_showReferences)
+            {
+                // Ha változott a kontextus, frissíteni kell a színeket (zöld/kék)
+                UpdatePreviewMarkup();
+            }
             InvokeAsync(StateHasChanged);
         }
 
@@ -142,6 +162,76 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             if (e.Key == "Delete")
             {
                 await OnRequestRemoveSelected.InvokeAsync();
+            }
+        }
+
+        private async Task OnAddReferencesClick(string filePath)
+        {
+            if (string.IsNullOrEmpty(AppState.ProjectRoot)) return;
+            AppState.ShowLoading("Referenciák keresése...");
+            try
+            {
+                var newFiles = await ReferenceFinderService.FindReferencesAsync(
+                    new List<string> { filePath },
+                    AppState.FileTree,
+                    AppState.ProjectRoot,
+                    1
+                );
+
+                int added = 0;
+                foreach (var f in newFiles)
+                {
+                    if (!AppState.SelectedFilesForContext.Contains(f))
+                    {
+                        AppState.SelectedFilesForContext.Add(f);
+                        added++;
+                    }
+                }
+                AppState.SaveContextListState();
+                AppState.StatusText = $"{added} referencia hozzáadva.";
+            }
+            finally
+            {
+                AppState.HideLoading();
+            }
+        }
+
+        private async Task OnAddReferencingClick(string filePath)
+        {
+            if (string.IsNullOrEmpty(AppState.ProjectRoot)) return;
+            AppState.ShowLoading("Hivatkozók keresése...");
+            try
+            {
+                var newFiles = await ReferenceFinderService.FindReferencingFilesAsync(
+                    new List<string> { filePath },
+                    AppState.FileTree,
+                    AppState.ProjectRoot
+                );
+
+                int added = 0;
+                foreach (var f in newFiles)
+                {
+                    if (!AppState.SelectedFilesForContext.Contains(f))
+                    {
+                        AppState.SelectedFilesForContext.Add(f);
+                        added++;
+                    }
+                }
+                AppState.SaveContextListState();
+                AppState.StatusText = $"{added} hivatkozó fájl hozzáadva.";
+            }
+            finally
+            {
+                AppState.HideLoading();
+            }
+        }
+
+        private void OnRemoveItemClick(string filePath)
+        {
+            if (AppState.SelectedFilesForContext.Contains(filePath))
+            {
+                AppState.SelectedFilesForContext.Remove(filePath);
+                AppState.SaveContextListState();
             }
         }
         
@@ -688,6 +778,12 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 await ClearPreviewSearch();
                 return;
             }
+            
+            // Ha keresünk, kapcsoljuk ki a referencia módot, hogy látszódjon a találat
+            if (_showReferences)
+            {
+                _showReferences = false;
+            }
 
             _previewSearchTerm = searchTerm;
             _isInitialPreviewSearch = true;
@@ -698,6 +794,116 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             await ScrollToCurrentPreviewMatch();
         }
         
+        private async Task ToggleReferences(ChangeEventArgs e)
+        {
+            _showReferences = (bool)(e.Value ?? false);
+            if (_showReferences)
+            {
+                _previewSearchTerm = string.Empty; // Keresés törlése
+                await BuildProjectFileMap();
+            }
+            UpdatePreviewMarkup();
+            await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task BuildProjectFileMap()
+        {
+            _projectTypeMap.Clear();
+            if (string.IsNullOrEmpty(AppState.ProjectRoot)) return;
+
+            // Gyors bejárás a FileTree-n
+            void ScanNodes(IEnumerable<FileNode> nodes)
+            {
+                foreach (var node in nodes)
+                {
+                    if (node.IsDirectory)
+                    {
+                        ScanNodes(node.Children);
+                    }
+                    else
+                    {
+                        var ext = Path.GetExtension(node.Name).ToLowerInvariant();
+                        if (ext == ".cs" || ext == ".razor" || ext == ".cshtml")
+                        {
+                            // Feltételezzük, hogy a fájlnév megegyezik a típusnévvel (konvenció)
+                            var typeName = Path.GetFileNameWithoutExtension(node.Name);
+                            if (!_projectTypeMap.ContainsKey(typeName))
+                            {
+                                var relPath = Path.GetRelativePath(AppState.ProjectRoot, node.FullPath).Replace('\\', '/');
+                                _projectTypeMap[typeName] = relPath;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            await Task.Run(() => ScanNodes(AppState.FileTree));
+        }
+
+        [JSInvokable]
+        public void OnReferenceClicked(string typeName)
+        {
+            if (_projectTypeMap.TryGetValue(typeName, out var relPath))
+            {
+                var filesToProcess = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                filesToProcess.Add(relPath);
+
+                var related = ReferenceFinderService.GetRelatedFilesByConvention(relPath, AppState.FileTree, AppState.ProjectRoot);
+                foreach (var r in related)
+                {
+                    filesToProcess.Add(r);
+                }
+
+                bool isAdding = !AppState.SelectedFilesForContext.Contains(relPath);
+                int changesCount = 0;
+
+                foreach (var file in filesToProcess)
+                {
+                    if (!IsFileAvailable(file)) continue;
+
+                    if (isAdding)
+                    {
+                        if (!AppState.SelectedFilesForContext.Contains(file))
+                        {
+                            AppState.SelectedFilesForContext.Add(file);
+                            changesCount++;
+                        }
+                    }
+                    else
+                    {
+                        if (AppState.SelectedFilesForContext.Contains(file))
+                        {
+                            AppState.SelectedFilesForContext.Remove(file);
+                            changesCount++;
+                        }
+                    }
+                }
+
+                if (changesCount > 0)
+                {
+                    AppState.SaveContextListState();
+                    AppState.StatusText = isAdding
+                        ? $"{changesCount} fájl hozzáadva (ref)."
+                        : $"{changesCount} fájl eltávolítva (ref).";
+                }
+            }
+        }
+
+        private bool IsFileAvailable(string relPath)
+        {
+            if (string.IsNullOrEmpty(AppState.ProjectRoot)) return false;
+            try
+            {
+                var fullPath = Path.Combine(AppState.ProjectRoot, relPath.Replace('/', Path.DirectorySeparatorChar));
+                var node = AppState.FindNodeByPath(fullPath);
+                return node != null && node.IsVisible;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private void UpdatePreviewMarkup()
         {
             if (string.IsNullOrEmpty(_previewContent))
@@ -706,17 +912,44 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 ResetPreviewSearchState();
                 return;
             }
+            
+            var encodedContent = HttpUtility.HtmlEncode(_previewContent);
 
+            // 1. Üzemmód: Referenciák
+            if (_showReferences)
+            {
+                // Egyszerű regex a PascalCase szavakra
+                // Kizárjuk a kulcsszavakat egyszerű módon: csak azt jelöljük meg, ami benne van a _projectTypeMap-ben
+                var refRegex = new Regex(@"\b[A-Z][a-zA-Z0-9_]*\b", RegexOptions.Compiled);
+                
+                var highlightedContent = refRegex.Replace(encodedContent, m =>
+                {
+                    var token = m.Value;
+                    if (_projectTypeMap.TryGetValue(token, out var relPath))
+                    {
+                        bool isInContext = AppState.SelectedFilesForContext.Contains(relPath);
+                        string cssClass = isInContext ? "ref-badge ref-present" : "ref-badge ref-missing";
+                        string title = isInContext ? "Kontextusban (Kattints az eltávolításhoz)" : "Nincs a kontextusban (Kattints a hozzáadáshoz)";
+                        return $"<span class=\"{cssClass}\" data-type-name=\"{token}\" title=\"{title}\">{token}</span>";
+                    }
+                    return token;
+                });
+                
+                _previewContentMarkup = new MarkupString(highlightedContent);
+                ResetPreviewSearchState();
+                return;
+            }
+
+            // 2. Üzemmód: Normál szöveges keresés
             if (string.IsNullOrWhiteSpace(_previewSearchTerm))
             {
-                _previewContentMarkup = new MarkupString(HttpUtility.HtmlEncode(_previewContent));
+                _previewContentMarkup = new MarkupString(encodedContent);
                 ResetPreviewSearchState();
                 return;
             }
 
             var term = _previewSearchTerm;
             int matchCount = 0;
-            var encodedContent = HttpUtility.HtmlEncode(_previewContent);
             var encodedTerm = HttpUtility.HtmlEncode(term);
 
             _totalPreviewMatches = Regex.Matches(encodedContent, Regex.Escape(encodedTerm), RegexOptions.IgnoreCase).Count;
@@ -736,7 +969,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 _currentPreviewMatchIndex = 0;
             }
 
-            var highlightedContent = Regex.Replace(encodedContent,
+            var highlightedSearch = Regex.Replace(encodedContent,
                 Regex.Escape(encodedTerm),
                 m =>
                 {
@@ -751,7 +984,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 },
                 RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
-            _previewContentMarkup = new MarkupString(highlightedContent);
+            _previewContentMarkup = new MarkupString(highlightedSearch);
         }
 
         private void ResetPreviewSearchState()
@@ -825,6 +1058,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         public void Dispose()
         {
+            _objRef?.Dispose();
             AppState.SelectedFilesForContext.CollectionChanged -= OnSelectedFilesChanged;
             AppState.PropertyChanged -= OnAppStateChanged;
             

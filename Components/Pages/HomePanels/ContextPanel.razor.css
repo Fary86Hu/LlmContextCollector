@@ -36,6 +36,7 @@
     margin: 0;
 }
 
+/* --- Prompt Editor Section --- */
 .prompt-container {
     position: relative;
     flex-grow: 1;
@@ -80,6 +81,7 @@
         background-color: rgba(0, 0, 0, 0.7);
     }
 
+/* --- Context List Table --- */
 .context-list-header {
     display: flex;
     justify-content: space-between;
@@ -117,12 +119,22 @@
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    
-    .context-table th:nth-child(1) { width: 55%; }
-    .context-table th:nth-child(2) { width: 20%; }
-    .context-table th:nth-child(3) { width: 10%; }
-    .context-table th:nth-child(4) { width: 15%; }
 
+        .context-table th:nth-child(1) {
+            width: 55%;
+        }
+
+        .context-table th:nth-child(2) {
+            width: 20%;
+        }
+
+        .context-table th:nth-child(3) {
+            width: 10%;
+        }
+
+        .context-table th:nth-child(4) {
+            width: 15%;
+        }
 
     .context-table th {
         background-color: var(--toolbar-bg);
@@ -130,36 +142,36 @@
         top: 0;
     }
 
-    .context-table th.sortable {
-        cursor: pointer;
-    }
-
-        .context-table th.sortable:hover {
-            background-color: var(--hover-bg-color);
+        .context-table th.sortable {
+            cursor: pointer;
         }
 
-        .context-table th.sortable.active {
-            background-color: var(--hover-bg-color);
-        }
+            .context-table th.sortable:hover {
+                background-color: var(--hover-bg-color);
+            }
 
-        .context-table th.sortable.active::after {
-            content: '';
-            display: inline-block;
-            width: 0;
-            height: 0;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            margin-left: 4px;
-            vertical-align: middle;
-        }
+            .context-table th.sortable.active {
+                background-color: var(--hover-bg-color);
+            }
 
-        .context-table th.sortable.active.asc::after {
-            border-bottom: 4px solid var(--text-color);
-        }
+                .context-table th.sortable.active::after {
+                    content: '';
+                    display: inline-block;
+                    width: 0;
+                    height: 0;
+                    border-left: 4px solid transparent;
+                    border-right: 4px solid transparent;
+                    margin-left: 4px;
+                    vertical-align: middle;
+                }
 
-        .context-table th.sortable.active.desc::after {
-            border-top: 4px solid var(--text-color);
-        }
+                .context-table th.sortable.active.asc::after {
+                    border-bottom: 4px solid var(--text-color);
+                }
+
+                .context-table th.sortable.active.desc::after {
+                    border-top: 4px solid var(--text-color);
+                }
 
     .context-table tbody tr:hover {
         background-color: var(--hover-bg-color);
@@ -177,6 +189,7 @@
     margin: 0 5px;
 }
 
+/* --- Preview Section --- */
 .preview-header {
     display: flex;
     justify-content: space-between;
@@ -204,10 +217,10 @@
         line-height: 1;
     }
 
-    .preview-search-controls button.clear-btn {
-        font-size: 20px;
-        font-weight: bold;
-    }
+        .preview-search-controls button.clear-btn {
+            font-size: 20px;
+            font-weight: bold;
+        }
 
 .preview-match-counter {
     font-size: var(--font-size-sm);
@@ -232,6 +245,38 @@
         word-break: break-all;
     }
 
+.actions-cell {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+}
+
+.icon-btn-small {
+    background: none;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    line-height: 1;
+    opacity: 0.7;
+    transition: all 0.2s;
+}
+
+.icon-btn-small:hover {
+    opacity: 1;
+    background-color: rgba(0,0,0,0.1);
+    border-color: var(--border-color);
+}
+
+.icon-btn-small.delete-btn:hover {
+    background-color: var(--diff-del-bg);
+    color: white;
+}
+
+/* --- Dynamic Highlights (Search & References) --- */
+
+/* Search Highlights */
 ::deep .highlight {
     background-color: #f0e68c;
     color: #000;
@@ -254,6 +299,54 @@ html[data-theme="dark"] ::deep .highlight.current {
     outline: 1px solid #ffeb3b;
 }
 
+/* Reference Toggle & Badges */
+.ref-toggle {
+    display: flex;
+    align-items: center;
+    margin-right: 8px;
+    font-size: 0.85em;
+    border-right: 1px solid #ccc;
+    padding-right: 8px;
+}
+
+    .ref-toggle input {
+        margin-right: 4px;
+    }
+
+/* Reference Badges - Text selection enabled */
+/* ::deep is required because these are injected via MarkupString */
+::deep .ref-badge {
+    display: inline-block;
+    padding: 0 4px;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: text;
+    transition: all 0.2s;
+    margin: 0 1px;
+    border: 1px solid transparent;
+}
+
+    ::deep .ref-badge:hover {
+        text-decoration: underline;
+        filter: brightness(0.9);
+    }
+
+    /* Blue: Not in Context */
+    ::deep .ref-badge.ref-missing {
+        background-color: #e3f2fd;
+        color: #0d47a1;
+        border-color: #bbdefb;
+    }
+
+    /* Green: In Context */
+    ::deep .ref-badge.ref-present {
+        background-color: #e8f5e9;
+        color: #1b5e20;
+        border-color: #c8e6c9;
+    }
+
+/* --- Footer Actions --- */
 .bottom-actions {
     display: flex;
     flex-direction: column;
@@ -268,12 +361,12 @@ html[data-theme="dark"] ::deep .highlight.current {
     font-size: var(--font-size-sm);
 }
 
-.copy-options label {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    cursor: pointer;
-}
+    .copy-options label {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+    }
 
 .main-actions {
     display: flex;
@@ -281,6 +374,7 @@ html[data-theme="dark"] ::deep .highlight.current {
     gap: 10px;
 }
 
+/* --- Splitter --- */
 .horizontal-splitter {
     height: 5px;
     background-color: var(--bg-color);
@@ -289,11 +383,12 @@ html[data-theme="dark"] ::deep .highlight.current {
     cursor: row-resize;
     flex-shrink: 0;
 }
-.horizontal-splitter:hover {
-    background-color: var(--accent-color);
-}
 
-/* BROWSER MODE STYLES */
+    .horizontal-splitter:hover {
+        background-color: var(--accent-color);
+    }
+
+/* --- Browser Mode Styles --- */
 .browser-placeholder-mode {
     flex-grow: 1;
     display: flex;

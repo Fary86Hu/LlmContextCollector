@@ -13,6 +13,47 @@ namespace LlmContextCollector.Services
         private static readonly Regex TypeNamePartRegex = new Regex(@"\b[A-Z][a-zA-Z0-9_]*\b", RegexOptions.Compiled);
 
 
+        public List<string> GetRelatedFilesByConvention(string sourceRelPath, List<FileNode> allNodes, string projectRoot)
+        {
+            var relatedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var allProjectFiles = new List<FileNode>();
+            GetAllFileNodes(allNodes, allProjectFiles);
+            
+            var allProjectPaths = new HashSet<string>(
+                allProjectFiles.Select(f => Path.GetRelativePath(projectRoot, f.FullPath).Replace('\\', '/')), 
+                StringComparer.OrdinalIgnoreCase
+            );
+
+            // 1. Razor Bundle Logic (.razor -> .razor.cs, .razor.css, .css)
+            if (sourceRelPath.EndsWith(".razor", StringComparison.OrdinalIgnoreCase))
+            {
+                var candidates = new[] { sourceRelPath + ".cs", sourceRelPath + ".css" };
+                foreach (var candidate in candidates)
+                {
+                    if (allProjectPaths.Contains(candidate))
+                    {
+                        relatedFiles.Add(candidate);
+                    }
+                }
+            }
+            
+            // 2. Interface -> Implementation Convention (IUserService.cs -> UserService.cs)
+            var fileName = Path.GetFileName(sourceRelPath);
+            if (fileName.Length > 3 && fileName.StartsWith('I') && char.IsUpper(fileName[1]) && fileName.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            {
+                var implName = fileName.Substring(1); // "UserService.cs"
+                // Keressük meg ezt a fájlt a projektben (bárhol lehet, nem feltétlenül ugyanott)
+                var implNode = allProjectFiles.FirstOrDefault(f => f.Name.Equals(implName, StringComparison.OrdinalIgnoreCase));
+                if (implNode != null)
+                {
+                    var implRelPath = Path.GetRelativePath(projectRoot, implNode.FullPath).Replace('\\', '/');
+                    relatedFiles.Add(implRelPath);
+                }
+            }
+
+            return relatedFiles.ToList();
+        }
+
         public async Task<List<string>> FindReferencesAsync(List<string> startingFilesRel, List<FileNode> allNodes, string projectRoot, int depth)
         {
             var allFoundFilesRel = new HashSet<string>();
