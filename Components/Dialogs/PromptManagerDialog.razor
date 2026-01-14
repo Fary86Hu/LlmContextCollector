@@ -5,7 +5,7 @@
     <div class="modal-backdrop">
         <div class="modal-dialog">
             <div class="modal-header">
-                <h3>Prompt Sablon Kezelő</h3>
+                <h3>Globális Prompt Kezelő</h3>
                 <button class="close-btn" @onclick="Close">&times;</button>
             </div>
             <div class="modal-body">
@@ -33,7 +33,10 @@
                             <label for="prompt-title">Cím:</label>
                             <input id="prompt-title" type="text" @bind="_selectedPrompt.Title" />
 
-                            <label for="prompt-content">Tartalom:</label>
+                            <label for="prompt-content">Rendszerutasítás Tartalma:</label>
+                            <p class="hint-text" style="margin-top:0; font-size: 0.8em; color: gray;">
+                                Ez az utasítás határozza meg a modell viselkedését (TISZTÁZÁS vs IMPLEMENTÁCIÓ).
+                            </p>
                             <textarea id="prompt-content" @bind="_selectedPrompt.Content"></textarea>
                         }
                         else
@@ -41,11 +44,6 @@
                             <div class="editor-placeholder">Válassz ki egy promptot a szerkesztéshez, vagy hozz létre egy újat.</div>
                         }
                     </div>
-                </div>
-                 <div class="global-prefix-editor">
-                    <label for="system-prompt">Rendszer Prompt (Unified):</label>
-                    <p class="hint-text">Ez az utasítás határozza meg a modell viselkedését: döntés a kérdezés (Clarification) és a kódolás (Implementation) között.</p>
-                    <textarea id="system-prompt" @bind="_systemPrompt" rows="10"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
@@ -65,7 +63,6 @@
 
     private List<PromptTemplate> _promptsInManager = new();
     private PromptTemplate? _selectedPrompt;
-    private string _systemPrompt = string.Empty;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -78,8 +75,11 @@
     private async Task LoadData()
     {
         _promptsInManager = (await PromptService.GetPromptsAsync()).Select(p => p.Clone()).ToList();
-        _systemPrompt = await PromptService.GetSystemPromptAsync();
         _selectedPrompt = null;
+        if (_promptsInManager.Any())
+        {
+             _selectedPrompt = _promptsInManager.First();
+        }
     }
 
     private void SelectPrompt(PromptTemplate prompt)
@@ -105,7 +105,7 @@
     
     private async Task SaveChanges()
     {
-        await PromptService.SaveAllAsync(_promptsInManager, _systemPrompt);
+        await PromptService.SaveAllAsync(_promptsInManager);
         await Close();
     }
 

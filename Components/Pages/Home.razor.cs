@@ -83,10 +83,6 @@ namespace LlmContextCollector.Components.Pages
 
         private async void OnAppStateChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(AppState.SelectedPromptTemplateId))
-            {
-                AppState.UpdatePromptTextFromTemplate();
-            }
             await InvokeAsync(StateHasChanged);
         }
 

@@ -39,7 +39,7 @@ namespace LlmContextCollector.Services
                 IgnoreFilter = _appState.IgnorePatternsRaw,
                 PromptText = _appState.PromptText,
                 SelectedTemplateTitle = _appState.PromptTemplates
-                                           .FirstOrDefault(p => p.Id == _appState.SelectedPromptTemplateId)?.Title
+                                           .FirstOrDefault(p => p.Id == _appState.ActiveGlobalPromptId)?.Title
             };
 
             var history = _appState.HistoryEntries;

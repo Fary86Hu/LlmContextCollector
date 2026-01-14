@@ -8,6 +8,6 @@ namespace LlmContextCollector.Models
 
     public class GlobalPreferences
     {
-        public string SystemPrompt { get; set; } = string.Empty;
+        public Guid ActivePromptId { get; set; }
     }
 }

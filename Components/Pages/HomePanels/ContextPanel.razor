@@ -4,9 +4,8 @@
     {
         <div class="right-top-section">
             <div class="toolbar" style="align-items: center;">
-                <label for="prompt-template" style="margin-right: 5px;">Prompt Sablon:</label>
-                <select id="prompt-template" style="flex-grow: 1;" @bind="AppState.SelectedPromptTemplateId">
-                    <option value="@Guid.Empty">(Nincs)</option>
+                <label for="prompt-template" style="margin-right: 5px;">Globális Prompt:</label>
+                <select id="prompt-template" style="flex-grow: 1;" @bind="AppState.ActiveGlobalPromptId">
                     @foreach (var prompt in AppState.PromptTemplates)
                     {
                         <option value="@prompt.Id">@prompt.Title</option>

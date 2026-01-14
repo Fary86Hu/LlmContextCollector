@@ -138,7 +138,9 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 _promptForLastSemanticSort = null;
             }
             if (e.PropertyName == nameof(AppState.IsSemanticIndexBuilding) ||
-                e.PropertyName == nameof(AppState.AdoDocsExist))
+                e.PropertyName == nameof(AppState.AdoDocsExist) ||
+                e.PropertyName == nameof(AppState.ActiveGlobalPromptId) || 
+                e.PropertyName == nameof(AppState.PromptTemplates))
             {
                 await InvokeAsync(StateHasChanged);
             }

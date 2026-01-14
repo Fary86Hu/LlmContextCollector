@@ -114,23 +114,36 @@ namespace LlmContextCollector.Services
             set => SetField(ref _theme, value);
         }
 
-        private Guid _selectedPromptTemplateId;
-        public Guid SelectedPromptTemplateId
+        // --- Módosítás: Aktív Globális Prompt ID ---
+        private Guid _activeGlobalPromptId;
+        public Guid ActiveGlobalPromptId
         {
-            get => _selectedPromptTemplateId;
-            set => SetField(ref _selectedPromptTemplateId, value);
+            get => _activeGlobalPromptId;
+            set
+            {
+                if (SetField(ref _activeGlobalPromptId, value))
+                {
+                    // Aszinkron mentés háttérben
+                    _ = _promptService.SetActivePromptIdAsync(value);
+                }
+            }
         }
+        
         public List<PromptTemplate> PromptTemplates { get; set; } = new();
+        
         public async Task LoadPromptsAsync()
         {
             PromptTemplates = await _promptService.GetPromptsAsync();
+            var activeId = await _promptService.GetActivePromptIdAsync();
+            
+            // Értékadást közvetlenül a mezőnek, hogy ne triggerelje a mentést újra betöltéskor,
+            // vagy PropertyChanged hívással. Itt direkt set, mert inicializálás.
+            _activeGlobalPromptId = activeId;
+            
             NotifyStateChanged(nameof(PromptTemplates));
+            NotifyStateChanged(nameof(ActiveGlobalPromptId));
         }
-        public void UpdatePromptTextFromTemplate()
-        {
-            var selectedTemplate = PromptTemplates.FirstOrDefault(p => p.Id == SelectedPromptTemplateId);
-            PromptText = selectedTemplate?.Content ?? string.Empty;
-        }
+        // ---------------------------------------------
 
         private string _groqApiKey = string.Empty;
         public string GroqApiKey

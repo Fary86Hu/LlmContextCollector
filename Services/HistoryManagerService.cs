@@ -66,7 +66,10 @@ namespace LlmContextCollector.Services
 
                 _appState.PromptText = entry.PromptText;
                 var matchingTemplate = _appState.PromptTemplates.FirstOrDefault(p => p.Title == entry.SelectedTemplateTitle);
-                _appState.SelectedPromptTemplateId = matchingTemplate?.Id ?? System.Guid.Empty;
+                if (matchingTemplate != null)
+                {
+                    _appState.ActiveGlobalPromptId = matchingTemplate.Id;
+                }
                 _appState.StatusText = $"Előzmény betöltve: {Path.GetFileName(entry.RootFolder)}";
             }
             finally
