@@ -24,12 +24,38 @@
             <WebView x:Name="InternalBrowser" Grid.Row="0" BackgroundColor="White" />
 
             <!-- Vezérlő Sáv -->
-            <StackLayout Grid.Row="1" Orientation="Horizontal" Spacing="10" Padding="10" BackgroundColor="#E0E0E0">
-                <Button Text="Bezárás" Clicked="CloseBrowser_Clicked" BackgroundColor="#888" TextColor="White" WidthRequest="100" />
-                <Label Text="Jelentkezz be, illeszd be a szöveget, majd a válasz generálása után kattints a feldolgozásra." 
-                       VerticalOptions="Center" TextColor="Black" FontSize="12" LineBreakMode="TailTruncation" HorizontalOptions="FillAndExpand" />
-                <Button Text="Válasz Feldolgozása" Clicked="ExtractBrowser_Clicked" BackgroundColor="#0078d4" TextColor="White" WidthRequest="180" FontAttributes="Bold" />
-            </StackLayout>
+            <Grid Grid.Row="1" BackgroundColor="#E0E0E0" Padding="10" RowSpacing="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Prompt Config Row -->
+                <StackLayout Grid.Row="0" Orientation="Horizontal" Spacing="10" VerticalOptions="Center">
+                    <Label Text="Prompt:" VerticalOptions="Center" FontAttributes="Bold" TextColor="Black" />
+                    <StackLayout Orientation="Horizontal" Spacing="2">
+                        <CheckBox x:Name="SystemPromptCheckBox" IsChecked="True" Color="#0078d4" />
+                        <Label Text="System" VerticalOptions="Center" TextColor="Black">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="SystemLabel_Tapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </StackLayout>
+                    <Button Text="Másolás" Clicked="CopyContext_Clicked" BackgroundColor="#0078d4" TextColor="White" HeightRequest="32" Padding="10,0" FontSize="12" />
+                </StackLayout>
+
+                <!-- Prompt Editor Row -->
+                <Editor x:Name="PromptEditor" Grid.Row="1" HeightRequest="60" MaximumHeightRequest="120" BackgroundColor="White" TextColor="Black" FontSize="12" AutoSize="TextChanges" Placeholder="Prompt szövege..." />
+
+                <!-- Action Buttons Row -->
+                <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Padding="0,5,0,0">
+                    <Button Grid.Column="0" Text="Bezárás" Clicked="CloseBrowser_Clicked" BackgroundColor="#666" TextColor="White" HeightRequest="36" FontSize="12" WidthRequest="80" />
+                    <Label Grid.Column="1" Text="Illeszd be a vágólap tartalmát az AI-nak, majd a válasz után kattints a Feldolgozásra." 
+                           VerticalOptions="Center" TextColor="#333" FontSize="11" LineBreakMode="WordWrap" HorizontalTextAlignment="Center" />
+                    <Button Grid.Column="2" Text="Feldolgozás" Clicked="ExtractBrowser_Clicked" BackgroundColor="#28a745" TextColor="White" HeightRequest="36" FontAttributes="Bold" FontSize="12" WidthRequest="100" />
+                </Grid>
+            </Grid>
         </Grid>
     </Grid>
 </ContentPage>

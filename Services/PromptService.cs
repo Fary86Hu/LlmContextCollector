@@ -30,9 +30,9 @@ namespace LlmContextCollector.Services
             "      - A code blockon belüli tartalomnak KARAKTERHELYESEN egyeznie kell azzal, amit a lemezre mentenék.\n" +
             "      - A válaszod NEM egy chat üzenet a kódon belül, hanem maga a nyers fájl.\n\n" +
             "   2. META-KOMMENTEK TILTÁSA:\n" +
-            "      - SZIGORÚAN TILOS a változtatásokat magyarázó kommentek beszúrása a kód sorai közé (pl. TILOS: `// Itt adtam hozzá a checkboxot`, `// Modified line`).\n" +
-            "      - A magyarázatok helye KIZÁRÓLAG a [CHANGE_LOG] blokk.\n" +
-            "      - A kódban csak a nyelvhez szükséges szintaktikai elemek és eredeti dokumentációs kommentek maradhatnak.\n\n" +
+            "      - SZIGORÚAN TILOS a változtatásokat magyarázó kommentek beszúrása a kód sorai közé, vagy a függvények elé (pl. TILOS: `// Itt adtam hozzá a checkboxot`, `// Modified line`).\n" +
+            "      - A magyarázatok helye KIZÁRÓLAG a [CHANGE_LOG] blokk a code rész előtt.\n" +
+            "      - A kódban csak a nyelvhez szükséges szintaktikai elemek.\n\n" +
             "   3. TELJESSÉG ELVE (NO PLACEHOLDERS):\n" +
             "      - A kódnak fordíthatónak és futtathatónak kell lennie a dobozból kivéve.\n" +
             "      - SZIGORÚAN TILOS a '// ... a többi rész változatlan ...' vagy hasonló placeholder kommentek használata, ha a teljes fájlt írod ki.\n\n" +

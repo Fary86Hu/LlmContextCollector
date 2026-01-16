@@ -104,8 +104,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         private string _clarificationDialogText = string.Empty;
         
-        private bool _isBrowserMode = false;
-
         private record ContextListItem(string RelativePath, string DisplayPath, string FileName, long Size, double SemanticScore);
 
         private bool IsIndexReady => EmbeddingIndexService.GetIndex()?.Any() ?? false;
@@ -117,8 +115,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             AppState.PropertyChanged += OnAppStateChanged;
             
             BrowserService.OnContentExtracted += HandleBrowserContentExtracted;
-            BrowserService.OnCloseBrowser += HandleBrowserClosed;
-
+            
             UpdateSortedFiles();
             SortFiles();
         }
@@ -576,24 +573,14 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         private async Task OpenAiStudioBrowser()
         {
-            await CopyToClipboard();
-            
-            _isBrowserMode = true;
             StateHasChanged();
             BrowserService.OpenBrowser("https://aistudio.google.com/");
         }
 
         private void CloseBrowserMode()
         {
-            _isBrowserMode = false;
             BrowserService.CloseBrowser();
             StateHasChanged();
-        }
-
-        private void HandleBrowserClosed()
-        {
-            _isBrowserMode = false;
-            InvokeAsync(StateHasChanged);
         }
 
         private async Task HandleBrowserContentExtracted(string ignoredContent)
@@ -1067,7 +1054,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             if (BrowserService != null)
             {
                 BrowserService.OnContentExtracted -= HandleBrowserContentExtracted;
-                BrowserService.OnCloseBrowser -= HandleBrowserClosed;
             }
         }
     }

@@ -1,125 +1,107 @@
 <div class="panel panel-right" style="--right-top-flex:@(AppState.RightTopPanelFlex); --right-middle-flex:@(AppState.RightMiddlePanelFlex); --right-bottom-flex:@(AppState.RightBottomPanelFlex);">
     
-    @if (!_isBrowserMode)
-    {
-        <div class="right-top-section">
-            <div class="toolbar" style="align-items: center;">
-                <label for="prompt-template" style="margin-right: 5px;">Globális Prompt:</label>
-                <select id="prompt-template" style="flex-grow: 1;" @bind="AppState.ActiveGlobalPromptId">
-                    @foreach (var prompt in AppState.PromptTemplates)
-                    {
-                        <option value="@prompt.Id">@prompt.Title</option>
-                    }
-                </select>
-                <button @onclick="OnShowPromptManager">Szerkesztés...</button>
-                <button @onclick="OnShowSettingsDialog" title="Beállítások" style="margin: 0 5px;">⚙️</button>
-            </div>
-            <div class="prompt-container">
-                <textarea class="prompt-editor" placeholder="Írja ide a promptot..." @bind="AppState.PromptText" @bind:event="oninput"></textarea>
-                @if (!string.IsNullOrWhiteSpace(AppState.PromptText))
+    <div class="right-top-section">
+        <div class="toolbar" style="align-items: center;">
+            <label for="prompt-template" style="margin-right: 5px;">Globális Prompt:</label>
+            <select id="prompt-template" style="flex-grow: 1;" @bind="AppState.ActiveGlobalPromptId">
+                @foreach (var prompt in AppState.PromptTemplates)
                 {
-                    <div class="prompt-editor-button-group">
-                        <button class="prompt-editor-btn" @onclick="ClearPrompt" title="Prompt törlése">&times;</button>
-                    </div>
+                    <option value="@prompt.Id">@prompt.Title</option>
                 }
-            </div>
+            </select>
+            <button @onclick="OnShowPromptManager">Szerkesztés...</button>
+            <button @onclick="OnShowSettingsDialog" title="Beállítások" style="margin: 0 5px;">⚙️</button>
         </div>
-
-        <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightTop"))'></div>
-
-        <div class="right-middle-section">
-            <div class="context-list-header">
-                <h4>Kiválasztott Fájlok (Kontextushoz)</h4>
-            </div>
-            <div class="context-table-container" @onkeydown="HandleListKeyDown" tabindex="0">
-                <table class="context-table">
-                    <thead>
-                        <tr>
-                            <th class="sortable @GetSortClass("path")" @onclick='() => SortBy("path")'>Elérési út</th>
-                            <th class="sortable @GetSortClass("name")" @onclick='() => SortBy("name")'>Fájlnév</th>
-                            <th class="sortable @GetSortClass("size")" @onclick='() => SortBy("size")'>Méret</th>
-                            <th>Műveletek</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var fileInfo in _sortedFiles)
-                        {
-                            <tr @key="fileInfo.RelativePath"
-                                class="@(SelectedItems.Contains(fileInfo.RelativePath) ? "selected" : "")"
-                                @onclick="(e) => OnFileRowClick(e, fileInfo.RelativePath)"
-                                @oncontextmenu="(e) => ShowContextMenuForRow(e, fileInfo.RelativePath)" @oncontextmenu:preventDefault>
-                                <td>@fileInfo.DisplayPath</td>
-                                <td>@fileInfo.FileName</td>
-                                <td style="text-align: right;">@fileInfo.Size.ToString("N0")</td>
-                                <td class="actions-cell" @onclick:stopPropagation>
-                                    <button class="icon-btn-small" title="Referenciák hozzáadása (1 mélység)" @onclick="() => OnAddReferencesClick(fileInfo.RelativePath)">🔗</button>
-                                    <button class="icon-btn-small" title="Hivatkozó fájlok hozzáadása" @onclick="() => OnAddReferencingClick(fileInfo.RelativePath)">👈</button>
-                                    <button class="icon-btn-small delete-btn" title="Törlés a listából" @onclick="() => OnRemoveItemClick(fileInfo.RelativePath)">🗑️</button>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-            <div class="toolbar">
-                <button title="Visszavonás" @onclick="AppState.UndoContextListChange" disabled="@(!AppState.CanUndo)">⮌</button>
-                <button title="Újra" @onclick="AppState.RedoContextListChange" disabled="@(!AppState.CanRedo)">⮍</button>
-            
-                <button style="margin: 0 5px;" @onclick="OnShowDocumentSearchDialog" disabled="@(AppState.IsSemanticIndexBuilding || !IsIndexReady)">Keresés</button>
-            
-                <span style="margin-left:auto;"></span>
-                <span class="char-counter">@_charCount.ToString("N0") kar.</span>
-                <span class="char-counter">~@_tokenCount.ToString("N0") tok.</span>
-                <button @onclick="ClearSelectionList">Lista ürítése</button>
-            </div>
-        </div>
-
-        <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightMiddle"))'></div>
-
-        <div class="right-bottom-section">
-            <div class="preview-header">
-                <h4>Fájl Előnézet</h4>
-                <div class="preview-search-controls">
-                    <div class="ref-toggle" title="Referenciák megjelenítése/elrejtése. Zöld: Kontextusban, Kék: Nincs kontextusban.">
-                        <input type="checkbox" id="chk-refs" checked="@_showReferences" @onchange="ToggleReferences" />
-                        <label for="chk-refs">Ref.</label>
-                    </div>
-                    
-                    <input type="text" 
-                           placeholder="Keresés..." 
-                           @bind="_previewSearchTerm" 
-                           @bind:event="oninput" 
-                           @onkeyup="HandlePreviewSearchKeyup" 
-                           disabled="@_showReferences" />
-                    @if (_totalPreviewMatches > 0)
-                    {
-                        <span class="preview-match-counter">@_currentPreviewMatchIndex/@_totalPreviewMatches</span>
-                    }
-                    <button @onclick="FindPreviousInPreview" disabled="@(_totalPreviewMatches == 0 || _showReferences)" title="Előző">▲</button>
-                    <button @onclick="FindNextInPreview" disabled="@(_totalPreviewMatches == 0 || _showReferences)" title="Következő">▼</button>
-                    <button @onclick="ClearPreviewSearch" disabled="@(string.IsNullOrEmpty(_previewSearchTerm))" class="clear-btn">&times;</button>
+        <div class="prompt-container">
+            <textarea class="prompt-editor" placeholder="Írja ide a promptot..." @bind="AppState.PromptText" @bind:event="oninput"></textarea>
+            @if (!string.IsNullOrWhiteSpace(AppState.PromptText))
+            {
+                <div class="prompt-editor-button-group">
+                    <button class="prompt-editor-btn" @onclick="ClearPrompt" title="Prompt törlése">&times;</button>
                 </div>
-            </div>
-            <div id="preview-box" class="preview-box">
-                <pre>@_previewContentMarkup</pre>
+            }
+        </div>
+    </div>
+
+    <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightTop"))'></div>
+
+    <div class="right-middle-section">
+        <div class="context-list-header">
+            <h4>Kiválasztott Fájlok (Kontextushoz)</h4>
+        </div>
+        <div class="context-table-container" @onkeydown="HandleListKeyDown" tabindex="0">
+            <table class="context-table">
+                <thead>
+                    <tr>
+                        <th class="sortable @GetSortClass("path")" @onclick='() => SortBy("path")'>Elérési út</th>
+                        <th class="sortable @GetSortClass("name")" @onclick='() => SortBy("name")'>Fájlnév</th>
+                        <th class="sortable @GetSortClass("size")" @onclick='() => SortBy("size")'>Méret</th>
+                        <th>Műveletek</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var fileInfo in _sortedFiles)
+                    {
+                        <tr @key="fileInfo.RelativePath"
+                            class="@(SelectedItems.Contains(fileInfo.RelativePath) ? "selected" : "")"
+                            @onclick="(e) => OnFileRowClick(e, fileInfo.RelativePath)"
+                            @oncontextmenu="(e) => ShowContextMenuForRow(e, fileInfo.RelativePath)" @oncontextmenu:preventDefault>
+                            <td>@fileInfo.DisplayPath</td>
+                            <td>@fileInfo.FileName</td>
+                            <td style="text-align: right;">@fileInfo.Size.ToString("N0")</td>
+                            <td class="actions-cell" @onclick:stopPropagation>
+                                <button class="icon-btn-small" title="Referenciák hozzáadása (1 mélység)" @onclick="() => OnAddReferencesClick(fileInfo.RelativePath)">🔗</button>
+                                <button class="icon-btn-small" title="Hivatkozó fájlok hozzáadása" @onclick="() => OnAddReferencingClick(fileInfo.RelativePath)">👈</button>
+                                <button class="icon-btn-small delete-btn" title="Törlés a listából" @onclick="() => OnRemoveItemClick(fileInfo.RelativePath)">🗑️</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="toolbar">
+            <button title="Visszavonás" @onclick="AppState.UndoContextListChange" disabled="@(!AppState.CanUndo)">⮌</button>
+            <button title="Újra" @onclick="AppState.RedoContextListChange" disabled="@(!AppState.CanRedo)">⮍</button>
+        
+            <button style="margin: 0 5px;" @onclick="OnShowDocumentSearchDialog" disabled="@(AppState.IsSemanticIndexBuilding || !IsIndexReady)">Keresés</button>
+        
+            <span style="margin-left:auto;"></span>
+            <span class="char-counter">@_charCount.ToString("N0") kar.</span>
+            <span class="char-counter">~@_tokenCount.ToString("N0") tok.</span>
+            <button @onclick="ClearSelectionList">Lista ürítése</button>
+        </div>
+    </div>
+
+    <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightMiddle"))'></div>
+
+    <div class="right-bottom-section">
+        <div class="preview-header">
+            <h4>Fájl Előnézet</h4>
+            <div class="preview-search-controls">
+                <div class="ref-toggle" title="Referenciák megjelenítése/elrejtése. Zöld: Kontextusban, Kék: Nincs kontextusban.">
+                    <input type="checkbox" id="chk-refs" checked="@_showReferences" @onchange="ToggleReferences" />
+                    <label for="chk-refs">Ref.</label>
+                </div>
+                
+                <input type="text" 
+                       placeholder="Keresés..." 
+                       @bind="_previewSearchTerm" 
+                       @bind:event="oninput" 
+                       @onkeyup="HandlePreviewSearchKeyup" 
+                       disabled="@_showReferences" />
+                @if (_totalPreviewMatches > 0)
+                {
+                    <span class="preview-match-counter">@_currentPreviewMatchIndex/@_totalPreviewMatches</span>
+                }
+                <button @onclick="FindPreviousInPreview" disabled="@(_totalPreviewMatches == 0 || _showReferences)" title="Előző">▲</button>
+                <button @onclick="FindNextInPreview" disabled="@(_totalPreviewMatches == 0 || _showReferences)" title="Következő">▼</button>
+                <button @onclick="ClearPreviewSearch" disabled="@(string.IsNullOrEmpty(_previewSearchTerm))" class="clear-btn">&times;</button>
             </div>
         </div>
-    }
-    else
-    {
-        <div class="browser-placeholder-mode">
-            <div class="browser-placeholder-info">
-                <h3>Böngésző Aktív</h3>
-                <p>A böngésző egy külön rétegen nyílt meg.</p>
-                <p>
-                    1. Illeszd be a vágólap tartalmát a böngészőben lévő AI Studióba.<br/>
-                    2. Várd meg a választ.<br/>
-                    3. Kattints a böngésző alján lévő <strong>"Válasz Feldolgozása"</strong> gombra.
-                </p>
-                <button @onclick="CloseBrowserMode">Böngésző elrejtése / Bezárása</button>
-            </div>
+        <div id="preview-box" class="preview-box">
+            <pre>@_previewContentMarkup</pre>
         </div>
-    }
+    </div>
     
     <script>
         window.initializePreviewInteractions = (dotNetObj) => {
@@ -145,10 +127,7 @@
         <div class="main-actions">
             <button class="copy-button" @onclick="CopyToClipboard" title="Vágólapra másolás (a pipáknak megfelelően)">Másolás</button>
             
-            @if (!_isBrowserMode)
-            {
-                <button class="copy-button" @onclick="OpenAiStudioBrowser" title="AI Studio megnyitása belső böngészőben">🌐 AI Studio</button>
-            }
+            <button class="copy-button" @onclick="OpenAiStudioBrowser" title="AI Studio megnyitása belső böngészőben">🌐 AI Studio</button>
 
             <button @onclick="ProcessGitDiffAsync" disabled="@(!AppState.IsGitRepository)">Git Különbségek</button>
             <button class="copy-button" @onclick="ProcessChangesFromClipboardAsync" title="Vágólap feldolgozása (Kérdés vagy Implementáció)">Feldolgoz</button>

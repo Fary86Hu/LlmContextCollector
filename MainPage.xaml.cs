@@ -1,4 +1,5 @@
 using LlmContextCollector.Services;
+using Microsoft.Maui.ApplicationModel.DataTransfer;
 using System.Text.Json;
 
 namespace LlmContextCollector
@@ -6,6 +7,10 @@ namespace LlmContextCollector
     public partial class MainPage : ContentPage
     {
         private BrowserService? _browserService;
+        private AppState? _appState;
+        private ContextProcessingService? _contextProcessingService;
+        private IClipboard? _clipboard;
+
         private string? _lastLoadedUrl;
 
         public MainPage()
@@ -20,6 +25,10 @@ namespace LlmContextCollector
             if (services != null)
             {
                 _browserService = services.GetService<BrowserService>();
+                _appState = services.GetService<AppState>();
+                _contextProcessingService = services.GetService<ContextProcessingService>();
+                _clipboard = services.GetService<IClipboard>();
+
                 if (_browserService != null)
                 {
                     _browserService.OnOpenBrowser += BrowserService_OnOpenBrowser;
@@ -38,6 +47,12 @@ namespace LlmContextCollector
                     InternalBrowser.Source = url;
                     _lastLoadedUrl = url;
                 }
+                
+                if (_appState != null)
+                {
+                    PromptEditor.Text = _appState.PromptText;
+                }
+
                 BrowserOverlay.IsVisible = true;
             });
         }
@@ -47,7 +62,6 @@ namespace LlmContextCollector
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 BrowserOverlay.IsVisible = false;
-                // InternalBrowser.Source = "about:blank"; // Kikommentelve a memória megőrzése érdekében
             });
         }
 
@@ -138,6 +152,45 @@ namespace LlmContextCollector
             {
                 await _browserService.TriggerExtractionAsync();
             }
+        }
+
+        private async void CopyContext_Clicked(object sender, EventArgs e)
+        {
+            if (_appState == null || _contextProcessingService == null || _clipboard == null)
+            {
+                await DisplayAlert("Hiba", "A szolgáltatások nem elérhetőek.", "OK");
+                return;
+            }
+
+            // Sync edits back to state
+            _appState.PromptText = PromptEditor.Text ?? string.Empty;
+
+            try
+            {
+                var sortedFiles = _appState.SelectedFilesForContext.OrderBy(x => x).ToList();
+                var content = await _contextProcessingService.BuildContextForClipboardAsync(
+                    includePrompt: true, 
+                    includeSystemPrompt: SystemPromptCheckBox.IsChecked, 
+                    sortedFilePaths: sortedFiles);
+
+                if (string.IsNullOrWhiteSpace(content))
+                {
+                    await DisplayAlert("Info", "Nincs másolható tartalom.", "OK");
+                    return;
+                }
+
+                await _clipboard.SetTextAsync(content);
+                await DisplayAlert("Siker", "Kontextus a vágólapra másolva.", "OK");
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Hiba", $"Másolás sikertelen: {ex.Message}", "OK");
+            }
+        }
+
+        private void SystemLabel_Tapped(object sender, EventArgs e)
+        {
+            SystemPromptCheckBox.IsChecked = !SystemPromptCheckBox.IsChecked;
         }
     }
 }
