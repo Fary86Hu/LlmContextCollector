@@ -120,17 +120,21 @@
     </script>
 
     <div class="bottom-actions">
-        <div class="copy-options">
-            <label title="Felhasználói prompt hozzáadása"><input type="checkbox" @bind="_includePromptInCopy" />Prompt</label>
-            <label title="Rendszer utasítások hozzáadása"><input type="checkbox" @bind="_includeSystemPrompt" />System</label>
-        </div>
         <div class="main-actions">
-            <button class="copy-button" @onclick="CopyToClipboard" title="Vágólapra másolás (a pipáknak megfelelően)">Másolás</button>
+            <div class="copy-group">
+                <div class="copy-options-inline">
+                    <label title="Felhasználói prompt hozzáadása"><input type="checkbox" @bind="_includePromptInCopy" />Prompt</label>
+                    <label title="Rendszer utasítások hozzáadása"><input type="checkbox" @bind="_includeSystemPrompt" />System</label>
+                    <label title="Kiválasztott fájlok tartalmának hozzáadása"><input type="checkbox" @bind="_includeFiles" />Fájlok</label>
+                </div>
+                <button class="copy-button primary" @onclick="CopyToClipboard" title="Vágólapra másolás (a pipáknak megfelelően)">Másolás</button>
+            </div>
             
-            <button class="copy-button" @onclick="OpenAiStudioBrowser" title="AI Studio megnyitása belső böngészőben">🌐 AI Studio</button>
-
-            <button @onclick="ProcessGitDiffAsync" disabled="@(!AppState.IsGitRepository)">Git Különbségek</button>
-            <button class="copy-button" @onclick="ProcessChangesFromClipboardAsync" title="Vágólap feldolgozása (Kérdés vagy Implementáció)">Feldolgoz</button>
+            <div class="other-actions">
+                <button class="copy-button" @onclick="OpenAiStudioBrowser" title="AI Studio megnyitása belső böngészőben">🌐 AI Studio</button>
+                <button @onclick="ProcessGitDiffAsync" disabled="@(!AppState.IsGitRepository)">Git Diff</button>
+                <button class="copy-button" @onclick="ProcessChangesFromClipboardAsync" title="Vágólap feldolgozása (Kérdés vagy Implementáció)">Feldolgoz</button>
+            </div>
         </div>
     </div>
 </div>

@@ -355,23 +355,41 @@ html[data-theme="dark"] ::deep .highlight.current {
     border-top: 1px solid var(--border-color);
 }
 
-.copy-options {
-    display: flex;
-    gap: 15px;
-    font-size: var(--font-size-sm);
-}
-
-    .copy-options label {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        cursor: pointer;
-    }
-
 .main-actions {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     gap: 10px;
+    flex-wrap: wrap;
+}
+
+.copy-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background-color: var(--hover-bg-color);
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+}
+
+.copy-options-inline {
+    display: flex;
+    gap: 10px;
+    font-size: var(--font-size-sm);
+}
+
+    .copy-options-inline label {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+        user-select: none;
+    }
+
+.other-actions {
+    display: flex;
+    gap: 5px;
 }
 
 /* --- Splitter --- */

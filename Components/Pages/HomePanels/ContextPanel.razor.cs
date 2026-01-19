@@ -90,6 +90,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         private bool _includePromptInCopy = true;
         private bool _includeSystemPrompt = true;
+        private bool _includeFiles = true;
 
         private List<ContextListItem> _sortedFiles = new();
         private string _currentSortKey = "path";
@@ -556,6 +557,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             var content = await ContextProcessingService.BuildContextForClipboardAsync(
                 _includePromptInCopy, 
                 _includeSystemPrompt, 
+                _includeFiles,
                 sortedPaths);
 
             if (string.IsNullOrWhiteSpace(content))
@@ -566,7 +568,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
             await OnHistorySaveRequested.InvokeAsync();
             await Clipboard.SetTextAsync(content);
-            AppState.StatusText = $"Tartalom másolva ({_charCount} kar., ~{_tokenCount} token). Előzmény mentve.";
+            AppState.StatusText = $"Tartalom másolva ({content.Length} kar.). Előzmény mentve.";
         }
 
         #region Browser Mode
@@ -617,6 +619,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 var originalContext = await ContextProcessingService.BuildContextForClipboardAsync(
                     true, 
                     true, 
+                    true,
                     sortedPaths);
 
                 var sb = new StringBuilder();

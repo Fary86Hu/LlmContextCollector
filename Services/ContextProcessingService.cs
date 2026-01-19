@@ -18,7 +18,7 @@ namespace LlmContextCollector.Services
             _llmResponseParserService = llmResponseParserService;
         }
 
-        public async Task<string> BuildContextForClipboardAsync(bool includePrompt, bool includeSystemPrompt, IEnumerable<string> sortedFilePaths)
+        public async Task<string> BuildContextForClipboardAsync(bool includePrompt, bool includeSystemPrompt, bool includeFiles, IEnumerable<string> sortedFilePaths)
         {
             var sb = new StringBuilder();
             if (includePrompt && !string.IsNullOrWhiteSpace(_appState.PromptText))
@@ -37,7 +37,7 @@ namespace LlmContextCollector.Services
                 }
             }
 
-            if (_appState.SelectedFilesForContext.Any())
+            if (includeFiles && _appState.SelectedFilesForContext.Any())
             {
                 if (sb.Length > 0)
                 {

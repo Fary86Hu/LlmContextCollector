@@ -158,39 +158,59 @@ namespace LlmContextCollector
         {
             if (_appState == null || _contextProcessingService == null || _clipboard == null)
             {
-                await DisplayAlert("Hiba", "A szolgáltatások nem elérhetőek.", "OK");
                 return;
             }
 
-            // Sync edits back to state
             _appState.PromptText = PromptEditor.Text ?? string.Empty;
 
             try
             {
                 var sortedFiles = _appState.SelectedFilesForContext.OrderBy(x => x).ToList();
                 var content = await _contextProcessingService.BuildContextForClipboardAsync(
-                    includePrompt: true, 
-                    includeSystemPrompt: SystemPromptCheckBox.IsChecked, 
+                    includePrompt: PromptCheckBox.IsChecked,
+                    includeSystemPrompt: SystemPromptCheckBox.IsChecked,
+                    includeFiles: FileContextCheckBox.IsChecked,
                     sortedFilePaths: sortedFiles);
 
                 if (string.IsNullOrWhiteSpace(content))
                 {
-                    await DisplayAlert("Info", "Nincs másolható tartalom.", "OK");
                     return;
                 }
 
                 await _clipboard.SetTextAsync(content);
-                await DisplayAlert("Siker", "Kontextus a vágólapra másolva.", "OK");
+                
+                var originalText = CopyButton.Text;
+                CopyButton.Text = "Másolva! ✓";
+                CopyButton.BackgroundColor = Microsoft.Maui.Graphics.Colors.Green;
+                
+                await Task.Delay(2000);
+                
+                CopyButton.Text = originalText;
+                CopyButton.BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#0078d4");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                await DisplayAlert("Hiba", $"Másolás sikertelen: {ex.Message}", "OK");
+                CopyButton.Text = "Hiba!";
+                CopyButton.BackgroundColor = Microsoft.Maui.Graphics.Colors.Red;
+                await Task.Delay(2000);
+                CopyButton.Text = "Másolás";
+                CopyButton.BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#0078d4");
             }
+        }
+
+        private void PromptLabel_Tapped(object sender, EventArgs e)
+        {
+            PromptCheckBox.IsChecked = !PromptCheckBox.IsChecked;
         }
 
         private void SystemLabel_Tapped(object sender, EventArgs e)
         {
             SystemPromptCheckBox.IsChecked = !SystemPromptCheckBox.IsChecked;
+        }
+
+        private void FilesLabel_Tapped(object sender, EventArgs e)
+        {
+            FileContextCheckBox.IsChecked = !FileContextCheckBox.IsChecked;
         }
     }
 }

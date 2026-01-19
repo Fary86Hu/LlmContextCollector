@@ -43,7 +43,7 @@ namespace LlmContextCollector.AI
                 throw new InvalidOperationException("OpenRouter API key is not set. Please configure it in the settings.");
             }
 
-            var contextString = await _contextProcessingService.BuildContextForClipboardAsync(true, true, sortedFilePaths);
+            var contextString = await _contextProcessingService.BuildContextForClipboardAsync(true, true, true, sortedFilePaths);
 
             if (string.IsNullOrWhiteSpace(contextString))
             {

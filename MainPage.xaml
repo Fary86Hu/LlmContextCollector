@@ -32,18 +32,39 @@
                 </Grid.RowDefinitions>
 
                 <!-- Prompt Config Row -->
-                <StackLayout Grid.Row="0" Orientation="Horizontal" Spacing="10" VerticalOptions="Center">
-                    <Label Text="Prompt:" VerticalOptions="Center" FontAttributes="Bold" TextColor="Black" />
-                    <StackLayout Orientation="Horizontal" Spacing="2">
-                        <CheckBox x:Name="SystemPromptCheckBox" IsChecked="True" Color="#0078d4" />
-                        <Label Text="System" VerticalOptions="Center" TextColor="Black">
+                <HorizontalStackLayout Grid.Row="0" Spacing="20" VerticalOptions="Center" HorizontalOptions="Start">
+                    <!-- Prompt Checkbox -->
+                    <Grid ColumnDefinitions="32,Auto" VerticalOptions="Center">
+                        <CheckBox x:Name="PromptCheckBox" Grid.Column="0" IsChecked="True" Color="#0078d4" WidthRequest="32" VerticalOptions="Center" Margin="0" />
+                        <Label Grid.Column="1" Text="Prompt" VerticalOptions="Center" VerticalTextAlignment="Center" TextColor="Black" Margin="0">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="PromptLabel_Tapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </Grid>
+                    
+                    <!-- System Checkbox -->
+                    <Grid ColumnDefinitions="32,Auto" VerticalOptions="Center">
+                        <CheckBox x:Name="SystemPromptCheckBox" Grid.Column="0" IsChecked="True" Color="#0078d4" WidthRequest="32" VerticalOptions="Center" Margin="0" />
+                        <Label Grid.Column="1" Text="System" VerticalOptions="Center" VerticalTextAlignment="Center" TextColor="Black" Margin="0">
                             <Label.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="SystemLabel_Tapped" />
                             </Label.GestureRecognizers>
                         </Label>
-                    </StackLayout>
-                    <Button Text="Másolás" Clicked="CopyContext_Clicked" BackgroundColor="#0078d4" TextColor="White" HeightRequest="32" Padding="10,0" FontSize="12" />
-                </StackLayout>
+                    </Grid>
+
+                    <!-- Files Checkbox -->
+                    <Grid ColumnDefinitions="32,Auto" VerticalOptions="Center">
+                        <CheckBox x:Name="FileContextCheckBox" Grid.Column="0" IsChecked="True" Color="#0078d4" WidthRequest="32" VerticalOptions="Center" Margin="0" />
+                        <Label Grid.Column="1" Text="Fájlok" VerticalOptions="Center" VerticalTextAlignment="Center" TextColor="Black" Margin="0">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="FilesLabel_Tapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </Grid>
+
+                    <Button x:Name="CopyButton" Text="Másolás" Clicked="CopyContext_Clicked" BackgroundColor="#0078d4" TextColor="White" HeightRequest="32" Padding="15,0" FontSize="12" FontAttributes="Bold" VerticalOptions="Center" Margin="5,0,0,0" />
+                </HorizontalStackLayout>
 
                 <!-- Prompt Editor Row -->
                 <Editor x:Name="PromptEditor" Grid.Row="1" HeightRequest="60" MaximumHeightRequest="120" BackgroundColor="White" TextColor="Black" FontSize="12" AutoSize="TextChanges" Placeholder="Prompt szövege..." />
