@@ -132,6 +132,7 @@
             
             <div class="other-actions">
                 <button class="copy-button" @onclick="OpenAiStudioBrowser" title="AI Studio megnyitása belső böngészőben">🌐 AI Studio</button>
+                <button class="copy-button" @onclick="ProcessWithLocalAiAsync" title="Lokális Ollama (Qwen3) hívása">🏠 Lokális AI</button>
                 <button @onclick="ProcessGitDiffAsync" disabled="@(!AppState.IsGitRepository)">Git Diff</button>
                 <button class="copy-button" @onclick="ProcessChangesFromClipboardAsync" title="Vágólap feldolgozása (Kérdés vagy Implementáció)">Feldolgoz</button>
             </div>

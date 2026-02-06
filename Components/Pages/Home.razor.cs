@@ -9,6 +9,7 @@ using Microsoft.JSInterop;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
 using System.ComponentModel;
 using System.Text;
+using static LlmContextCollector.Components.Pages.HomePanels.ContextPanel;
 
 namespace LlmContextCollector.Components.Pages
 {
@@ -56,6 +57,10 @@ namespace LlmContextCollector.Components.Pages
         private bool _isSettingsDialogVisible = false;
         private bool _isAzureDevOpsDialogVisible = false;
         private bool _isDocumentSearchDialogVisible = false;
+        private bool _isLocalAiChatVisible = false;
+        private string _localAiPrompt = string.Empty;
+        private string _localAiSystem = string.Empty;
+        private string _localAiFiles = string.Empty;
 
         private bool _showTreeContextMenu = false;
         private bool _showListContextMenu = false;
@@ -568,6 +573,8 @@ namespace LlmContextCollector.Components.Pages
             AppState.OpenRouterModel = settings.OpenRouterModel;
             AppState.OpenRouterSiteUrl = settings.OpenRouterSiteUrl;
             AppState.OpenRouterSiteName = settings.OpenRouterSiteName;
+            AppState.OllamaApiUrl = settings.OllamaApiUrl;
+            AppState.OllamaModel = settings.OllamaModel;
         }
 
         private async Task OnPromptManagerClose()
@@ -599,6 +606,24 @@ namespace LlmContextCollector.Components.Pages
         private void OnDocumentSearchDialogClose()
         {
             _isDocumentSearchDialogVisible = false;
+            StateHasChanged();
+        }
+
+        private void ShowLocalAiChat(LocalAiContextArgs args)
+        {
+            _localAiPrompt = args.Prompt;
+            _localAiSystem = args.System;
+            _localAiFiles = args.Files;
+            _isLocalAiChatVisible = true;
+            StateHasChanged();
+        }
+
+        private void OnLocalAiChatClose()
+        {
+            _isLocalAiChatVisible = false;
+            _localAiPrompt = string.Empty;
+            _localAiSystem = string.Empty;
+            _localAiFiles = string.Empty;
             StateHasChanged();
         }
 

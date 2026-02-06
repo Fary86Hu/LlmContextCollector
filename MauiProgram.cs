@@ -62,6 +62,7 @@ namespace LlmContextCollector
             builder.Services.AddTransient<FileContextService>();
             builder.Services.AddTransient<QueryBuilders>();
             builder.Services.AddTransient<OpenRouterService>();
+            builder.Services.AddTransient<OllamaService>();
             builder.Services.AddSingleton<BrowserService>();
 
 
@@ -83,6 +84,13 @@ namespace LlmContextCollector
                 c.BaseAddress = new Uri("https://openrouter.ai/api/v1/");
                 c.Timeout = TimeSpan.FromSeconds(180);
                 c.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            });
+
+            builder.Services.AddHttpClient("OllamaClient", (sp, c) =>
+            {
+                var appState = sp.GetRequiredService<AppState>();
+                c.BaseAddress = new Uri(appState.OllamaApiUrl);
+                c.Timeout = TimeSpan.FromMinutes(10); // A nagy kontextus feldolgozása lassú lehet
             });
 
             builder.Services.AddSingleton<ITextGenerationProvider, GroqTextGenerationProvider>();

@@ -42,6 +42,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         [Inject]
         private OpenRouterService OpenRouterService { get; set; } = null!;
         [Inject]
+        private OllamaService OllamaService { get; set; } = null!;
+        [Inject]
         private BrowserService BrowserService { get; set; } = null!;
 
 
@@ -759,6 +761,30 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 AppState.HideLoading();
             }
         }
+
+        [Parameter]
+        public EventCallback<LocalAiContextArgs> OnShowLocalAiChat { get; set; }
+
+        private async Task ProcessWithLocalAiAsync()
+        {
+            try
+            {
+                var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
+                
+                var prompt = AppState.PromptText;
+                var system = await PromptService.GetSystemPromptAsync();
+                var files = await ContextProcessingService.BuildContextForClipboardAsync(false, false, true, sortedPaths);
+
+                await OnShowLocalAiChat.InvokeAsync(new LocalAiContextArgs(prompt, system, files));
+            }
+            catch (Exception ex)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"Hiba a lokális AI hívása előkészítésekor: {ex.Message}");
+                AppState.StatusText = "Hiba a lokális AI hívásakor.";
+            }
+        }
+
+        public record LocalAiContextArgs(string Prompt, string System, string Files);
 
         #endregion
 

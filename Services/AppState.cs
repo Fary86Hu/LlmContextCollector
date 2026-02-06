@@ -44,7 +44,6 @@ namespace LlmContextCollector.Services
         public List<FileNode> FileTree => _fileTree;
         public ObservableCollection<string> SelectedFilesForContext { get; } = new();
 
-
         public Dictionary<string, bool> ExtensionFilters { get; } = new()
         {
             { ".razor", true }, { ".cs", true }, { ".js", true }, { ".css", true },
@@ -60,7 +59,6 @@ namespace LlmContextCollector.Services
         }
 
         private string _ignorePatternsRaw = string.Join("\n", new[]
-
         {
             "node_modules", "vendor", "dist", "build", "target", "__pycache__",
             "bin", "obj", ".git", ".svn", ".hg", ".idea", ".vscode",
@@ -114,7 +112,6 @@ namespace LlmContextCollector.Services
             set => SetField(ref _theme, value);
         }
 
-        // --- Módosítás: Aktív Globális Prompt ID ---
         private Guid _activeGlobalPromptId;
         public Guid ActiveGlobalPromptId
         {
@@ -123,7 +120,6 @@ namespace LlmContextCollector.Services
             {
                 if (SetField(ref _activeGlobalPromptId, value))
                 {
-                    // Aszinkron mentés háttérben
                     _ = _promptService.SetActivePromptIdAsync(value);
                 }
             }
@@ -135,15 +131,11 @@ namespace LlmContextCollector.Services
         {
             PromptTemplates = await _promptService.GetPromptsAsync();
             var activeId = await _promptService.GetActivePromptIdAsync();
-            
-            // Értékadást közvetlenül a mezőnek, hogy ne triggerelje a mentést újra betöltéskor,
-            // vagy PropertyChanged hívással. Itt direkt set, mert inicializálás.
             _activeGlobalPromptId = activeId;
             
             NotifyStateChanged(nameof(PromptTemplates));
             NotifyStateChanged(nameof(ActiveGlobalPromptId));
         }
-        // ---------------------------------------------
 
         private string _groqApiKey = string.Empty;
         public string GroqApiKey
@@ -201,6 +193,19 @@ namespace LlmContextCollector.Services
             set => SetField(ref _openRouterSiteName, value);
         }
 
+        private string _ollamaApiUrl = "http://localhost:11434/v1/";
+        public string OllamaApiUrl
+        {
+            get => _ollamaApiUrl;
+            set => SetField(ref _ollamaApiUrl, value);
+        }
+
+        private string _ollamaModel = "qwen3:4b-instruct";
+        public string OllamaModel
+        {
+            get => _ollamaModel;
+            set => SetField(ref _ollamaModel, value);
+        }
 
         public List<HistoryEntry> HistoryEntries { get; set; } = new();
 
@@ -345,7 +350,6 @@ namespace LlmContextCollector.Services
             NotifyStateChanged(nameof(CanRedo));
             NotifyStateChanged(nameof(SelectedFilesForContext));
         }
-
 
         public void ShowLoading(string text)
         {

@@ -1,0 +1,248 @@
+@using LlmContextCollector.Services
+@using System.Text
+@inject OllamaService OllamaService
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop">
+        <div class="modal-dialog chat-dialog" style="width: 80%; height: 80%; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <h3 style="margin: 0;">Lokális AI - Előkészítés</h3>
+                    <div class="chat-context-selectors" style="display: flex; gap: 15px; font-size: 0.85em; color: var(--text-color, #333);">
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                            <input type="checkbox" @bind="_includePrompt" disabled="@(_messages.Any(m => m.Role != "system"))" /> Prompt
+                        </label>
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                            <input type="checkbox" @bind="_includeSystemPrompt" disabled="@(_messages.Any(m => m.Role != "system"))" /> System Prompt
+                        </label>
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                            <input type="checkbox" @bind="_includeFiles" disabled="@(_messages.Any(m => m.Role != "system"))" /> Fájlok
+                        </label>
+                    </div>
+                </div>
+                <button class="close-btn" @onclick="Close">&times;</button>
+            </div>
+            <div class="modal-body chat-body" style="flex: 1; overflow-y: auto; padding: 10px; background-color: var(--bg-color, #fff);">
+                <div class="chat-messages" id="chat-messages-container" style="display: flex; flex-direction: column; gap: 10px;">
+                    @foreach (var msg in _messages.Where(m => m.Role != "system"))
+                    {
+                        <div class="chat-message @(msg.Role)" style="padding: 10px; border-radius: 5px; background-color: @(msg.Role == "user" ? "var(--selection-bg, #e3f2fd)" : "var(--panel-bg, #f5f5f5)");">
+                            <strong>@(msg.Role == "user" ? "Te" : "AI"):</strong>
+                            <div class="message-content" style="white-space: pre-wrap; margin-top: 5px;">@msg.Content</div>
+                        </div>
+                    }
+                    @if (_isGenerating)
+                    {
+                        <div class="chat-message assistant" style="padding: 10px; border-radius: 5px; background-color: var(--panel-bg, #f5f5f5);">
+                            <strong>AI:</strong>
+                            <div class="message-content" style="white-space: pre-wrap; margin-top: 5px;">
+                                @_currentResponse<span class="cursor-blink">|</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer chat-footer" style="display: flex; gap: 10px; padding: 10px; border-top: 1px solid var(--border-color, #ccc);">
+                <textarea id="chat-input-textarea"
+                          class="chat-input" 
+                          style="flex: 1; resize: none; height: 60px; padding: 5px;" 
+                          @bind="_currentInput" 
+                          @bind:event="oninput" 
+                          @onkeydown="HandleKeyDown" 
+                          placeholder="Írj egy üzenetet... (Shift+Enter új sor, Enter küldés)"></textarea>
+                @if (_isGenerating)
+                {
+                    <button class="secondary" style="height: 60px; padding: 0 20px; background-color: #dc3545; color: white; border: none;" @onclick="AbortRequest">Megszakítás</button>
+                }
+                else
+                {
+                    <button class="primary" style="height: 60px; padding: 0 20px;" @onclick="SendMessage" disabled="@(string.IsNullOrWhiteSpace(_currentInput))">Küldés</button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<script>
+    window.scrollToBottom = (elementId) => {
+        var element = document.getElementById(elementId);
+        if (element) {
+            element.scrollTop = element.scrollHeight;
+        }
+    };
+</script>
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public string PromptText { get; set; } = string.Empty;
+
+    [Parameter]
+    public string SystemPrompt { get; set; } = string.Empty;
+
+    [Parameter]
+    public string FilesContext { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    public class ChatMessage
+    {
+        public string Role { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+    }
+
+    private List<ChatMessage> _messages = new();
+    private string _currentInput = string.Empty;
+    private string _currentResponse = string.Empty;
+    private bool _isGenerating = false;
+    private bool _prevIsVisible = false;
+
+    private bool _includePrompt = true;
+    private bool _includeSystemPrompt = true;
+    private bool _includeFiles = true;
+
+    private CancellationTokenSource? _cts;
+
+    private const string BaseSystemInstruction = "A feladatod kizárólag a feladat előkészítése. Kérlek, ne generálj kódot a megoldáshoz, és ne oldd meg a konkrét implementációt. Ehelyett segíts nekem átgondolni a problémát, tisztázni a követelményeket, és feltérképezni a szükséges kontextust. Tegyél fel kérdéseket, és adj tanácsokat a tervezéshez a megadott kontextus alapján.";
+
+    protected override void OnParametersSet()
+    {
+        if (IsVisible && !_prevIsVisible)
+        {
+            _messages.Clear();
+            _currentInput = string.Empty;
+            _currentResponse = string.Empty;
+            _isGenerating = false;
+            _includePrompt = true;
+            _includeSystemPrompt = true;
+            _includeFiles = true;
+        }
+        _prevIsVisible = IsVisible;
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            if (!_isGenerating && !string.IsNullOrWhiteSpace(_currentInput))
+            {
+                await SendMessage();
+            }
+        }
+    }
+
+    private void AbortRequest()
+    {
+        _cts?.Cancel();
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(_currentInput)) return;
+
+        // Ha ez az első üzenet, állítsuk össze a system promptot a bepipált elemekből
+        if (!_messages.Any())
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine(BaseSystemInstruction);
+            sb.AppendLine();
+            sb.AppendLine("KONTEXTUS:");
+
+            if (_includeSystemPrompt && !string.IsNullOrWhiteSpace(SystemPrompt))
+            {
+                sb.AppendLine("\n--- Rendszerutasítások ---");
+                sb.AppendLine(SystemPrompt);
+            }
+
+            if (_includePrompt && !string.IsNullOrWhiteSpace(PromptText))
+            {
+                sb.AppendLine("\n--- Felhasználói Prompt ---");
+                sb.AppendLine(PromptText);
+            }
+
+            if (_includeFiles && !string.IsNullOrWhiteSpace(FilesContext))
+            {
+                sb.AppendLine("\n--- Fájlok tartalma ---");
+                sb.AppendLine(FilesContext);
+            }
+
+            _messages.Add(new ChatMessage { Role = "system", Content = sb.ToString() });
+        }
+
+        var userMsg = _currentInput;
+        _currentInput = string.Empty;
+        
+        _messages.Add(new ChatMessage { Role = "user", Content = userMsg });
+        _isGenerating = true;
+        _currentResponse = string.Empty;
+        _cts = new CancellationTokenSource();
+        
+        await ScrollToBottom();
+        StateHasChanged();
+
+        try
+        {
+            var apiMessages = _messages.Select(m => new { role = m.Role, content = m.Content }).ToList<object>();
+
+            await foreach (var token in OllamaService.GetChatResponseStreamAsync(apiMessages, _cts.Token))
+            {
+                _currentResponse += token;
+                StateHasChanged();
+                await ScrollToBottom();
+            }
+
+            if (!_cts.IsCancellationRequested)
+            {
+                _messages.Add(new ChatMessage { Role = "assistant", Content = _currentResponse });
+            }
+            else
+            {
+                _messages.Add(new ChatMessage { Role = "assistant", Content = _currentResponse + " [MEGSZAKÍTVA]" });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            _messages.Add(new ChatMessage { Role = "assistant", Content = _currentResponse + " [MEGSZAKÍTVA]" });
+        }
+        catch (Exception ex)
+        {
+            _messages.Add(new ChatMessage { Role = "assistant", Content = $"[HIBA]: {ex.Message}" });
+        }
+        finally
+        {
+            _isGenerating = false;
+            _currentResponse = string.Empty;
+            _cts?.Dispose();
+            _cts = null;
+
+            StateHasChanged();
+            await ScrollToBottom();
+            
+            try { await JSRuntime.InvokeVoidAsync("eval", "setTimeout(() => { var el = document.getElementById('chat-input-textarea'); if(el) el.focus(); }, 100);"); } catch { }
+        }
+    }
+
+    private async Task ScrollToBottom()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("scrollToBottom", "chat-messages-container");
+        }
+        catch { }
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+
+    public void Dispose()
+    {
+    }
+}

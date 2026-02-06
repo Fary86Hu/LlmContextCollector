@@ -11,5 +11,7 @@ namespace LlmContextCollector.Models
         public string OpenRouterModel { get; set; } = "x-ai/grok-4-fast:free";
         public string OpenRouterSiteUrl { get; set; } = string.Empty;
         public string OpenRouterSiteName { get; set; } = string.Empty;
+        public string OllamaApiUrl { get; set; } = "http://localhost:11434/v1/";
+        public string OllamaModel { get; set; } = "qwen3:4b-instruct";
     }
 }

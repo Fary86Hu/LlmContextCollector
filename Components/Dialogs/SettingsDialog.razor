@@ -49,6 +49,18 @@
                         <input id="or-sitename" type="text" @bind="AppState.OpenRouterSiteName" placeholder="Saját Projekt" />
                     </div>
                 </div>
+
+                <h4>Lokális Ollama Beállítások</h4>
+                <div class="form-section">
+                    <div class="form-group">
+                        <label for="ollama-url">API URL:</label>
+                        <input id="ollama-url" type="text" @bind="AppState.OllamaApiUrl" placeholder="http://localhost:11434/v1/" />
+                    </div>
+                    <div class="form-group">
+                        <label for="ollama-model">Modell neve:</label>
+                        <input id="ollama-model" type="text" @bind="AppState.OllamaModel" placeholder="qwen3:4b-instruct" />
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button @onclick="Close">Mégsem</button>
@@ -76,7 +88,9 @@
             OpenRouterApiKey = AppState.OpenRouterApiKey,
             OpenRouterModel = AppState.OpenRouterModel,
             OpenRouterSiteUrl = AppState.OpenRouterSiteUrl,
-            OpenRouterSiteName = AppState.OpenRouterSiteName
+            OpenRouterSiteName = AppState.OpenRouterSiteName,
+            OllamaApiUrl = AppState.OllamaApiUrl,
+            OllamaModel = AppState.OllamaModel
         };
         await SettingsService.SaveSettingsAsync(settings);
         AppState.StatusText = "Beállítások mentve.";
