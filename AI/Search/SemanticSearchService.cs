@@ -11,15 +11,15 @@ namespace LlmContextCollector.AI.Search
 {
     public class SearchConfig
     {
-        public int Candidates { get; set; } = 200;
-        public int Rerank { get; set; } = 60;
+        public int Candidates { get; set; } = 250;
+        public int Rerank { get; set; } = 80;
         public int TopKPerFile { get; set; } = 3;
-        public float WVec { get; set; } = 0.7f;
-        public float WName { get; set; } = 0.1f;
-        public float WKeyword { get; set; } = 0.15f;
-        public float WRecency { get; set; } = 0.05f;
-        public float MmrLambda { get; set; } = 0.3f;
-        public double MinScoreThreshold { get; set; } = 0.2;
+        public float WVec { get; set; } = 0.65f;
+        public float WName { get; set; } = 0.25f; // Megemelt fájlnév súly
+        public float WKeyword { get; set; } = 0.10f;
+        public float WRecency { get; set; } = 0.0f;
+        public float MmrLambda { get; set; } = 0.5f; // Kevésbé tolja el a relevanciát a diverzitás irányába
+        public double MinScoreThreshold { get; set; } = 0.15;
     }
 
     public class MultiQuery
@@ -169,13 +169,18 @@ namespace LlmContextCollector.AI.Search
             var finalScores = chunksByFile
                 .Select(kvp => {
                     var topChunks = kvp.OrderByDescending(c => c.Score).Take(cfg.TopKPerFile).ToList();
-                    var topKSum = topChunks.Sum(c => c.Score);
+                    
+                    // A fájl pontszáma a legjobb találat (Max), plusz a többi találat töredéke (diminishing returns)
+                    // Ez megakadályozza, hogy a hosszú fájlok sok gyenge találattal nyerjenek.
+                    double bestScore = topChunks[0].Score;
+                    double supportingBonus = topChunks.Skip(1).Sum(c => c.Score * 0.1); 
+                    
                     var topChunkContents = topChunks.Select(c => chunkContents.TryGetValue(c.ChunkKey, out var content) ? content : "").ToList();
                     
                     return new RelevanceResult
                     {
                         FilePath = kvp.Key,
-                        Score = topKSum,
+                        Score = bestScore + supportingBonus,
                         TopChunks = topChunkContents
                     };
                 })

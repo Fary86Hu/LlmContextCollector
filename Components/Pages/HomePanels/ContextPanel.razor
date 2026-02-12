@@ -10,7 +10,8 @@
                 }
             </select>
             <button @onclick="OnShowPromptManager">Szerkesztés...</button>
-            <button @onclick="OnShowSettingsDialog" title="Beállítások" style="margin: 0 5px;">⚙️</button>
+            <button @onclick="() => AppState.IsAiInspectorVisible = true" title="AI Inspector" style="margin: 0 5px;">📜</button>
+            <button @onclick="OnShowSettingsDialog" title="Beállítások" style="margin: 0 0 0 5px;">⚙️</button>
         </div>
         <div class="prompt-container">
             <textarea class="prompt-editor" placeholder="Írja ide a promptot..." @bind="AppState.PromptText" @bind:event="oninput"></textarea>

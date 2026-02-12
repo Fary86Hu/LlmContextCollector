@@ -1,0 +1,114 @@
+@inject AiLogService AiLogService
+@inject AppState AppState
+@inject IJSRuntime JSRuntime
+
+@if (AppState.IsAiInspectorVisible)
+{
+    <div class="modal-backdrop">
+        <div class="modal-dialog inspector-dialog">
+            <div class="modal-header">
+                <h3>AI Kommunikációs Napló</h3>
+                <div class="header-controls">
+                    <button @onclick="AiLogService.Clear" class="secondary">Napló ürítése</button>
+                    <button class="close-btn" @onclick="Close">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body inspector-body">
+                <div class="log-list">
+                    @if (!AiLogService.Logs.Any())
+                    {
+                        <div class="editor-placeholder">Nincs rögzített kommunikáció.</div>
+                    }
+                    @foreach (var log in AiLogService.Logs)
+                    {
+                        <div class="log-item @(_selectedLog == log ? "selected" : "")" @onclick="() => _selectedLog = log">
+                            <span class="log-time">@log.Timestamp.ToString("HH:mm:ss")</span>
+                            <span class="log-source">@log.Source</span>
+                            <span class="log-model">@log.Model</span>
+                        </div>
+                    }
+                </div>
+                <div class="log-details">
+                    @if (_selectedLog != null)
+                    {
+                        <div class="detail-section">
+                            <strong>Prompt:</strong>
+                            <textarea readonly>@_selectedLog.Prompt</textarea>
+                        </div>
+                        <div class="detail-section">
+                            <strong>Válasz:</strong>
+                            <textarea readonly>@_selectedLog.Response</textarea>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="editor-placeholder">Válassz egy bejegyzést a részletekért.</div>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button @onclick="Close">Bezárás</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .inspector-dialog {
+        width: 90vw;
+        height: 85vh;
+    }
+    .inspector-body {
+        display: flex;
+        gap: 15px;
+        min-height: 0;
+    }
+    .log-list {
+        width: 30%;
+        border: 1px solid var(--border-color);
+        overflow-y: auto;
+        background-color: var(--panel-bg);
+    }
+    .log-item {
+        padding: 8px;
+        border-bottom: 1px solid var(--border-color);
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        font-size: var(--font-size-sm);
+    }
+    .log-item:hover { background-color: var(--hover-bg-color); }
+    .log-item.selected { background-color: var(--selected-bg-color); color: var(--selected-text-color); }
+    .log-time { font-weight: bold; }
+    .log-source { color: var(--accent-color); }
+    .log-item.selected .log-source { color: white; }
+
+    .log-details {
+        width: 70%;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 0;
+    }
+    .detail-section {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+    }
+    .detail-section textarea {
+        flex: 1;
+        margin-top: 5px;
+        font-family: Consolas, monospace;
+        background-color: var(--input-bg-color);
+    }
+</style>
+
+@code {
+    private AiLogEntry? _selectedLog;
+
+    private void Close()
+    {
+        AppState.IsAiInspectorVisible = false;
+    }
+}

@@ -17,11 +17,13 @@ namespace LlmContextCollector.AI
 
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly AppState _appState;
+        private readonly AiLogService _aiLogService;
 
-        public GroqTextGenerationProvider(IHttpClientFactory httpClientFactory, AppState appState)
+        public GroqTextGenerationProvider(IHttpClientFactory httpClientFactory, AppState appState, AiLogService aiLogService)
         {
             _httpClientFactory = httpClientFactory;
             _appState = appState;
+            _aiLogService = aiLogService;
         }
 
         public async Task<string> GenerateAsync(string prompt, CancellationToken ct = default)
@@ -70,9 +72,13 @@ namespace LlmContextCollector.AI
             await using var s = await resp.Content.ReadAsStreamAsync(ct);
             var result = await JsonSerializer.DeserializeAsync<ChatResponse>(s, JsonOpts, ct);
 
-            return result?.choices != null && result.choices.Length > 0
+            var finalResponse = result?.choices != null && result.choices.Length > 0
                 ? result.choices[0].message?.content ?? string.Empty
                 : string.Empty;
+
+            _aiLogService.Log("Groq", _appState.GroqModel, prompt, finalResponse);
+
+            return finalResponse;
         }
 
         private sealed class ChatRequest

@@ -38,6 +38,7 @@ namespace LlmContextCollector
 #endif
 
             builder.Services.AddSingleton<AppState>();
+            builder.Services.AddSingleton<AiLogService>();
             builder.Services.AddSingleton<JsonStorageService>();
             builder.Services.AddSingleton<HistoryService>();
             builder.Services.AddSingleton<HistoryManagerService>();

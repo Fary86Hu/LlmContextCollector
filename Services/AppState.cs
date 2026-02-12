@@ -254,6 +254,13 @@ namespace LlmContextCollector.Services
             set => SetField(ref _isSemanticIndexBuilding, value);
         }
 
+        private bool _isAiInspectorVisible = false;
+        public bool IsAiInspectorVisible
+        {
+            get => _isAiInspectorVisible;
+            set => SetField(ref _isAiInspectorVisible, value);
+        }
+
         private string _loadingText = string.Empty;
         public string LoadingText
         {
