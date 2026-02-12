@@ -1,6 +1,10 @@
-using LlmContextCollector.Models;
-using System.Text;
 using LlmContextCollector.Components.Pages.HomePanels;
+using LlmContextCollector.Models;
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace LlmContextCollector.Services
 {
@@ -39,10 +43,7 @@ namespace LlmContextCollector.Services
 
             if (includeFiles && _appState.SelectedFilesForContext.Any())
             {
-                if (sb.Length > 0)
-                {
-                    sb.AppendLine("\n\n// --- Kód Kontextus alább --- \n");
-                }
+                if (sb.Length > 0) sb.AppendLine("\n\n// --- Kód Kontextus alább --- \n");
                 foreach (var fileRelPath in sortedFilePaths)
                 {
                     string fullPath;
@@ -59,10 +60,7 @@ namespace LlmContextCollector.Services
                         fullPath = Path.Combine(_appState.ProjectRoot, fileRelPath.Replace('/', Path.DirectorySeparatorChar));
                         header = $"// --- Fájl: {fileRelPath.Replace('\\', '/')} ---";
                     }
-                    else
-                    {
-                        continue;
-                    }
+                    else continue;
 
                     if (File.Exists(fullPath))
                     {
@@ -80,10 +78,7 @@ namespace LlmContextCollector.Services
             var (explanation, parsedFiles) = _llmResponseParserService.ParseResponse(clipboardText);
             _appState.LastLlmGlobalExplanation = explanation;
 
-            if (!parsedFiles.Any())
-            {
-                return new DiffResultArgs(explanation, new List<DiffResult>(), clipboardText);
-            }
+            if (!parsedFiles.Any()) return new DiffResultArgs(explanation, new List<DiffResult>(), clipboardText);
 
             var diffResults = new List<DiffResult>();
             foreach (var fileData in parsedFiles)
@@ -96,23 +91,13 @@ namespace LlmContextCollector.Services
                 if (File.Exists(fullPath))
                 {
                     oldContent = await File.ReadAllTextAsync(fullPath);
-
                     if (status == DiffStatus.Modified && finalNewContent.Contains("<<<<<<< SEARCH"))
                     {
-                        try
-                        {
-                            finalNewContent = ApplyPatches(oldContent, finalNewContent);
-                        }
-                        catch (Exception ex)
-                        {
-                            fileData.Explanation += $"\n[HIBA a patch alkalmazásakor: {ex.Message}]";
-                        }
+                        try { finalNewContent = ApplyPatches(oldContent, finalNewContent); }
+                        catch (Exception ex) { fileData.Explanation += $"\n[HIBA: {ex.Message}]"; }
                     }
                 }
-                else if (status == DiffStatus.Modified)
-                {
-                    status = DiffStatus.NewFromModified;
-                }
+                else if (status == DiffStatus.Modified) status = DiffStatus.NewFromModified;
 
                 diffResults.Add(new DiffResult
                 {
@@ -123,61 +108,45 @@ namespace LlmContextCollector.Services
                     Explanation = fileData.Explanation
                 });
             }
-
             return new DiffResultArgs(explanation, diffResults, clipboardText);
         }
 
         private string ApplyPatches(string originalContent, string patchContent)
         {
-            originalContent = originalContent.Replace("\r\n", "\n");
-            var result = originalContent;
-
-            var parts = patchContent.Split(new[] { "<<<<<<< SEARCH" }, StringSplitOptions.None);
+            string result = originalContent.Replace("\r\n", "\n");
+            string[] parts = patchContent.Split(new[] { "<<<<<<< SEARCH" }, StringSplitOptions.None);
 
             for (int i = 1; i < parts.Length; i++)
             {
-                var block = parts[i];
-                var splitBlock = block.Split(new[] { "=======" }, StringSplitOptions.None);
+                string block = parts[i];
+                // Deklaráljuk explicit típussal, hogy elkerüljük a kétértelműséget
+                string[] splitBlock = block.Split(new[] { "=======" }, StringSplitOptions.None);
 
                 if (splitBlock.Length < 2) continue;
 
-                var searchBlock = splitBlock[0].TrimEnd('\r', '\n');
-                if (searchBlock.StartsWith("\n")) searchBlock = searchBlock.Substring(1);
-                if (searchBlock.StartsWith("\r\n")) searchBlock = searchBlock.Substring(2);
+                string searchBlock = splitBlock[0].TrimStart('\r', '\n').TrimEnd('\r', '\n').Replace("\r\n", "\n");
 
-                var rest = string.Join("=======", splitBlock.Skip(1));
-                var replaceSplit = rest.Split(new[] { ">>>>>>> REPLACE" }, StringSplitOptions.None);
+                // Itt használjuk a splitBlock-ot
+                string restOfBlock = string.Join("=======", splitBlock.Skip(1));
 
-                var replaceBlock = replaceSplit[0];
-                if (replaceBlock.StartsWith("\n")) replaceBlock = replaceBlock.Substring(1);
-                else if (replaceBlock.StartsWith("\r\n")) replaceBlock = replaceBlock.Substring(2);
+                string[] replaceSplit = restOfBlock.Split(new[] { ">>>>>>> REPLACE" }, StringSplitOptions.None);
+                if (replaceSplit.Length < 1) continue;
 
-                replaceBlock = replaceBlock.TrimEnd('\r', '\n');
-
-                searchBlock = searchBlock.Replace("\r\n", "\n");
-                replaceBlock = replaceBlock.Replace("\r\n", "\n");
+                string replaceBlock = replaceSplit[0].TrimStart('\r', '\n').TrimEnd('\r', '\n').Replace("\r\n", "\n");
 
                 int index = result.IndexOf(searchBlock);
                 if (index == -1)
                 {
-                    var trimmedSearch = searchBlock.Trim();
+                    string trimmedSearch = searchBlock.Trim();
                     index = result.IndexOf(trimmedSearch);
-
-                    if (index == -1)
-                    {
-                        throw new Exception($"Nem található a SEARCH blokk az eredeti fájlban (Block #{i}). Ellenőrizd a kontextust.");
-                    }
-                    else
-                    {
-                        result = result.Remove(index, trimmedSearch.Length).Insert(index, replaceBlock.TrimEnd());
-                    }
+                    if (index == -1) throw new Exception($"SEARCH blokk nem található (#{i})");
+                    result = result.Remove(index, trimmedSearch.Length).Insert(index, replaceBlock);
                 }
                 else
                 {
                     result = result.Remove(index, searchBlock.Length).Insert(index, replaceBlock);
                 }
             }
-
             return result;
         }
     }

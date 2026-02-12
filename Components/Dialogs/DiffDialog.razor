@@ -1,6 +1,7 @@
 @using LlmContextCollector.Models
 @using LlmContextCollector.Utils
 @using LlmContextCollector.Services
+@using System.Text.RegularExpressions
 @inject IClipboard Clipboard
 @inject AppState AppState
 @inject GitWorkflowService GitWorkflowService
@@ -126,7 +127,6 @@
                                 </div>
                             }
                         </div>
-
                     </fieldset>
                 </div>
 
@@ -138,6 +138,13 @@
                         <div class="full-response-view">
                             <strong>Teljes LLM válasz:</strong>
                             <textarea readonly>@FullLlmResponse</textarea>
+                        </div>
+                    }
+                    else if (_isGeneratingDiff)
+                    {
+                        <div class="editor-placeholder">
+                            <div class="spinner-small"></div>
+                            <span>Különbségek számítása...</span>
                         </div>
                     }
                     else if (_selectedResult != null)
@@ -181,7 +188,6 @@
                                             }
                                         }
                                     </div>
-                                    @* Scrollbar markers for the Left Pane *@
                                     <div class="diff-scrollbar-track">
                                         @foreach (var marker in _sbsLeftMarkers)
                                         {
@@ -190,7 +196,6 @@
                                     </div>
                                 </div>
 
-                                <!-- Central Navigation Rail -->
                                 <div id="sbs-nav-rail" class="diff-nav-rail" @onclick="OnNavRailClick" title="Kattints a görgetéshez">
                                     @foreach (var marker in _sbsLeftMarkers)
                                     {
@@ -225,9 +230,6 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="editor-hint">
-                                <small>A bal oldali nézet igazodik a módosításokhoz. Törölt sorok pirossal, beszúrt sorok helye üresen.</small>
-                            </div>
                         }
                         else
                         {
@@ -252,161 +254,70 @@
                     }
                     else
                     {
-                        <div class="editor-placeholder">Válassz egy fájlt a változások megtekintéséhez. Vagy válassz másik különbség forrást.</div>
+                        <div class="editor-placeholder">Válassz egy fájlt a változások megtekintéséhez.</div>
                     }
                 </div>
-
             </div>
             <div class="modal-footer">
                 <span>@($"{_localDiffResults.Count(r => r.IsSelectedForAccept)} fájl kijelölve")</span>
                 <button @onclick="Close">Bezárás</button>
-                <button class="primary" @onclick="AcceptSelectedChanges" disabled="@(!_localDiffResults.Any(r => r.IsSelectedForAccept))">
-                    Kijelöltek elfogadása
-                </button>
-                @{
-                    var onCorrectBranch = !string.IsNullOrWhiteSpace(_suggestedBranch) && AppState.CurrentGitBranch == _suggestedBranch;
-                }
-                <button class="primary" @onclick="CreateBranch" disabled="@(string.IsNullOrWhiteSpace(_suggestedBranch) || onCorrectBranch)">
-                    Branch Létrehozása
-                </button>
-                <button class="primary" @onclick="Commit" disabled="@(string.IsNullOrWhiteSpace(_suggestedCommit) || !_localDiffResults.Any(r => r.IsSelectedForAccept))">
-                    Commit
-                </button>
-                <button class="primary commit-btn" @onclick="Push">
-                    Push
-                </button>
+                <button class="primary" @onclick="AcceptSelectedChanges" disabled="@(!_localDiffResults.Any(r => r.IsSelectedForAccept))">Kijelöltek elfogadása</button>
+                <button class="primary" @onclick="CreateBranch" disabled="@(string.IsNullOrWhiteSpace(_suggestedBranch))">Branch Létrehozása</button>
+                <button class="primary" @onclick="Commit" disabled="@(string.IsNullOrWhiteSpace(_suggestedCommit) || !_localDiffResults.Any(r => r.IsSelectedForAccept))">Commit</button>
+                <button class="primary commit-btn" @onclick="Push">Push</button>
             </div>
         </div>
     </div>
 }
 
-@if (_showContextMenu)
-{
-    <div class="context-menu" style="@($"top: {_contextMenuY}px; left: {_contextMenuX}px;")" @onclick:stopPropagation>
-        <div class="context-menu-item" @onclick="ApplyLineRevert">
-            Változtatás visszavonása (Reset Line)
-        </div>
-    </div>
-}
-
-<script>
-    window.syncEditorScroll = (textareaId, backdropId, leftDisplayId) => {
-        const ta = document.getElementById(textareaId);
-        const bd = document.getElementById(backdropId);
-        const ld = document.getElementById(leftDisplayId);
-        if (ta) {
-            if (bd) {
-                bd.scrollTop = ta.scrollTop;
-                bd.scrollLeft = ta.scrollLeft;
-            }
-            if (ld) {
-                // Simple scrollTop sync.
-                // Note: Complex alignment with deleted lines might cause minor drift unless line-heights are perfectly strictly equal.
-                ld.scrollTop = ta.scrollTop;
-            }
-        }
-    };
-    window.getElementBoundingClientRect = (elementId) => {
-        const el = document.getElementById(elementId);
-        if (el) {
-            const rect = el.getBoundingClientRect();
-            return { left: rect.left, width: rect.width, height: rect.height };
-        }
-        return null;
-    };
-    window.scrollEditorToPercent = (textareaId, percent) => {
-        const el = document.getElementById(textareaId);
-        if (el) {
-            // Scroll to the specific percentage of the scrollable height
-            el.scrollTop = el.scrollHeight * percent;
-        }
-    };
-</script>
-
 @code {
-    [Parameter]
-    public bool IsVisible { get; set; }
-
-    [Parameter]
-    public string GlobalExplanation { get; set; } = string.Empty;
-
-    [Parameter]
-    public string FullLlmResponse { get; set; } = string.Empty;
-
-    [Parameter]
-    public List<DiffResult>? DiffResults { get; set; }
-
-    [Parameter]
-    public EventCallback<List<DiffResult>> OnAccept { get; set; }
-
-    [Parameter]
-    public EventCallback OnClose { get; set; }
-
-    [Parameter]
-    public EventCallback<string> OnCreateBranch { get; set; }
-
-    [Parameter]
-    public EventCallback<CommitAndPushArgs> OnCommit { get; set; }
-
-    [Parameter]
-    public EventCallback<CommitAndPushArgs> OnPush { get; set; }
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public string GlobalExplanation { get; set; } = string.Empty;
+    [Parameter] public string FullLlmResponse { get; set; } = string.Empty;
+    [Parameter] public List<DiffResult>? DiffResults { get; set; }
+    [Parameter] public EventCallback<List<DiffResult>> OnAccept { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<string> OnCreateBranch { get; set; }
+    [Parameter] public EventCallback<CommitAndPushArgs> OnCommit { get; set; }
+    [Parameter] public EventCallback<CommitAndPushArgs> OnPush { get; set; }
 
     private List<DiffResult> _localDiffResults = new();
     private DiffResult? _selectedResult;
     private string _viewMode = "unified";
-    
-    // Unified View Data
     private List<DiffUtility.DiffLineItem> _unifiedDiffLines = new();
     private List<DiffMarkerInfo> _unifiedDiffMarkers = new();
-
-    // SBS View Data
-    private record DiffMarkerInfo(string Type, double TopPercent);
-    private List<DiffMarkerInfo> _sbsDiffMarkers = new();      // Right pane markers
-    private List<DiffMarkerInfo> _sbsLeftMarkers = new();      // Left pane markers
-    
-    private record SbsLeftItem(string Content, bool IsGap, int HeightInLines, string CssClass);
+    private List<DiffMarkerInfo> _sbsDiffMarkers = new();
+    private List<DiffMarkerInfo> _sbsLeftMarkers = new();
     private List<SbsLeftItem> _sbsLeftLines = new();
-
     private string _suggestedBranch = string.Empty;
     private string _suggestedCommit = string.Empty;
     private string _globalExplanationText = string.Empty;
     private bool _hasSuggestions = false;
     private bool _isFullResponseView = false;
     private bool _isGitDiffMode = false;
-
-
+    private bool _isGeneratingDiff = false;
     private GitWorkflowService.DiffMode _selectedDiffMode = GitWorkflowService.DiffMode.Uncommitted;
     private List<string> _allBranches = new();
     private string? _selectedTargetBranch;
     private bool _isLoadingDiffs = false;
     private bool _isRefreshingSuggestions = false;
-    
     private bool _prevIsVisible = false;
-    
     private bool _showContextMenu = false;
-    private double _contextMenuX;
-    private double _contextMenuY;
+    private double _contextMenuX, _contextMenuY;
     private DiffUtility.DiffLineItem? _contextMenuTargetLine;
-
-    // --- Resizing ---
     private double _leftPaneWidthPercent = 35.0;
     private bool _isResizingPane = false;
     private double _windowWidth = 0;
-
-    // --- SBS Resizing ---
     private double _sbsLeftPaneWidthPercent = 50.0;
     private bool _isResizingSbs = false;
-    private double _sbsContainerLeft = 0;
-    private double _sbsContainerWidth = 0;
-    
-    // --- Editor Highlights ---
+    private double _sbsContainerLeft = 0, _sbsContainerWidth = 0;
     private List<bool> _editorLineHighlights = new();
 
+    private record DiffMarkerInfo(string Type, double TopPercent);
+    private record SbsLeftItem(string Content, bool IsGap, int HeightInLines, string CssClass);
+    private record BoundingRect(double Left, double Width, double Height);
 
-    protected override void OnInitialized()
-    {
-        AppState.PropertyChanged += OnAppStateChanged;
-    }
+    protected override void OnInitialized() => AppState.PropertyChanged += OnAppStateChanged;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -414,630 +325,156 @@
         {
             _localDiffResults = DiffResults?.ToList() ?? new();
             _isGitDiffMode = string.IsNullOrEmpty(FullLlmResponse);
-
-            if (_isGitDiffMode)
-            {
-                _suggestedBranch = string.Empty;
-                _suggestedCommit = string.Empty;
-                _hasSuggestions = false;
-                _globalExplanationText = string.Empty; 
-                await LoadBranchesAsync();
-            }
-            else
-            {
-                ParseGlobalExplanation();
-            }
-
-            if (_selectedResult == null || !_localDiffResults.Any(d => d.Path == _selectedResult.Path))
-            {
-                SelectResult(_localDiffResults.FirstOrDefault());
-            }
+            if (_isGitDiffMode) await LoadBranchesAsync();
+            else ParseGlobalExplanation();
+            if (_selectedResult == null) await SelectResult(_localDiffResults.FirstOrDefault());
         }
-        
         _prevIsVisible = IsVisible;
     }
 
-    private async void OnAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(AppState.CurrentGitBranch))
-        {
-            await InvokeAsync(StateHasChanged);
-        }
-    }
-    
-    // --- Navigation Logic ---
-    private async Task OnNavRailClick(MouseEventArgs e)
-    {
-        // Get dimensions of the nav rail to calculate percentage
-        var rect = await JSRuntime.InvokeAsync<BoundingRect>("getElementBoundingClientRect", "sbs-nav-rail");
-        if (rect != null && rect.Height > 0)
-        {
-            // e.OffsetY is relative to the target element (the rail), so we use that directly.
-            // However, if the user clicks on a marker (child element), OffsetY might be relative to the marker.
-            // To be safe, we use the client coordinate and the rect.Top (which we didn't ask for, but can approximate or just use relative logic).
-            // Actually, simpler approach: let's rely on e.OffsetY assuming event bubbling preserves coordinates relative to handler if configured,
-            // but standard Blazor MouseEventArgs OffsetY is relative to the *element that fired the event*.
-            // If we click a marker, OffsetY is small. This is risky.
-            // Reliable way: Use e.ClientY. We need Rect.Top.
-
-            // Let's re-fetch rect with Top property if needed, OR just implement logic in JS.
-            // But 'rect' defined below in record BoundingRect only has Left/Width/Height. Let's update the record.
-
-            // NOTE: I updated the JS getElementBoundingClientRect to return height too,
-            // but calculating Y relative to element in C# needs 'Top'.
-            // Let's try a heuristic: Since we are in a modal, let's just update the JS to handle the scroll logic?
-            // No, sticking to C# control. I will assume e.OffsetY is correct if I set pointer-events:none on children (markers) via CSS.
-
-            double percent = e.OffsetY / rect.Height;
-            await JSRuntime.InvokeVoidAsync("scrollEditorToPercent", "editor-textarea", percent);
-        }
-    }
-
-    // --- Resizing Logic ---
-    private async Task StartPaneResize(MouseEventArgs e)
-    {
-        _isResizingPane = true;
-        try
-        {
-            _windowWidth = await JSRuntime.InvokeAsync<double>("eval", "window.innerWidth");
-        }
-        catch
-        {
-            _windowWidth = 1920;
-        }
-    }
-
-    private async Task StartSbsResize(MouseEventArgs e)
-    {
-        _isResizingSbs = true;
-        try
-        {
-            var rect = await JSRuntime.InvokeAsync<BoundingRect>("getElementBoundingClientRect", "sbs-container");
-            if (rect != null)
-            {
-                _sbsContainerLeft = rect.Left;
-                _sbsContainerWidth = rect.Width;
-            }
-        }
-        catch
-        {
-            _isResizingSbs = false;
-        }
-    }
-
-    private void StopPaneResize(MouseEventArgs e)
-    {
-        _isResizingPane = false;
-        _isResizingSbs = false;
-    }
-
-    private void OnMouseMove(MouseEventArgs e)
-    {
-        if (_isResizingPane && _windowWidth > 0)
-        {
-            var percent = (e.ClientX / _windowWidth) * 100;
-            if (percent < 10) percent = 10;
-            if (percent > 90) percent = 90;
-            
-            var dialogWidth = _windowWidth * 0.95;
-            var dialogLeft = (_windowWidth - dialogWidth) / 2;
-            var relX = e.ClientX - dialogLeft;
-            var relPercent = (relX / dialogWidth) * 100;
-            
-            if (relPercent < 15) relPercent = 15;
-            if (relPercent > 85) relPercent = 85;
-
-            _leftPaneWidthPercent = relPercent;
-        }
-        else if (_isResizingSbs && _sbsContainerWidth > 0)
-        {
-            var relX = e.ClientX - _sbsContainerLeft;
-            var percent = (relX / _sbsContainerWidth) * 100;
-            
-            if (percent < 10) percent = 10;
-            if (percent > 90) percent = 90;
-            
-            _sbsLeftPaneWidthPercent = percent;
-        }
-    }
-    
-    private record BoundingRect(double Left, double Width, double Height);
-
-    // --- Editor Logic ---
-    private void UpdateEditorHighlights()
-    {
-        _editorLineHighlights.Clear();
-        if (_selectedResult == null) return;
-
-        var oldLines = _selectedResult.OldContent.Replace("\r\n", "\n").Split('\n');
-        var newLines = _selectedResult.NewContent.Replace("\r\n", "\n").Split('\n');
-        var opcodes = DiffUtility.GetOpcodes(oldLines, newLines);
-
-        var flags = new bool[newLines.Length];
-
-        foreach (var op in opcodes)
-        {
-            if (op.Tag == 'i' || op.Tag == 'r')
-            {
-                for (int j = op.J1; j < op.J2; j++)
-                {
-                    if (j < flags.Length) flags[j] = true;
-                }
-            }
-        }
-        
-        _editorLineHighlights.AddRange(flags);
-    }
-
-    private async Task SyncScroll()
-    {
-        await JSRuntime.InvokeVoidAsync("syncEditorScroll", "editor-textarea", "editor-backdrop", "editor-left-display");
-    }
-
-    // --- Existing Logic ---
-
-    private void ShowLineContextMenu(MouseEventArgs e, DiffUtility.DiffLineItem line)
-    {
-        if (line.Type == DiffUtility.DiffLineType.Context) return;
-
-        _contextMenuX = e.ClientX;
-        _contextMenuY = e.ClientY;
-        _contextMenuTargetLine = line;
-        _showContextMenu = true;
-    }
-
-    private void HideContextMenu()
-    {
-        _showContextMenu = false;
-        _contextMenuTargetLine = null;
-    }
-
-    private void ApplyLineRevert()
-    {
-        if (_contextMenuTargetLine == null || _selectedResult == null)
-        {
-            HideContextMenu();
-            return;
-        }
-
-        var targetLine = _contextMenuTargetLine;
-        var currentNewContent = _selectedResult.NewContent.Replace("\r\n", "\n").Split('\n').ToList();
-
-        if (targetLine.Type == DiffUtility.DiffLineType.Add && targetLine.NewIndex.HasValue)
-        {
-            if (targetLine.NewIndex.Value < currentNewContent.Count)
-            {
-                currentNewContent.RemoveAt(targetLine.NewIndex.Value);
-            }
-        }
-        else if (targetLine.Type == DiffUtility.DiffLineType.Delete)
-        {
-            int insertIndex = 0;
-            int lineIndexInView = _unifiedDiffLines.IndexOf(targetLine);
-            
-            if (lineIndexInView > 0)
-            {
-                for (int i = lineIndexInView - 1; i >= 0; i--)
-                {
-                    var prevLine = _unifiedDiffLines[i];
-                    if (prevLine.NewIndex.HasValue)
-                    {
-                        insertIndex = prevLine.NewIndex.Value + 1;
-                        break;
-                    }
-                }
-            }
-
-            if (insertIndex <= currentNewContent.Count)
-            {
-                currentNewContent.Insert(insertIndex, targetLine.Content);
-            }
-        }
-
-        _selectedResult.NewContent = string.Join(Environment.NewLine, currentNewContent);
-        
-        if (_selectedResult.Status == DiffStatus.Deleted && !string.IsNullOrWhiteSpace(_selectedResult.NewContent))
-        {
-            _selectedResult.Status = DiffStatus.Modified;
-        }
-        
-        GenerateDiffView();
-        HideContextMenu();
-    }
-
-    public void Dispose()
-    {
-        AppState.PropertyChanged -= OnAppStateChanged;
-    }
-
-    private void ToggleFullResponseView()
-    {
-        _isFullResponseView = !_isFullResponseView;
-    }
-
-    private async Task LoadBranchesAsync()
-    {
-        _allBranches = await GitWorkflowService.GetBranchesAsync();
-        if (_allBranches.Any())
-        {
-            _selectedTargetBranch = _allBranches.FirstOrDefault(b => b == "main" || b == "master") ?? _allBranches.First();
-        }
-    }
-
-    private async Task LoadSelectedDiffsAsync()
-    {
-        _isLoadingDiffs = true;
-        StateHasChanged();
-        try
-        {
-            _localDiffResults = await GitWorkflowService.GetDiffsAsync(_selectedDiffMode, _selectedTargetBranch);
-            _suggestedBranch = string.Empty;
-            _suggestedCommit = string.Empty;
-            _hasSuggestions = false;
-            SelectResult(_localDiffResults.FirstOrDefault());
-        }
-        finally
-        {
-            _isLoadingDiffs = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task RefreshSuggestionsAsync()
-    {
-        if (!_localDiffResults.Any())
-        {
-            AppState.StatusText = "Nincsenek különbségek, amik alapján javaslatot lehetne generálni.";
-            return;
-        }
-
-        _isRefreshingSuggestions = true;
-        StateHasChanged();
-
-        try
-        {
-            var (branch, commit) = await GitSuggestionService.GetSuggestionsAsync(_localDiffResults, _globalExplanationText);
-            _suggestedBranch = branch ?? "hiba-a-javaslatban";
-            _suggestedCommit = commit ?? "Hiba történt a commit üzenet generálásakor.";
-            _hasSuggestions = branch != null;
-        }
-        finally
-        {
-            _isRefreshingSuggestions = false;
-            StateHasChanged();
-        }
-    }
-
-    private void ParseGlobalExplanation()
-    {
-        _hasSuggestions = false;
-        _suggestedBranch = string.Empty;
-        _suggestedCommit = string.Empty;
-        _globalExplanationText = GlobalExplanation;
-
-        if (string.IsNullOrEmpty(GlobalExplanation)) return;
-
-        var branchMatch = System.Text.RegularExpressions.Regex.Match(GlobalExplanation, @"\[BRANCH_SUGGESTION\]([\s\S]*?)\[/BRANCH_SUGGESTION\]");
-        var commitMatch = System.Text.RegularExpressions.Regex.Match(GlobalExplanation, @"\[COMMIT_SUGGESTION\]([\s\S]*?)\[/COMMIT_SUGGESTION\]");
-
-        if (branchMatch.Success && commitMatch.Success)
-        {
-            _hasSuggestions = true;
-            _suggestedBranch = branchMatch.Groups[1].Value.Trim();
-            _suggestedCommit = commitMatch.Groups[1].Value.Trim();
-            _globalExplanationText = System.Text.RegularExpressions.Regex.Replace(GlobalExplanation, @"\[BRANCH_SUGGESTION\][\s\S]*?\[/COMMIT_SUGGESTION\]\s*", "").Trim();
-        }
-    }
-
-    private async Task CopyToClipboard(string text)
-    {
-        if (!string.IsNullOrEmpty(text))
-        {
-            await Clipboard.SetTextAsync(text);
-        }
-    }
-
-    private void SelectResult(DiffResult? result)
+    private async Task SelectResult(DiffResult? result)
     {
         _selectedResult = result;
         if (string.IsNullOrEmpty(_viewMode)) _viewMode = "unified";
-        
-        GenerateDiffView();
-        
-        if (_viewMode == "sbs")
-        {
-            UpdateEditorHighlights();
-        }
+        await GenerateDiffViewAsync();
+        if (_viewMode == "sbs") UpdateEditorHighlights();
     }
 
-    private void SetViewMode(string newMode)
+    private async Task GenerateDiffViewAsync()
     {
-        if (_viewMode == newMode) return;
-        _viewMode = newMode;
-        GenerateDiffView();
-        
-        if (_viewMode == "sbs")
-        {
-            UpdateEditorHighlights();
-        }
-    }
+        _isGeneratingDiff = true;
+        StateHasChanged();
 
-    private void OnContentChanged()
-    {
-        GenerateDiffView(); 
-        UpdateEditorHighlights(); 
-    }
-
-    private void GenerateDiffView()
-    {
         _unifiedDiffLines.Clear();
         _unifiedDiffMarkers.Clear();
         _sbsDiffMarkers.Clear();
         _sbsLeftMarkers.Clear();
         _sbsLeftLines.Clear();
 
-        if (_selectedResult == null) return;
+        if (_selectedResult == null) { _isGeneratingDiff = false; return; }
 
-        _unifiedDiffLines = DiffUtility.GenerateDiffList(_selectedResult.OldContent, _selectedResult.NewContent);
-        
-        var oldText = _selectedResult.OldContent;
-        var newText = _selectedResult.NewContent;
+        var oldLines = _selectedResult.OldContent.Replace("\r\n", "\n").Split('\n');
+        var newLines = _selectedResult.NewContent.Replace("\r\n", "\n").Split('\n');
+        var opcodes = await DiffUtility.GetOpcodesAsync(oldLines, newLines);
 
-        var oldLines = oldText.Replace("\r\n", "\n").Split('\n');
-        var newLines = newText.Replace("\r\n", "\n").Split('\n');
-        var opcodes = DiffUtility.GetOpcodes(oldLines, newLines);
-
-        GenerateUnifiedMarkers(opcodes);
-
-        GenerateSbsData(opcodes, oldLines, newLines);
-    }
-    
-    private void GenerateUnifiedMarkers(List<DiffUtility.DiffOpcode> opcodes)
-    {
-        double totalLines = opcodes.Sum(op => op.Tag switch
-        {
-            'e' => op.I2 - op.I1,
-            'd' => op.I2 - op.I1,
-            'i' => op.J2 - op.J1,
-            'r' => (op.I2 - op.I1) + (op.J2 - op.J1),
-            _ => 0
-        });
-
-        if (totalLines < 1) return;
-
-        double currentLine = 0;
-        foreach (var op in opcodes)
-        {
-            double linesInOp = 0;
-            string? markerType = null;
-
-            switch (op.Tag)
-            {
-                case 'e': linesInOp = op.I2 - op.I1; break;
-                case 'd': linesInOp = op.I2 - op.I1; markerType = "del"; break;
-                case 'i': linesInOp = op.J2 - op.J1; markerType = "add"; break;
-                case 'r': linesInOp = (op.I2 - op.I1) + (op.J2 - op.J1); markerType = "replace"; break;
-            }
-
-            if (markerType != null)
-            {
-                _unifiedDiffMarkers.Add(new DiffMarkerInfo(markerType, (currentLine / totalLines) * 100));
-            }
-            currentLine += linesInOp;
-        }
-    }
-
-    private void GenerateSbsData(List<DiffUtility.DiffOpcode> opcodes, string[] oldLines, string[] newLines)
-    {
-        // 1. Build Right Side Markers (based on New Content logic)
-        double totalNewLines = newLines.Length;
-        if (totalNewLines < 1) totalNewLines = 1;
-
-        // 2. Build Left Side Content (_sbsLeftLines)
         foreach (var op in opcodes)
         {
             switch (op.Tag)
             {
                 case 'e':
-                    for (int i = op.I1; i < op.I2; i++)
-                    {
-                        _sbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, ""));
-                    }
+                    for (int i = 0; i < (op.I2 - op.I1); i++)
+                        _unifiedDiffLines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Context, oldLines[op.I1 + i], op.I1 + i, op.J1 + i));
                     break;
-
                 case 'd':
-                    // Marker for Right Side (showing where delete happened relative to new content)
-                    double delPosPercent = (op.J1 / totalNewLines) * 100;
-                    _sbsDiffMarkers.Add(new DiffMarkerInfo("del", delPosPercent));
-
-                    for (int i = op.I1; i < op.I2; i++)
-                    {
-                        _sbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, "sbs-del"));
-                    }
+                    for (int i = 0; i < (op.I2 - op.I1); i++)
+                        _unifiedDiffLines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Delete, oldLines[op.I1 + i], op.I1 + i, null));
                     break;
-
                 case 'i':
-                    // Marker for Right Side (Insert)
-                    double insertStartPercent = (op.J1 / totalNewLines) * 100;
-                    _sbsDiffMarkers.Add(new DiffMarkerInfo("add", insertStartPercent));
-                    
-                    // Add GAP to Left Side to maintain alignment
-                    int lineCount = op.J2 - op.J1;
-                    _sbsLeftLines.Add(new SbsLeftItem("", true, lineCount, ""));
+                    for (int j = 0; j < (op.J2 - op.J1); j++)
+                        _unifiedDiffLines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Add, newLines[op.J1 + j], null, op.J1 + j));
                     break;
-
                 case 'r':
-                    // Marker for Right Side (Replace)
-                    double replaceStartPercent = (op.J1 / totalNewLines) * 100;
-                    _sbsDiffMarkers.Add(new DiffMarkerInfo("replace", replaceStartPercent));
-                    
-                    for (int i = op.I1; i < op.I2; i++)
-                    {
-                        _sbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, "sbs-del"));
-                    }
-                    int oldLen = op.I2 - op.I1;
-                    int newLen = op.J2 - op.J1;
-                    
-                    // If new content is longer, we need a gap on the left to sync up
-                    if (newLen > oldLen)
-                    {
-                         _sbsLeftLines.Add(new SbsLeftItem("", true, newLen - oldLen, ""));
-                    }
+                    for (int i = 0; i < (op.I2 - op.I1); i++)
+                        _unifiedDiffLines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Delete, oldLines[op.I1 + i], op.I1 + i, null));
+                    for (int j = 0; j < (op.J2 - op.J1); j++)
+                        _unifiedDiffLines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Add, newLines[op.J1 + j], null, op.J1 + j));
                     break;
             }
         }
 
-        // 3. Build Left Side Markers (based on the Visual Left Pane height including gaps)
-        double totalLeftVisualLines = _sbsLeftLines.Sum(x => x.HeightInLines);
-        if (totalLeftVisualLines < 1) totalLeftVisualLines = 1;
+        GenerateUnifiedMarkers(opcodes);
+        GenerateSbsData(opcodes, oldLines, newLines);
 
+        _isGeneratingDiff = false;
+        StateHasChanged();
+    }
+
+    private void GenerateUnifiedMarkers(List<DiffUtility.DiffOpcode> opcodes)
+    {
+        double totalLines = _unifiedDiffLines.Count;
+        if (totalLines < 1) return;
+        double currentLine = 0;
+        foreach (var op in opcodes)
+        {
+            string? markerType = op.Tag switch { 'd' => "del", 'i' => "add", 'r' => "replace", _ => null };
+            if (markerType != null) _unifiedDiffMarkers.Add(new DiffMarkerInfo(markerType, (currentLine / totalLines) * 100));
+            currentLine += op.Tag switch { 'e' => op.I2 - op.I1, 'd' => op.I2 - op.I1, 'i' => op.J2 - op.J1, 'r' => (op.I2 - op.I1) + (op.J2 - op.J1), _ => 0 };
+        }
+    }
+
+    private void GenerateSbsData(List<DiffUtility.DiffOpcode> opcodes, string[] oldLines, string[] newLines)
+    {
+        double totalNewLines = Math.Max(1, newLines.Length);
+        foreach (var op in opcodes)
+        {
+            switch (op.Tag)
+            {
+                case 'e':
+                    for (int i = op.I1; i < op.I2; i++) _sbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, ""));
+                    break;
+                case 'd':
+                    _sbsDiffMarkers.Add(new DiffMarkerInfo("del", (op.J1 / totalNewLines) * 100));
+                    for (int i = op.I1; i < op.I2; i++) _sbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, "sbs-del"));
+                    break;
+                case 'i':
+                    _sbsDiffMarkers.Add(new DiffMarkerInfo("add", (op.J1 / totalNewLines) * 100));
+                    _sbsLeftLines.Add(new SbsLeftItem("", true, op.J2 - op.J1, ""));
+                    break;
+                case 'r':
+                    _sbsDiffMarkers.Add(new DiffMarkerInfo("replace", (op.J1 / totalNewLines) * 100));
+                    for (int i = op.I1; i < op.I2; i++) _sbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, "sbs-del"));
+                    if ((op.J2 - op.J1) > (op.I2 - op.I1)) _sbsLeftLines.Add(new SbsLeftItem("", true, (op.J2 - op.J1) - (op.I2 - op.I1), ""));
+                    break;
+            }
+        }
+        double totalLeftVisualLines = Math.Max(1, _sbsLeftLines.Sum(x => x.HeightInLines));
         double currentVisualLine = 0;
         foreach (var item in _sbsLeftLines)
         {
-            if (item.IsGap)
-            {
-                // This gap corresponds to an insertion on the right. 
-                // We mark it green on the left scrollbar to show "stuff happens here".
-                double top = (currentVisualLine / totalLeftVisualLines) * 100;
-                _sbsLeftMarkers.Add(new DiffMarkerInfo("add", top));
-            }
-            else if (!string.IsNullOrEmpty(item.CssClass) && item.CssClass.Contains("sbs-del"))
-            {
-                // Deleted content
-                double top = (currentVisualLine / totalLeftVisualLines) * 100;
-                _sbsLeftMarkers.Add(new DiffMarkerInfo("del", top));
-            }
-            
+            string? mType = item.IsGap ? "add" : (item.CssClass.Contains("sbs-del") ? "del" : null);
+            if (mType != null) _sbsLeftMarkers.Add(new DiffMarkerInfo(mType, (currentVisualLine / totalLeftVisualLines) * 100));
             currentVisualLine += item.HeightInLines;
         }
     }
 
-
-    private string GetDiffLineClass(DiffUtility.DiffLineItem line)
+    private void UpdateEditorHighlights()
     {
-        return line.Type switch
-        {
-            DiffUtility.DiffLineType.Add => "add",
-            DiffUtility.DiffLineType.Delete => "del",
-            _ => ""
-        };
+        _editorLineHighlights.Clear();
+        if (_selectedResult == null) return;
+        var oldLines = _selectedResult.OldContent.Replace("\r\n", "\n").Split('\n');
+        var newLines = _selectedResult.NewContent.Replace("\r\n", "\n").Split('\n');
+        var opcodes = DiffUtility.GetOpcodes(oldLines, newLines);
+        var flags = new bool[newLines.Length];
+        foreach (var op in opcodes) if (op.Tag == 'i' || op.Tag == 'r') for (int j = op.J1; j < op.J2; j++) if (j < flags.Length) flags[j] = true;
+        _editorLineHighlights.AddRange(flags);
     }
 
-    private string GetDiffLineMarker(DiffUtility.DiffLineItem line)
-    {
-        return line.Type switch
-        {
-            DiffUtility.DiffLineType.Add => "+",
-            DiffUtility.DiffLineType.Delete => "-",
-            _ => " "
-        };
-    }
-
-
-    private async Task AcceptSelectedChanges()
-    {
-        var accepted = _localDiffResults?.Where(r => r.IsSelectedForAccept).ToList();
-        if (accepted != null && accepted.Any())
-        {
-            await OnAccept.InvokeAsync(accepted);
-        }
-    }
-
-    private async Task CreateBranch()
-
-    {
-        if (!string.IsNullOrWhiteSpace(_suggestedBranch))
-        {
-            await OnCreateBranch.InvokeAsync(_suggestedBranch);
-        }
-    }
-
-    private async Task Commit()
-    {
-        var accepted = _localDiffResults?.Where(r => r.IsSelectedForAccept).ToList();
-        if (accepted != null && accepted.Any() && !string.IsNullOrWhiteSpace(_suggestedCommit))
-        {
-            var args = new CommitAndPushArgs(_suggestedBranch, _suggestedCommit, accepted);
-            await OnCommit.InvokeAsync(args);
-        }
-    }
-
-    private async Task Push()
-    {
-        var branchToPush = AppState.CurrentGitBranch;
-        if (!string.IsNullOrWhiteSpace(branchToPush))
-        {
-            var accepted = _localDiffResults?.Where(r => r.IsSelectedForAccept).ToList() ?? new List<DiffResult>();
-            var args = new CommitAndPushArgs(branchToPush, _suggestedCommit, accepted);
-            await OnPush.InvokeAsync(args);
-        }
-    }
-
-    private string GetStatusText(DiffResult result)
-    {
-        return result.Status switch
-        {
-            DiffStatus.NewFromModified => "ÚJ (módosítottként jelölve)",
-            DiffStatus.Deleted => "TÖRÖLT",
-            _ => result.Status.ToString().ToUpper()
-        };
-    }
-
-    private string GetStatusClass(DiffResult result)
-    {
-        return result.Status switch
-        {
-            DiffStatus.New => "new",
-            DiffStatus.Modified => "modified",
-            DiffStatus.Deleted => "deleted",
-            DiffStatus.Accepted => "accepted",
-            DiffStatus.Error => "error",
-            DiffStatus.NewFromModified => "new",
-            _ => ""
-        };
-    }
-
-    private async Task Close()
-    {
-        _selectedResult = null;
-        _isFullResponseView = false;
-        _localDiffResults.Clear();
-        _allBranches.Clear();
-        await OnClose.InvokeAsync();
-    }
-
-
-    private async Task RevertFile(DiffResult result)
-    {
-        if (_isGitDiffMode)
-        {
-            bool confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Biztosan visszaállítod/törlöd a fájlt?\n\n{result.Path}\n\nEz a művelet NEM vonható vissza!");
-            if (!confirmed) return;
-
-            try
-            {
-                await GitWorkflowService.DiscardFileChangesAsync(result);
-                if (_selectedResult == result)
-                {
-                    _selectedResult = null;
-                    GenerateDiffView();
-                }
-                await LoadSelectedDiffsAsync();
-            }
-            catch (Exception ex)
-            {
-                await JSRuntime.InvokeVoidAsync("alert", $"Hiba a visszaállítás során: {ex.Message}");
-            }
-        }
-        else
-        {
-            _localDiffResults.Remove(result);
-            if (_selectedResult == result)
-            {
-                _selectedResult = null;
-                GenerateDiffView();
-            }
-            StateHasChanged();
-        }
-    }
+    private async Task SetViewMode(string newMode) { _viewMode = newMode; if (_viewMode == "sbs") UpdateEditorHighlights(); }
+    private async Task OnContentChanged() { await GenerateDiffViewAsync(); UpdateEditorHighlights(); }
+    private async Task SyncScroll() => await JSRuntime.InvokeVoidAsync("syncEditorScroll", "editor-textarea", "editor-backdrop", "editor-left-display");
+    private async void OnAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) { if (e.PropertyName == nameof(AppState.CurrentGitBranch)) await InvokeAsync(StateHasChanged); }
+    private void ToggleFullResponseView() => _isFullResponseView = !_isFullResponseView;
+    private async Task LoadBranchesAsync() { _allBranches = await GitWorkflowService.GetBranchesAsync(); if (_allBranches.Any()) _selectedTargetBranch = _allBranches.First(); }
+    private async Task LoadSelectedDiffsAsync() { _isLoadingDiffs = true; try { _localDiffResults = await GitWorkflowService.GetDiffsAsync(_selectedDiffMode, _selectedTargetBranch); await SelectResult(_localDiffResults.FirstOrDefault()); } finally { _isLoadingDiffs = false; } }
+    private async Task RefreshSuggestionsAsync() { _isRefreshingSuggestions = true; try { var (b, c) = await GitSuggestionService.GetSuggestionsAsync(_localDiffResults, _globalExplanationText); _suggestedBranch = b ?? ""; _suggestedCommit = c ?? ""; _hasSuggestions = b != null; } finally { _isRefreshingSuggestions = false; } }
+    private void ParseGlobalExplanation() { if (string.IsNullOrEmpty(GlobalExplanation)) return; var bMatch = Regex.Match(GlobalExplanation, @"\[BRANCH_SUGGESTION\]([\s\S]*?)\[/BRANCH_SUGGESTION\]"); var cMatch = Regex.Match(GlobalExplanation, @"\[COMMIT_SUGGESTION\]([\s\S]*?)\[/COMMIT_SUGGESTION\]"); if (bMatch.Success && cMatch.Success) { _suggestedBranch = bMatch.Groups[1].Value.Trim(); _suggestedCommit = cMatch.Groups[1].Value.Trim(); _hasSuggestions = true; } }
+    private async Task CopyToClipboard(string t) { if (!string.IsNullOrEmpty(t)) await Clipboard.SetTextAsync(t); }
+    private string GetDiffLineClass(DiffUtility.DiffLineItem l) => l.Type == DiffUtility.DiffLineType.Add ? "add" : (l.Type == DiffUtility.DiffLineType.Delete ? "del" : "");
+    private string GetDiffLineMarker(DiffUtility.DiffLineItem l) => l.Type == DiffUtility.DiffLineType.Add ? "+" : (l.Type == DiffUtility.DiffLineType.Delete ? "-" : " ");
+    private void HideContextMenu() => _showContextMenu = false;
+    private void ShowLineContextMenu(MouseEventArgs e, DiffUtility.DiffLineItem l) { if (l.Type == DiffUtility.DiffLineType.Context) return; _contextMenuX = e.ClientX; _contextMenuY = e.ClientY; _contextMenuTargetLine = l; _showContextMenu = true; }
+    private async Task AcceptSelectedChanges() { var acc = _localDiffResults.Where(r => r.IsSelectedForAccept).ToList(); if (acc.Any()) await OnAccept.InvokeAsync(acc); }
+    private async Task CreateBranch() { if (!string.IsNullOrEmpty(_suggestedBranch)) await OnCreateBranch.InvokeAsync(_suggestedBranch); }
+    private async Task Commit() { var acc = _localDiffResults.Where(r => r.IsSelectedForAccept).ToList(); if (acc.Any()) await OnCommit.InvokeAsync(new CommitAndPushArgs(_suggestedBranch, _suggestedCommit, acc)); }
+    private async Task Push() => await OnPush.InvokeAsync(new CommitAndPushArgs(AppState.CurrentGitBranch, _suggestedCommit, _localDiffResults.Where(r => r.IsSelectedForAccept).ToList()));
+    private string GetStatusText(DiffResult r) => r.Status.ToString().ToUpper();
+    private string GetStatusClass(DiffResult r) => r.Status.ToString().ToLower();
+    private async Task Close() { await OnClose.InvokeAsync(); }
+    private async Task RevertFile(DiffResult r) { if (_isGitDiffMode) await GitWorkflowService.DiscardFileChangesAsync(r); else _localDiffResults.Remove(r); await LoadSelectedDiffsAsync(); }
+    private async Task StartPaneResize(MouseEventArgs e) { _isResizingPane = true; _windowWidth = await JSRuntime.InvokeAsync<double>("eval", "window.innerWidth"); }
+    private void StopPaneResize(MouseEventArgs e) { _isResizingPane = false; _isResizingSbs = false; }
+    private void OnMouseMove(MouseEventArgs e) { if (_isResizingPane) _leftPaneWidthPercent = Math.Clamp((e.ClientX / _windowWidth) * 100, 15, 85); }
+    private async Task StartSbsResize(MouseEventArgs e) { _isResizingSbs = true; var r = await JSRuntime.InvokeAsync<BoundingRect>("getElementBoundingClientRect", "sbs-container"); if (r != null) { _sbsContainerLeft = r.Left; _sbsContainerWidth = r.Width; } }
+    private async Task OnNavRailClick(MouseEventArgs e) { var r = await JSRuntime.InvokeAsync<BoundingRect>("getElementBoundingClientRect", "sbs-nav-rail"); if (r != null) await JSRuntime.InvokeVoidAsync("scrollEditorToPercent", "editor-textarea", e.OffsetY / r.Height); }
+    public void Dispose() => AppState.PropertyChanged -= OnAppStateChanged;
 }
