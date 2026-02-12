@@ -61,6 +61,29 @@
                         <input id="ollama-model" type="text" @bind="AppState.OllamaModel" placeholder="qwen3:4b-instruct" />
                     </div>
                 </div>
+                
+                <h4>Keresés / Embedding Beállítások</h4>
+                <div class="form-section">
+                     <div class="form-group" style="flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px;">
+                        <input id="ollama-embed-use" type="checkbox" @bind="AppState.UseOllamaEmbeddings" style="width: auto; margin: 0;" />
+                        <label for="ollama-embed-use" style="margin: 0; cursor: pointer;">Lokális Ollama használata Embeddinghez</label>
+                    </div>
+                    @if (AppState.UseOllamaEmbeddings)
+                    {
+                        <div class="form-group">
+                            <label for="ollama-embed-model">Embedding Modell:</label>
+                            <input id="ollama-embed-model" type="text" @bind="AppState.OllamaEmbeddingModel" placeholder="nomic-embed-text" />
+                            <small>Győződj meg róla, hogy a modell le van töltve (`ollama pull nomic-embed-text`)</small>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="hint-text">
+                            A beépített (ONNX) modellt használja. Ha az nincs telepítve, a keresés nem fog működni.
+                        </div>
+                    }
+                </div>
+
             </div>
             <div class="modal-footer">
                 <button @onclick="Close">Mégsem</button>
@@ -90,7 +113,9 @@
             OpenRouterSiteUrl = AppState.OpenRouterSiteUrl,
             OpenRouterSiteName = AppState.OpenRouterSiteName,
             OllamaApiUrl = AppState.OllamaApiUrl,
-            OllamaModel = AppState.OllamaModel
+            OllamaModel = AppState.OllamaModel,
+            UseOllamaEmbeddings = AppState.UseOllamaEmbeddings,
+            OllamaEmbeddingModel = AppState.OllamaEmbeddingModel
         };
         await SettingsService.SaveSettingsAsync(settings);
         AppState.StatusText = "Beállítások mentve.";

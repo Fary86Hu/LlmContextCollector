@@ -28,6 +28,14 @@
     <div class="right-middle-section">
         <div class="context-list-header">
             <h4>Kiválasztott Fájlok (Kontextushoz)</h4>
+            <div class="preview-search-controls">
+                <input type="text" 
+                       placeholder="Szűrés..." 
+                       @bind="_contextSearchTerm" 
+                       @bind:event="oninput" 
+                       @onkeyup="HandleContextSearchKeyup" />
+                <button @onclick="ClearContextSearch" disabled="@(string.IsNullOrEmpty(_contextSearchTerm))" class="clear-btn">&times;</button>
+            </div>
         </div>
         <div class="context-table-container" @onkeydown="HandleListKeyDown" tabindex="0">
             <table class="context-table">
@@ -127,6 +135,12 @@
                     <label title="Rendszer utasítások hozzáadása"><input type="checkbox" @bind="_includeSystemPrompt" />System</label>
                     <label title="Kiválasztott fájlok tartalmának hozzáadása"><input type="checkbox" @bind="_includeFiles" />Fájlok</label>
                 </div>
+                <select class="prompt-select-inline" @bind="AppState.ActiveGlobalPromptId" style="margin: 0 8px; flex-grow: 1; max-width: 250px;">
+                    @foreach (var prompt in AppState.PromptTemplates)
+                    {
+                        <option value="@prompt.Id">@prompt.Title</option>
+                    }
+                </select>
                 <button class="copy-button primary" @onclick="CopyToClipboard" title="Vágólapra másolás (a pipáknak megfelelően)">Másolás</button>
             </div>
             

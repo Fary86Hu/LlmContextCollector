@@ -82,6 +82,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private string _previewContent = string.Empty;
         private MarkupString _previewContentMarkup;
         private string _previewSearchTerm = string.Empty;
+        private string _contextSearchTerm = string.Empty;
         private int _currentPreviewMatchIndex = 0;
         private int _totalPreviewMatches = 0;
         private bool _isInitialPreviewSearch = true;
@@ -413,6 +414,12 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
             foreach (var fileRelPath in AppState.SelectedFilesForContext)
             {
+                if (!string.IsNullOrWhiteSpace(_contextSearchTerm) && 
+                    !fileRelPath.Contains(_contextSearchTerm, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 try
                 {
                     var score = _semanticScores.GetValueOrDefault(fileRelPath, -1.0);
@@ -788,7 +795,22 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         #endregion
 
-        #region Preview Search
+        #region List and Preview Search
+
+        private async Task HandleContextSearchKeyup(KeyboardEventArgs e)
+        {
+            UpdateSortedFiles();
+            SortFiles();
+            await Task.CompletedTask;
+        }
+
+        private void ClearContextSearch()
+        {
+            _contextSearchTerm = string.Empty;
+            UpdateSortedFiles();
+            SortFiles();
+        }
+
         public async Task SearchInPreview(string searchTerm)
         {
             if (string.IsNullOrWhiteSpace(searchTerm))

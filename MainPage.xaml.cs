@@ -1,3 +1,4 @@
+using LlmContextCollector.Models;
 using LlmContextCollector.Services;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
 using System.Text.Json;
@@ -34,6 +35,54 @@ namespace LlmContextCollector
                     _browserService.OnOpenBrowser += BrowserService_OnOpenBrowser;
                     _browserService.OnCloseBrowser += BrowserService_OnCloseBrowser;
                     _browserService.OnExtractContent += BrowserService_OnExtractContent;
+                }
+
+                if (_appState != null)
+                {
+                    _appState.PropertyChanged += AppState_PropertyChanged;
+                    UpdatePromptPicker();
+                }
+            }
+        }
+
+        private void AppState_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(AppState.PromptTemplates) || e.PropertyName == nameof(AppState.ActiveGlobalPromptId))
+            {
+                MainThread.BeginInvokeOnMainThread(UpdatePromptPicker);
+            }
+        }
+
+        private void UpdatePromptPicker()
+        {
+            if (_appState == null || _appState.PromptTemplates == null) return;
+
+            var templates = _appState.PromptTemplates.ToList();
+            if (templates.Count == 0) return;
+
+            // Először leállítjuk az eseménykezelőt, hogy a betöltés ne váltson ki felesleges mentést
+            SystemPromptPicker.SelectedIndexChanged -= SystemPromptPicker_SelectedIndexChanged;
+
+            SystemPromptPicker.ItemsSource = templates;
+            
+            var selected = templates.FirstOrDefault(p => p.Id == _appState.ActiveGlobalPromptId) 
+                           ?? templates.FirstOrDefault();
+
+            if (selected != null)
+            {
+                SystemPromptPicker.SelectedItem = selected;
+            }
+
+            SystemPromptPicker.SelectedIndexChanged += SystemPromptPicker_SelectedIndexChanged;
+        }
+
+        private void SystemPromptPicker_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            if (SystemPromptPicker.SelectedItem is PromptTemplate selected && _appState != null)
+            {
+                if (_appState.ActiveGlobalPromptId != selected.Id)
+                {
+                    _appState.ActiveGlobalPromptId = selected.Id;
                 }
             }
         }

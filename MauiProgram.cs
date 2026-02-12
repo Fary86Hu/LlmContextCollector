@@ -90,11 +90,18 @@ namespace LlmContextCollector
             {
                 var appState = sp.GetRequiredService<AppState>();
                 c.BaseAddress = new Uri(appState.OllamaApiUrl);
-                c.Timeout = TimeSpan.FromMinutes(10); // A nagy kontextus feldolgozása lassú lehet
+                c.Timeout = TimeSpan.FromMinutes(10); 
+            });
+
+            // Külön HttpClient az embeddingnek, hogy ne akadjon össze a chat-tel, ha más timeout kellene
+            builder.Services.AddHttpClient("OllamaEmbed", (sp, c) =>
+            {
+                 c.Timeout = TimeSpan.FromMinutes(5);
             });
 
             builder.Services.AddSingleton<ITextGenerationProvider, GroqTextGenerationProvider>();
             
+            // --- Embedding Provider Setup ---
             
             var modelDir = Path.Combine(FileSystem.AppDataDirectory, "models");
             Directory.CreateDirectory(modelDir);
@@ -105,6 +112,14 @@ namespace LlmContextCollector
             TryCopyAsset("model_quantized.onnx", modelPath);
             TryCopyAsset("model_quantized.onnx_data", Path.Combine(modelDir, "model_quantized.onnx_data"));
 
+            // Regisztráljuk a Null providert mindig
+            builder.Services.AddSingleton<NullEmbeddingProvider>();
+            
+            // Regisztráljuk az Ollama providert mindig
+            builder.Services.AddSingleton<OllamaEmbeddingProvider>();
+
+            // Regisztráljuk az ONNX providert, ha elérhetőek a fájlok
+            bool onnxAvailable = false;
             if (File.Exists(modelPath) && File.Exists(tokenizerPath))
             {
                 try
@@ -112,7 +127,9 @@ namespace LlmContextCollector
                     var tokenizer = new Tokenizer(tokenizerPath);
                     builder.Services.AddSingleton(tokenizer);
                     builder.Services.AddSingleton<IChunker, TokenizerChunker>();
-                    builder.Services.AddSingleton<IEmbeddingProvider>(sp =>
+                    
+                    // Önmagában regisztráljuk a konkrét típust
+                    builder.Services.AddSingleton<EmbeddingGemmaOnnxProvider>(sp =>
                         new EmbeddingGemmaOnnxProvider(
                             onnxPath: modelPath,
                             tokenizer: sp.GetRequiredService<Tokenizer>(),
@@ -121,19 +138,24 @@ namespace LlmContextCollector
                             threads: 1
                         )
                     );
+                    onnxAvailable = true;
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Error initializing ONNX models, AI features will be disabled: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Error initializing ONNX models: {ex.Message}");
                     builder.Services.AddSingleton<IChunker, NullChunker>();
-                    builder.Services.AddSingleton<IEmbeddingProvider, NullEmbeddingProvider>();
                 }
             }
             else
             {
-                builder.Services.AddSingleton<IChunker, NullChunker>();
-                builder.Services.AddSingleton<IEmbeddingProvider, NullEmbeddingProvider>();
+                // Ha nincsenek meg az ONNX fájlok, egy egyszerű karakter-alapú darabolót használunk
+                builder.Services.AddSingleton<IChunker, SimpleChunker>();
             }
+
+            // A fő IEmbeddingProvider interfész a SwitchingEmbeddingProvider-re mutat
+            builder.Services.AddSingleton<IEmbeddingProvider, SwitchingEmbeddingProvider>();
+
+            // ---------------------------------
 
             builder.Services.AddSingleton(new JsonEmbeddingCache(Path.Combine(FileSystem.AppDataDirectory, "embeddings", "cache.json")));
             builder.Services.AddSingleton<SemanticSearchService>();

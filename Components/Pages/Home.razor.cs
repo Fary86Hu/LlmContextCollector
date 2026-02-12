@@ -575,6 +575,8 @@ namespace LlmContextCollector.Components.Pages
             AppState.OpenRouterSiteName = settings.OpenRouterSiteName;
             AppState.OllamaApiUrl = settings.OllamaApiUrl;
             AppState.OllamaModel = settings.OllamaModel;
+            AppState.UseOllamaEmbeddings = settings.UseOllamaEmbeddings;
+            AppState.OllamaEmbeddingModel = settings.OllamaEmbeddingModel;
         }
 
         private async Task OnPromptManagerClose()

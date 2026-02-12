@@ -207,6 +207,20 @@ namespace LlmContextCollector.Services
             set => SetField(ref _ollamaModel, value);
         }
 
+        private bool _useOllamaEmbeddings = false;
+        public bool UseOllamaEmbeddings
+        {
+            get => _useOllamaEmbeddings;
+            set => SetField(ref _useOllamaEmbeddings, value);
+        }
+
+        private string _ollamaEmbeddingModel = "nomic-embed-text";
+        public string OllamaEmbeddingModel
+        {
+            get => _ollamaEmbeddingModel;
+            set => SetField(ref _ollamaEmbeddingModel, value);
+        }
+
         public List<HistoryEntry> HistoryEntries { get; set; } = new();
 
         private string _azureDevOpsOrganizationUrl = "";

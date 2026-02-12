@@ -32,11 +32,11 @@
                 </Grid.RowDefinitions>
 
                 <!-- Prompt Config Row -->
-                <HorizontalStackLayout Grid.Row="0" Spacing="20" VerticalOptions="Center" HorizontalOptions="Start">
+                <HorizontalStackLayout Grid.Row="0" Spacing="8" VerticalOptions="Center" HorizontalOptions="Start">
                     <!-- Prompt Checkbox -->
-                    <Grid ColumnDefinitions="32,Auto" VerticalOptions="Center">
-                        <CheckBox x:Name="PromptCheckBox" Grid.Column="0" IsChecked="True" Color="#0078d4" WidthRequest="32" VerticalOptions="Center" Margin="0" />
-                        <Label Grid.Column="1" Text="Prompt" VerticalOptions="Center" VerticalTextAlignment="Center" TextColor="Black" Margin="0">
+                    <Grid ColumnDefinitions="30,Auto" VerticalOptions="Center">
+                        <CheckBox x:Name="PromptCheckBox" Grid.Column="0" IsChecked="True" Color="#0078d4" WidthRequest="30" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="Prompt" VerticalOptions="Center" TextColor="#333" FontSize="12">
                             <Label.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="PromptLabel_Tapped" />
                             </Label.GestureRecognizers>
@@ -44,9 +44,9 @@
                     </Grid>
                     
                     <!-- System Checkbox -->
-                    <Grid ColumnDefinitions="32,Auto" VerticalOptions="Center">
-                        <CheckBox x:Name="SystemPromptCheckBox" Grid.Column="0" IsChecked="True" Color="#0078d4" WidthRequest="32" VerticalOptions="Center" Margin="0" />
-                        <Label Grid.Column="1" Text="System" VerticalOptions="Center" VerticalTextAlignment="Center" TextColor="Black" Margin="0">
+                    <Grid ColumnDefinitions="30,Auto" VerticalOptions="Center">
+                        <CheckBox x:Name="SystemPromptCheckBox" Grid.Column="0" IsChecked="True" Color="#0078d4" WidthRequest="30" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="System" VerticalOptions="Center" TextColor="#333" FontSize="12">
                             <Label.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="SystemLabel_Tapped" />
                             </Label.GestureRecognizers>
@@ -54,16 +54,30 @@
                     </Grid>
 
                     <!-- Files Checkbox -->
-                    <Grid ColumnDefinitions="32,Auto" VerticalOptions="Center">
-                        <CheckBox x:Name="FileContextCheckBox" Grid.Column="0" IsChecked="True" Color="#0078d4" WidthRequest="32" VerticalOptions="Center" Margin="0" />
-                        <Label Grid.Column="1" Text="Fájlok" VerticalOptions="Center" VerticalTextAlignment="Center" TextColor="Black" Margin="0">
+                    <Grid ColumnDefinitions="30,Auto" VerticalOptions="Center">
+                        <CheckBox x:Name="FileContextCheckBox" Grid.Column="0" IsChecked="True" Color="#0078d4" WidthRequest="30" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="Fájlok" VerticalOptions="Center" TextColor="#333" FontSize="12">
                             <Label.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="FilesLabel_Tapped" />
                             </Label.GestureRecognizers>
                         </Label>
                     </Grid>
 
-                    <Button x:Name="CopyButton" Text="Másolás" Clicked="CopyContext_Clicked" BackgroundColor="#0078d4" TextColor="White" HeightRequest="32" Padding="15,0" FontSize="12" FontAttributes="Bold" VerticalOptions="Center" Margin="5,0,0,0" />
+                    <BoxView WidthRequest="1" HeightRequest="20" BackgroundColor="#CCC" VerticalOptions="Center" Margin="5,0" />
+
+                    <Label Text="Sablon:" VerticalOptions="Center" TextColor="#333" FontSize="12" FontAttributes="Bold" />
+                    <Picker x:Name="SystemPromptPicker" 
+                            ItemDisplayBinding="{Binding Title}"
+                            SelectedIndexChanged="SystemPromptPicker_SelectedIndexChanged"
+                            FontSize="12"
+                            HeightRequest="32"
+                            WidthRequest="200"
+                            VerticalOptions="Center"
+                            TextColor="Black"
+                            BackgroundColor="#EEE"
+                            Margin="0,0,5,0" />
+
+                    <Button x:Name="CopyButton" Text="Másolás" Clicked="CopyContext_Clicked" BackgroundColor="#0078d4" TextColor="White" HeightRequest="34" Padding="15,0" FontSize="12" FontAttributes="Bold" VerticalOptions="Center" Margin="10,0,0,0" />
                 </HorizontalStackLayout>
 
                 <!-- Prompt Editor Row -->
