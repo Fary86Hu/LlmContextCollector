@@ -54,8 +54,21 @@
                                 @foreach (var log in _agentLogs)
                                 {
                                     <div class="agent-log-entry @(log.Type.Contains("AI") ? "ai" : "user")">
-                                        <div class="log-label">@log.Type</div>
-                                        <div class="log-text">@log.Text</div>
+                                        <div class="log-header" @onclick="() => ToggleLog(log)">
+                                            <span class="log-toggle-icon">@(log.IsExpanded ? "▼" : "▶")</span>
+                                            <span class="log-label">@log.Type</span>
+                                        </div>
+                                        
+                                        @if (log.IsExpanded)
+                                        {
+                                            <div class="log-text expanded">@log.Text</div>
+                                        }
+                                        else
+                                        {
+                                            <div class="log-text collapsed" @onclick="() => ToggleLog(log)">
+                                                @GetLogPreview(log)
+                                            </div>
+                                        }
                                     </div>
                                 }
                             </div>

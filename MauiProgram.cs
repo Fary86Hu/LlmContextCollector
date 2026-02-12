@@ -63,6 +63,10 @@ namespace LlmContextCollector
             builder.Services.AddTransient<QueryBuilders>();
             builder.Services.AddTransient<OllamaService>();
             builder.Services.AddSingleton<BrowserService>();
+            
+            // --- Új szolgáltatások regisztrálása ---
+            builder.Services.AddTransient<AgentContentLoader>();
+            builder.Services.AddTransient<AgentPromptBuilder>();
 
 
 #if WINDOWS
@@ -105,7 +109,5 @@ namespace LlmContextCollector
 
             return builder.Build();
         }
-
-
     }
 }

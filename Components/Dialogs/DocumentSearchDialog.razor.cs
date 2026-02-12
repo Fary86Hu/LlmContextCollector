@@ -32,6 +32,7 @@ namespace LlmContextCollector.Components.Dialogs
         { 
             public string Type { get; set; } = ""; 
             public string Text { get; set; } = ""; 
+            public bool IsExpanded { get; set; } = false;
         }
         private List<AgentLog> _agentLogs = new();
         private CancellationTokenSource? _agentCts;
@@ -102,10 +103,20 @@ namespace LlmContextCollector.Components.Dialogs
                     if (existing != null)
                     {
                         existing.Text = text;
+                        // Ha éppen írjuk és ez az utolsó üzenet, és nincs kinyitva, 
+                        // akkor a preview automatikusan frissül a StateHasChanged miatt.
                     }
                     else
                     {
-                        _agentLogs.Add(new AgentLog { Type = type, Text = text });
+                        // Új lognál alapból csukva van, de az AI válaszokat nyitva is hagyhatnánk. 
+                        // A kérés szerint "lehessen kinyitni", tehát alapból csukva (vagy placeholder).
+                        // Az egyszerűség kedvéért most csukva indul, de a placeholder jelzi az aktivitást.
+                        _agentLogs.Add(new AgentLog 
+                        { 
+                            Type = type, 
+                            Text = text,
+                            IsExpanded = false 
+                        });
                     }
 
                     await InvokeAsync(StateHasChanged);
@@ -136,6 +147,29 @@ namespace LlmContextCollector.Components.Dialogs
                 _isSearching = false;
                 StateHasChanged();
             }
+        }
+
+        private void ToggleLog(AgentLog log)
+        {
+            log.IsExpanded = !log.IsExpanded;
+        }
+
+        private string GetLogPreview(AgentLog log)
+        {
+            if (string.IsNullOrWhiteSpace(log.Text))
+            {
+                return log.Type.Contains("AI", StringComparison.OrdinalIgnoreCase) 
+                    ? "Az LLM épp válaszol..." 
+                    : "...";
+            }
+
+            // Ha nagyon rövid, kiírjuk, egyébként vágjuk
+            var text = log.Text.Replace("\r", "").Replace("\n", " ");
+            if (text.Length > 80)
+            {
+                return text.Substring(0, 80) + "...";
+            }
+            return text;
         }
 
         private void SelectResult(RelevanceResult result)
