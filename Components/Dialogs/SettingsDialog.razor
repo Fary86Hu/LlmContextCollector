@@ -30,26 +30,6 @@
                     </div>
                 </div>
 
-                <h4>OpenRouter API Beállítások</h4>
-                <div class="form-section">
-                    <div class="form-group">
-                        <label for="or-apikey">API Kulcs:</label>
-                        <input id="or-apikey" type="password" @bind="AppState.OpenRouterApiKey" placeholder="sk-or-..." />
-                    </div>
-                    <div class="form-group">
-                        <label for="or-model">Modell:</label>
-                        <input id="or-model" type="text" @bind="AppState.OpenRouterModel" />
-                    </div>
-                    <div class="form-group">
-                        <label for="or-siteurl">Site URL (opcionális):</label>
-                        <input id="or-siteurl" type="text" @bind="AppState.OpenRouterSiteUrl" placeholder="https://sajat-oldal.hu" />
-                    </div>
-                    <div class="form-group">
-                        <label for="or-sitename">Site Name (opcionális):</label>
-                        <input id="or-sitename" type="text" @bind="AppState.OpenRouterSiteName" placeholder="Saját Projekt" />
-                    </div>
-                </div>
-
                 <h4>Lokális Ollama Beállítások</h4>
                 <div class="form-section">
                     <div class="form-group">
@@ -61,29 +41,6 @@
                         <input id="ollama-model" type="text" @bind="AppState.OllamaModel" placeholder="qwen3:4b-instruct" />
                     </div>
                 </div>
-                
-                <h4>Keresés / Embedding Beállítások</h4>
-                <div class="form-section">
-                     <div class="form-group" style="flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px;">
-                        <input id="ollama-embed-use" type="checkbox" @bind="AppState.UseOllamaEmbeddings" style="width: auto; margin: 0;" />
-                        <label for="ollama-embed-use" style="margin: 0; cursor: pointer;">Lokális Ollama használata Embeddinghez</label>
-                    </div>
-                    @if (AppState.UseOllamaEmbeddings)
-                    {
-                        <div class="form-group">
-                            <label for="ollama-embed-model">Embedding Modell:</label>
-                            <input id="ollama-embed-model" type="text" @bind="AppState.OllamaEmbeddingModel" placeholder="nomic-embed-text" />
-                            <small>Győződj meg róla, hogy a modell le van töltve (`ollama pull nomic-embed-text`)</small>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="hint-text">
-                            A beépített (ONNX) modellt használja. Ha az nincs telepítve, a keresés nem fog működni.
-                        </div>
-                    }
-                </div>
-
             </div>
             <div class="modal-footer">
                 <button @onclick="Close">Mégsem</button>
@@ -108,10 +65,6 @@
             GroqModel = AppState.GroqModel,
             GroqMaxOutputTokens = AppState.GroqMaxOutputTokens,
             GroqApiUrl = AppState.GroqApiUrl,
-            OpenRouterApiKey = AppState.OpenRouterApiKey,
-            OpenRouterModel = AppState.OpenRouterModel,
-            OpenRouterSiteUrl = AppState.OpenRouterSiteUrl,
-            OpenRouterSiteName = AppState.OpenRouterSiteName,
             OllamaApiUrl = AppState.OllamaApiUrl,
             OllamaModel = AppState.OllamaModel,
             UseOllamaEmbeddings = AppState.UseOllamaEmbeddings,

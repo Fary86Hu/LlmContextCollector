@@ -40,8 +40,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         [Inject]
         private ReferenceFinderService ReferenceFinderService { get; set; } = null!;
         [Inject]
-        private OpenRouterService OpenRouterService { get; set; } = null!;
-        [Inject]
         private OllamaService OllamaService { get; set; } = null!;
         [Inject]
         private BrowserService BrowserService { get; set; } = null!;
@@ -734,34 +732,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             try
             {
                 await RouteResponseAsync(clipboardText);
-            }
-            finally
-            {
-                AppState.HideLoading();
-            }
-        }
-
-        private async Task ProcessWithOpenRouterAsync()
-        {
-            if (string.IsNullOrWhiteSpace(AppState.OpenRouterApiKey))
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "Az OpenRouter API kulcs nincs beállítva. Kérlek, add meg a Beállítások menüben.");
-                return;
-            }
-
-            AppState.ShowLoading("OpenRouter válaszára várakozás...");
-            try
-            {
-                var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
-                
-                var responseContent = await OpenRouterService.GenerateContentAsync(sortedPaths);
-                
-                await RouteResponseAsync(responseContent);
-            }
-            catch (Exception ex)
-            {
-                await JSRuntime.InvokeVoidAsync("alert", $"Hiba az OpenRouter API hívása közben: {ex.Message}");
-                AppState.StatusText = "Hiba az OpenRouter API hívása közben.";
             }
             finally
             {

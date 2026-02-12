@@ -165,34 +165,6 @@ namespace LlmContextCollector.Services
             set => SetField(ref _groqApiUrl, value);
         }
 
-        private string _openRouterApiKey = string.Empty;
-        public string OpenRouterApiKey
-        {
-            get => _openRouterApiKey;
-            set => SetField(ref _openRouterApiKey, value);
-        }
-
-        private string _openRouterModel = "x-ai/grok-4-fast:free";
-        public string OpenRouterModel
-        {
-            get => _openRouterModel;
-            set => SetField(ref _openRouterModel, value);
-        }
-
-        private string _openRouterSiteUrl = string.Empty;
-        public string OpenRouterSiteUrl
-        {
-            get => _openRouterSiteUrl;
-            set => SetField(ref _openRouterSiteUrl, value);
-        }
-
-        private string _openRouterSiteName = string.Empty;
-        public string OpenRouterSiteName
-        {
-            get => _openRouterSiteName;
-            set => SetField(ref _openRouterSiteName, value);
-        }
-
         private string _ollamaApiUrl = "http://localhost:11434/v1/";
         public string OllamaApiUrl
         {

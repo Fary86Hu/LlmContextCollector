@@ -24,13 +24,6 @@ namespace LlmContextCollector.AI
                     return _serviceProvider.GetRequiredService<OllamaEmbeddingProvider>();
                 }
 
-                // Ha van regisztrálva ONNX provider (mert megvoltak a fájlok), azt használjuk
-                var onnxProvider = _serviceProvider.GetService<EmbeddingGemmaOnnxProvider>();
-                if (onnxProvider != null)
-                {
-                    return onnxProvider;
-                }
-
                 return _serviceProvider.GetRequiredService<NullEmbeddingProvider>();
             }
         }
