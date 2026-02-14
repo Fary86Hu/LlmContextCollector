@@ -75,7 +75,11 @@ namespace LlmContextCollector.Services
                 }
                 catch { }
             }
-            allPatterns.AddRange(_appState.IgnorePatternsRaw.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries));
+            var userPatterns = _appState.Exclusions
+                .Where(e => e.IsEnabled)
+                .Select(e => e.Pattern);
+            
+            allPatterns.AddRange(userPatterns);
 
             var uniquePatterns = allPatterns
                 .Select(p => p.Trim())

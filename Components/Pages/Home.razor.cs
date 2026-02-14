@@ -58,6 +58,7 @@ namespace LlmContextCollector.Components.Pages
         private bool _isAzureDevOpsDialogVisible = false;
         private bool _isDocumentSearchDialogVisible = false;
         private bool _isLocalAiChatVisible = false;
+        private bool _isExclusionsDialogVisible = false;
         private string _localAiPrompt = string.Empty;
         private string _localAiSystem = string.Empty;
         private string _localAiFiles = string.Empty;
@@ -622,6 +623,18 @@ namespace LlmContextCollector.Components.Pages
             _localAiPrompt = string.Empty;
             _localAiSystem = string.Empty;
             _localAiFiles = string.Empty;
+            StateHasChanged();
+        }
+
+        public void ShowExclusionsDialog()
+        {
+            _isExclusionsDialogVisible = true;
+            StateHasChanged();
+        }
+
+        private void OnExclusionsDialogClose()
+        {
+            _isExclusionsDialogVisible = false;
             StateHasChanged();
         }
 

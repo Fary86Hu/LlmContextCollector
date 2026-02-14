@@ -59,10 +59,71 @@
         margin-left: 5px;
     }
 
-.ignore-patterns {
+.exclusion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.exclusion-search {
+    margin-bottom: 5px;
+}
+
+.exclusion-search input {
     width: 100%;
-    height: 150px;
-    resize: vertical;
+    font-size: 11px;
+    padding: 3px 6px;
+}
+
+.exclusion-list {
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    background-color: var(--input-bg-color);
+    border-radius: 3px;
+}
+
+.exclusion-item {
+    display: flex;
+    align-items: center;
+    padding: 2px 5px;
+    border-bottom: 1px solid var(--border-color);
+    gap: 5px;
+}
+
+.exclusion-item.disabled {
+    opacity: 0.5;
+}
+
+.exclusion-item .pattern-input {
+    flex-grow: 1;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-size: 11px;
+    padding: 2px 0;
+}
+
+.exclusion-item .delete-btn {
+    background: none;
+    border: none;
+    color: var(--text-color-light);
+    font-size: 16px;
+    padding: 0 5px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.exclusion-item .delete-btn:hover {
+    color: #e76f51;
+}
+
+.empty-list-hint {
+    padding: 10px;
+    font-size: 11px;
+    color: var(--text-color-light);
+    text-align: center;
 }
 
 .apply-filters-btn {

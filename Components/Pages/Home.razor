@@ -2,6 +2,7 @@
 @using LlmContextCollector.Components.Pages.HomePanels
 
 <div class="main-container" @onclick="HideContextMenus" @onmousemove="OnMouseMove" @onmouseup="StopResize" @onmouseleave="StopResize">
+    <CascadingValue Value="this">
     <div class="content-wrapper" style="--left-flex:@(AppState.LeftPanelFlex); --middle-flex:@(AppState.MiddlePanelFlex); --right-flex:@(AppState.RightPanelFlex)">
 
         <FileTreePanel OnRequestApplyFiltersAndReload="() => ApplyFiltersAndReload(true)"
@@ -34,6 +35,7 @@
                       OnSplitterMouseDown="args => StartResize(args.Item1, args.Item2)"
                       OnShowLocalAiChat="ShowLocalAiChat" />
     </div>
+    </CascadingValue>
     <StatusBar />
 </div>
 
@@ -85,3 +87,7 @@
                    SystemPrompt="@_localAiSystem"
                    FilesContext="@_localAiFiles"
                    OnClose="OnLocalAiChatClose" />
+
+<ExclusionsDialog IsVisible="_isExclusionsDialogVisible" 
+                  OnClose="OnExclusionsDialogClose" 
+                  OnApply="() => ApplyFiltersAndReload(true)" />

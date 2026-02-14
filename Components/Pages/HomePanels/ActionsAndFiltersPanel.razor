@@ -1,12 +1,13 @@
 @inject AppState AppState
 @implements IDisposable
 @using System.ComponentModel
+@using LlmContextCollector.Models
 
 <div class="panel panel-middle">
     <div class="middle-buttons">
-        <button @onclick="OnAddSelectedToContext">&gt;&gt; Hozzáadás</button>
+        <button @onclick="OnAddSelectedToContext">>> Hozzáadás</button>
         <button @onclick="OnExcludeSelected">Kizárás</button>
-        <button @onclick="OnRemoveSelectedFromContext">&lt;&lt; Eltávolítás</button>
+        <button @onclick="OnRemoveSelectedFromContext">Eltávolítás</button>
         <div class="ref-finder">
             <label for="ref-depth">Ref. mélység:</label>
             <input type="number" id="ref-depth" min="0" max="5" @bind="AppState.ReferenceSearchDepth" />
@@ -39,10 +40,30 @@
             </div>
         </div>
 
-
         <div class="filter-section">
-            <strong>Kizárások:</strong>
-            <textarea class="ignore-patterns" @bind="AppState.IgnorePatternsRaw" @bind:event="oninput"></textarea>
+            <div class="exclusion-header">
+                <strong>Kizárások (@AppState.Exclusions.Count(e => e.IsEnabled)/@AppState.Exclusions.Count):</strong>
+                <button class="icon-btn-small" @onclick="AddExclusion" title="Új szabály hozzáadása">➕</button>
+            </div>
+            
+            <div class="exclusion-search">
+                <input type="text" placeholder="Szűrés a szabályok között..." @bind="_exclusionSearchTerm" @bind:event="oninput" />
+            </div>
+
+            <div class="exclusion-list">
+                @foreach (var rule in FilteredExclusions)
+                {
+                    <div class="exclusion-item @(rule.IsEnabled ? "" : "disabled")">
+                        <input type="checkbox" checked="@rule.IsEnabled" @onchange="@((e) => ToggleRule(rule, e))" />
+                        <input type="text" @bind="rule.Pattern" @bind:event="oninput" @onchange="OnExclusionChanged" class="pattern-input" />
+                        <button class="delete-btn" @onclick="() => RemoveExclusion(rule)">×</button>
+                    </div>
+                }
+                @if (!FilteredExclusions.Any())
+                {
+                    <div class="empty-list-hint">@(string.IsNullOrEmpty(_exclusionSearchTerm) ? "Nincs megadott szabály." : "Nincs találat.")</div>
+                }
+            </div>
         </div>
 
         <button class="apply-filters-btn" @onclick="OnApplyFilters">Alkalmaz és Újratölt</button>
@@ -62,6 +83,12 @@
     [Parameter]
     public EventCallback OnApplyFilters { get; set; }
 
+    private string _exclusionSearchTerm = "";
+
+    private IEnumerable<ExclusionRule> FilteredExclusions => 
+        string.IsNullOrWhiteSpace(_exclusionSearchTerm) 
+        ? AppState.Exclusions 
+        : AppState.Exclusions.Where(e => e.Pattern.Contains(_exclusionSearchTerm, StringComparison.OrdinalIgnoreCase));
 
     protected override void OnInitialized()
     {
@@ -74,12 +101,35 @@
             e.PropertyName == nameof(AppState.ExtensionFilters) ||
             e.PropertyName == nameof(AppState.ExtensionCounts) ||
             e.PropertyName == nameof(AppState.ReferenceSearchDepth) ||
-            e.PropertyName == nameof(AppState.IncludeReferencingFiles))
+            e.PropertyName == nameof(AppState.IncludeReferencingFiles) ||
+            e.PropertyName == nameof(AppState.Exclusions))
         {
             await InvokeAsync(StateHasChanged);
         }
     }
 
+    private void OnExclusionChanged()
+    {
+        AppState.UpdateRawFromExclusions();
+    }
+
+    private void ToggleRule(ExclusionRule rule, ChangeEventArgs e)
+    {
+        rule.IsEnabled = (bool)(e.Value ?? false);
+        OnExclusionChanged();
+    }
+
+    private void AddExclusion()
+    {
+        AppState.Exclusions.Insert(0, new ExclusionRule { Pattern = "uj-minta/", IsEnabled = true });
+        OnExclusionChanged();
+    }
+
+    private void RemoveExclusion(ExclusionRule rule)
+    {
+        AppState.Exclusions.Remove(rule);
+        OnExclusionChanged();
+    }
 
     public void Dispose()
     {

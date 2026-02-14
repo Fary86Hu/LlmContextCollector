@@ -1,0 +1,107 @@
+@inject AppState AppState
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop">
+        <div class="modal-dialog exclusions-dialog">
+            <div class="modal-header">
+                <h3>Kizárási Szabályok Kezelése</h3>
+                <button class="close-btn" @onclick="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="exclusions-controls">
+                    <input type="text" placeholder="Keresés a szabályok között..." @bind="_searchTerm" @bind:event="oninput" class="search-input" />
+                    <button class="secondary" @onclick="AddNew">Új hozzáadása</button>
+                </div>
+
+                <div class="exclusions-list-container">
+                    <table class="exclusions-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;"><input type="checkbox" checked="@_allEnabled" @onchange="ToggleAll" /></th>
+                                <th>Minta (Fájl vagy Mappa)</th>
+                                <th style="width: 80px;">Művelet</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var rule in FilteredRules)
+                            {
+                                <tr class="@(rule.IsEnabled ? "" : "rule-disabled")">
+                                    <td><input type="checkbox" @bind="rule.IsEnabled" /></td>
+                                    <td><input type="text" @bind="rule.Pattern" class="inline-edit" /></td>
+                                    <td>
+                                        <button class="icon-btn-small delete-btn" @onclick="() => Remove(rule)">🗑️</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <p class="hint-text">A kikapcsolt szabályok megmaradnak a listában, de a rendszer figyelmen kívül hagyja őket a fájlok beolvasásakor.</p>
+            </div>
+            <div class="modal-footer">
+                <button @onclick="Close">Mégsem</button>
+                <button class="primary" @onclick="SaveAndApply">Mentés és Újratöltés</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .exclusions-dialog { width: 600px; height: 70vh; }
+    .exclusions-controls { display: flex; gap: 10px; margin-bottom: 15px; }
+    .search-input { flex-grow: 1; }
+    .exclusions-list-container { flex-grow: 1; border: 1px solid var(--border-color); overflow-y: auto; background-color: var(--panel-bg); }
+    .exclusions-table { width: 100%; border-collapse: collapse; }
+    .exclusions-table th, .exclusions-table td { padding: 8px; text-align: left; border-bottom: 1px solid var(--border-color); }
+    .exclusions-table th { position: sticky; top: 0; background: var(--toolbar-bg); z-index: 1; }
+    .rule-disabled { opacity: 0.6; font-style: italic; }
+    .inline-edit { width: 100%; border: none !important; background: transparent !important; box-shadow: none !important; }
+    .inline-edit:focus { background: var(--input-bg-color) !important; }
+    .hint-text { font-size: 11px; color: var(--text-color-light); margin-top: 10px; }
+</style>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnApply { get; set; }
+
+    private string _searchTerm = "";
+    private List<ExclusionRule> _localRules = new();
+
+    protected override void OnParametersSet()
+    {
+        if (IsVisible)
+        {
+            _localRules = AppState.Exclusions.Select(e => e.Clone()).ToList();
+        }
+    }
+
+    private IEnumerable<ExclusionRule> FilteredRules => 
+        string.IsNullOrWhiteSpace(_searchTerm) 
+        ? _localRules 
+        : _localRules.Where(r => r.Pattern.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
+
+    private bool _allEnabled => _localRules.All(r => r.IsEnabled);
+
+    private void ToggleAll(ChangeEventArgs e)
+    {
+        bool target = (bool)(e.Value ?? false);
+        foreach (var r in _localRules) r.IsEnabled = target;
+    }
+
+    private void AddNew() => _localRules.Insert(0, new ExclusionRule { Pattern = "uj-minta/", IsEnabled = true });
+
+    private void Remove(ExclusionRule rule) => _localRules.Remove(rule);
+
+    private async Task SaveAndApply()
+    {
+        AppState.Exclusions.Clear();
+        foreach (var r in _localRules) AppState.Exclusions.Add(r);
+        AppState.UpdateRawFromExclusions();
+        await OnApply.InvokeAsync();
+        await Close();
+    }
+
+    private async Task Close() => await OnClose.InvokeAsync();
+}

@@ -67,7 +67,43 @@ namespace LlmContextCollector.Services
         public string IgnorePatternsRaw
         {
             get => _ignorePatternsRaw;
-            set => SetField(ref _ignorePatternsRaw, value);
+            set
+            {
+                if (SetField(ref _ignorePatternsRaw, value))
+                {
+                    SyncExclusionsFromRaw();
+                }
+            }
+        }
+
+        public ObservableCollection<ExclusionRule> Exclusions { get; } = new();
+
+        private void SyncExclusionsFromRaw()
+        {
+            var lines = _ignorePatternsRaw.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            var currentPatterns = Exclusions.ToDictionary(e => e.Pattern);
+            
+            var newRules = new List<ExclusionRule>();
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrEmpty(trimmed)) continue;
+
+                bool isEnabled = !trimmed.StartsWith("#");
+                string pattern = isEnabled ? trimmed : trimmed.Substring(1).Trim();
+
+                newRules.Add(new ExclusionRule { Pattern = pattern, IsEnabled = isEnabled });
+            }
+
+            Exclusions.Clear();
+            foreach (var rule in newRules) Exclusions.Add(rule);
+        }
+
+        public void UpdateRawFromExclusions()
+        {
+            var lines = Exclusions.Select(e => (e.IsEnabled ? "" : "# ") + e.Pattern.Trim());
+            _ignorePatternsRaw = string.Join("\n", lines);
+            NotifyStateChanged(nameof(IgnorePatternsRaw));
         }
 
         private string _searchTerm = string.Empty;
