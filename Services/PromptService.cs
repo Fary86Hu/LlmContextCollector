@@ -11,9 +11,6 @@ namespace LlmContextCollector.Services
 
         private PromptData _promptDataCache = new();
 
-        // A gyári promptok nevei, amiket az Assetekből szinkronizálunk
-        private readonly string[] _factoryPromptNames = { "Developer", "TaskReviewer", "Planner", "CodeReviewer" };
-
         public PromptService(JsonStorageService storage)
         {
             _storage = storage;
@@ -70,23 +67,45 @@ namespace LlmContextCollector.Services
 
         private async Task SynchronizeFactoryPromptsFromAssets()
         {
-            foreach (var name in _factoryPromptNames)
+            // Dinamikus felderítés a hard-coded lista helyett
+            // Windows-on a MauiAsset-ek (Resources/Raw/Prompts) az alkalmazás könyvtárában a "Prompts" mappába kerülnek.
+            var appDir = AppDomain.CurrentDomain.BaseDirectory;
+            var promptsDir = Path.Combine(appDir, "Prompts");
+
+            IEnumerable<string> promptFiles;
+
+            if (Directory.Exists(promptsDir))
             {
-                string targetPath = Path.Combine(_promptsFolder, $"{name}.txt");
+                // Ha létezik a mappa, onnan vesszük a fájlneveket (kiterjesztéssel együtt)
+                promptFiles = Directory.GetFiles(promptsDir, "*.txt")
+                                       .Select(Path.GetFileName)
+                                       .Where(f => !string.IsNullOrEmpty(f))!;
+            }
+            else
+            {
+                // Fallback: Ha valamiért nem érhető el a mappa (bár Windows-on kellene lennie),
+                // egy minimális hard-coded listát használunk a biztonság kedvéért.
+                promptFiles = new[] { "Developer.txt", "TaskReviewer.txt", "Planner.txt", "CodeReviewer.txt" };
+            }
+
+            foreach (var fileName in promptFiles)
+            {
+                string targetPath = Path.Combine(_promptsFolder, fileName);
 
                 // Csak akkor másoljuk ki, ha még nem létezik a célmappában
                 if (!File.Exists(targetPath))
                 {
                     try
                     {
-                        using var stream = await FileSystem.OpenAppPackageFileAsync($"Prompts/{name}.txt");
+                        // A MauiAsset logikai útvonala a csproj alapján: Prompts/Fajlnev.txt
+                        using var stream = await FileSystem.OpenAppPackageFileAsync($"Prompts/{fileName}");
                         using var reader = new StreamReader(stream);
                         string content = await reader.ReadToEndAsync();
                         await File.WriteAllTextAsync(targetPath, content, Encoding.UTF8);
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Hiba a(z) {name} prompt asset betöltésekor: {ex.Message}");
+                        System.Diagnostics.Debug.WriteLine($"Hiba a(z) {fileName} prompt asset betöltésekor: {ex.Message}");
                     }
                 }
             }

@@ -323,11 +323,28 @@
     {
         if (IsVisible && !_prevIsVisible)
         {
+            _selectedResult = null;
+            _suggestedBranch = string.Empty;
+            _suggestedCommit = string.Empty;
+            _hasSuggestions = false;
+            _globalExplanationText = GlobalExplanation ?? string.Empty;
+            _isFullResponseView = false;
+            _viewMode = "unified";
+
             _localDiffResults = DiffResults?.ToList() ?? new();
             _isGitDiffMode = string.IsNullOrEmpty(FullLlmResponse);
-            if (_isGitDiffMode) await LoadBranchesAsync();
-            else ParseGlobalExplanation();
-            if (_selectedResult == null) await SelectResult(_localDiffResults.FirstOrDefault());
+            
+            if (_isGitDiffMode)
+            {
+                _globalExplanationText = string.Empty;
+                await LoadBranchesAsync();
+            }
+            else
+            {
+                ParseGlobalExplanation();
+            }
+            
+            await SelectResult(_localDiffResults.FirstOrDefault());
         }
         _prevIsVisible = IsVisible;
     }
@@ -457,7 +474,20 @@
     private async Task LoadBranchesAsync() { _allBranches = await GitWorkflowService.GetBranchesAsync(); if (_allBranches.Any()) _selectedTargetBranch = _allBranches.First(); }
     private async Task LoadSelectedDiffsAsync() { _isLoadingDiffs = true; try { _localDiffResults = await GitWorkflowService.GetDiffsAsync(_selectedDiffMode, _selectedTargetBranch); await SelectResult(_localDiffResults.FirstOrDefault()); } finally { _isLoadingDiffs = false; } }
     private async Task RefreshSuggestionsAsync() { _isRefreshingSuggestions = true; try { var (b, c) = await GitSuggestionService.GetSuggestionsAsync(_localDiffResults, _globalExplanationText); _suggestedBranch = b ?? ""; _suggestedCommit = c ?? ""; _hasSuggestions = b != null; } finally { _isRefreshingSuggestions = false; } }
-    private void ParseGlobalExplanation() { if (string.IsNullOrEmpty(GlobalExplanation)) return; var bMatch = Regex.Match(GlobalExplanation, @"\[BRANCH_SUGGESTION\]([\s\S]*?)\[/BRANCH_SUGGESTION\]"); var cMatch = Regex.Match(GlobalExplanation, @"\[COMMIT_SUGGESTION\]([\s\S]*?)\[/COMMIT_SUGGESTION\]"); if (bMatch.Success && cMatch.Success) { _suggestedBranch = bMatch.Groups[1].Value.Trim(); _suggestedCommit = cMatch.Groups[1].Value.Trim(); _hasSuggestions = true; } }
+    private void ParseGlobalExplanation()
+    {
+        if (string.IsNullOrEmpty(GlobalExplanation)) return;
+        var bMatch = Regex.Match(GlobalExplanation, @"\[BRANCH_SUGGESTION\]([\s\S]*?)\[/BRANCH_SUGGESTION\]");
+        var cMatch = Regex.Match(GlobalExplanation, @"\[COMMIT_SUGGESTION\]([\s\S]*?)\[/COMMIT_SUGGESTION\]");
+        if (bMatch.Success && cMatch.Success)
+        {
+            _suggestedBranch = bMatch.Groups[1].Value.Trim();
+            _suggestedCommit = cMatch.Groups[1].Value.Trim();
+            _hasSuggestions = true;
+            _globalExplanationText = Regex.Replace(_globalExplanationText, @"\[BRANCH_SUGGESTION\][\s\S]*?\[/BRANCH_SUGGESTION\]", "").Trim();
+            _globalExplanationText = Regex.Replace(_globalExplanationText, @"\[COMMIT_SUGGESTION\][\s\S]*?\[/COMMIT_SUGGESTION\]", "").Trim();
+        }
+    }
     private async Task CopyToClipboard(string t) { if (!string.IsNullOrEmpty(t)) await Clipboard.SetTextAsync(t); }
     private string GetDiffLineClass(DiffUtility.DiffLineItem l) => l.Type == DiffUtility.DiffLineType.Add ? "add" : (l.Type == DiffUtility.DiffLineType.Delete ? "del" : "");
     private string GetDiffLineMarker(DiffUtility.DiffLineItem l) => l.Type == DiffUtility.DiffLineType.Add ? "+" : (l.Type == DiffUtility.DiffLineType.Delete ? "-" : " ");

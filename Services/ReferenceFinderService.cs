@@ -8,7 +8,11 @@ namespace LlmContextCollector.Services
         private static readonly Regex CSharpKeywordsRegex = new Regex(@"\b(public|private|protected|internal|static|class|struct|interface|enum|void|string|int|bool|double|float|decimal|long|short|byte|var|get|set|new|using|namespace|return|if|else|for|foreach|while|do|switch|case|default|break|continue|try|catch|finally|throw|lock|using|yield|base|this|true|false|null|async|await|partial|readonly|virtual|override|sealed|abstract|as|is|in|out|ref|params|checked|unchecked|unsafe|fixed|stackalloc)\b", RegexOptions.Compiled);
         private static readonly Regex CSharpCommonTypesRegex = new Regex(@"\b(object|string|int|bool|double|float|decimal|long|short|byte|List|Dictionary|IEnumerable|Task|IActionResult|ICollection|Exception|PageModel|ComponentBase|DbContext|WebApplication|Program|HttpContext|IServiceCollection|IConfiguration|ILogger|Activator|Attribute|EventArgs|Console|Math|DateTime|Guid|CancellationToken|TaskCompletionSource|Action|Func|Predicate|Tuple|ValueTuple)\b", RegexOptions.Compiled);
         
-        private static readonly Regex PotentialTypeRegex = new Regex(@"\b[A-Z][a-zA-Z0-9_]*\b(?:<[A-Za-z0-9_,\s<>]+>)?", RegexOptions.Compiled);
+        // A (?<![\w.]) megakadályozza, hogy tulajdonságokat (pl. obj.Message) típusként azonosítson
+        // A (?<!\b(?:string|int|...)\s+) kiszűri a beépített típusok utáni neveket (pl. string Message)
+        // A (?!\s*\{\s*(?:get|set|init)\b) és (?!\s*=>) kiszűri a property deklarációkat
+        // A (?!\s*[-+*/%&|^!<>]?=) kiszűri az értékadásokat és egyenlőségvizsgálatokat (pl. Message = "...", Message == null)
+        private static readonly Regex PotentialTypeRegex = new Regex(@"(?<![\w.])(?<!\b(?:string|int|bool|var|double|float|decimal|long|short|byte|char|object|dynamic|void|sbyte|uint|ushort|ulong)\s+)[A-Z][a-zA-Z0-9_]*\b(?:<[A-Za-z0-9_,\s<>]+>)?(?!\s*\{\s*(?:get|set|init)\b)(?!\s*=>)(?!\s*[-+*/%&|^!<>]?=)", RegexOptions.Compiled);
         
         private static readonly Regex TypeNamePartRegex = new Regex(@"\b[A-Z][a-zA-Z0-9_]*\b", RegexOptions.Compiled);
 
@@ -169,6 +173,13 @@ namespace LlmContextCollector.Services
 
             if (!searchTokens.Any()) return new List<string>();
 
+            var escapedTokens = searchTokens.Select(Regex.Escape);
+            // A (?<![\w.]) megakadályozza, hogy tulajdonságokat vagy hívásokat (pl. obj.Message) találatként értékeljen
+            // A (?<!\b(?:string|int|...)\s+) kiszűri a beépített típusok utáni neveket (pl. string Message)
+            // A (?!\s*\{{\s*(?:get|set|init)\b) és (?!\s*=>) kiszűri a property deklarációkat
+            // A (?!\s*[-+*/%&|^!<>]?=) kiszűri az értékadásokat és egyenlőségvizsgálatokat (pl. Message = "...", Message == null)
+            var searchRegex = new Regex($@"(?<![\w.])(?<!\b(?:string|int|bool|var|double|float|decimal|long|short|byte|char|object|dynamic|void|sbyte|uint|ushort|ulong)\s+)({string.Join("|", escapedTokens)})(?!\w)(?!\s*\{{\s*(?:get|set|init)\b)(?!\s*=>)(?!\s*[-+*/%&|^!<>]?=)", RegexOptions.Compiled);
+
             var allProjectFiles = new List<FileNode>();
             GetAllFileNodes(allNodes, allProjectFiles);
 
@@ -190,13 +201,9 @@ namespace LlmContextCollector.Services
                 {
                     var content = await File.ReadAllTextAsync(candidate.FullPath);
                     
-                    foreach (var token in searchTokens)
+                    if (searchRegex.IsMatch(content))
                     {
-                        if (content.Contains(token))
-                        {
-                            referencingFiles.Add(relPath);
-                            break;
-                        }
+                        referencingFiles.Add(relPath);
                     }
                 }
                 catch
