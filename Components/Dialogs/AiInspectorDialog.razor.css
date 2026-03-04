@@ -1,0 +1,48 @@
+.inspector-dialog {
+    width: 90vw;
+    height: 85vh;
+}
+.inspector-body {
+    display: flex;
+    gap: 15px;
+    min-height: 0;
+}
+.log-list {
+    width: 30%;
+    border: 1px solid var(--border-color);
+    overflow-y: auto;
+    background-color: var(--panel-bg);
+}
+.log-item {
+    padding: 8px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    font-size: var(--font-size-sm);
+}
+.log-item:hover { background-color: var(--hover-bg-color); }
+.log-item.selected { background-color: var(--selected-bg-color); color: var(--selected-text-color); }
+.log-time { font-weight: bold; }
+.log-source { color: var(--accent-color); }
+.log-item.selected .log-source { color: white; }
+
+.log-details {
+    width: 70%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+}
+.detail-section {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+.detail-section textarea {
+    flex: 1;
+    margin-top: 5px;
+    font-family: Consolas, monospace;
+    background-color: var(--input-bg-color);
+}

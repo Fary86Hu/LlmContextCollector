@@ -1,0 +1,51 @@
+.exclusions-dialog { 
+    width: 600px; 
+    height: 70vh; 
+}
+.exclusions-controls { 
+    display: flex; 
+    gap: 10px; 
+    margin-bottom: 15px; 
+}
+.search-input { 
+    flex-grow: 1; 
+}
+.exclusions-list-container { 
+    flex-grow: 1; 
+    border: 1px solid var(--border-color); 
+    overflow-y: auto; 
+    background-color: var(--panel-bg); 
+}
+.exclusions-table { 
+    width: 100%; 
+    border-collapse: collapse; 
+}
+.exclusions-table th, .exclusions-table td { 
+    padding: 8px; 
+    text-align: left; 
+    border-bottom: 1px solid var(--border-color); 
+}
+.exclusions-table th { 
+    position: sticky; 
+    top: 0; 
+    background: var(--toolbar-bg); 
+    z-index: 1; 
+}
+.rule-disabled { 
+    opacity: 0.6; 
+    font-style: italic; 
+}
+.inline-edit { 
+    width: 100%; 
+    border: none !important; 
+    background: transparent !important; 
+    box-shadow: none !important; 
+}
+.inline-edit:focus { 
+    background: var(--input-bg-color) !important; 
+}
+.hint-text { 
+    font-size: 11px; 
+    color: var(--text-color-light); 
+    margin-top: 10px; 
+}
