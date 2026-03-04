@@ -92,6 +92,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private bool _includePromptInCopy = true;
         private bool _includeSystemPrompt = true;
         private bool _includeFiles = true;
+        private string _copyButtonText = "Másolás";
 
         private List<ContextListItem> _sortedFiles = new();
         private string _currentSortKey = "path";
@@ -576,6 +577,12 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             await OnHistorySaveRequested.InvokeAsync();
             await Clipboard.SetTextAsync(content);
             AppState.StatusText = $"Tartalom másolva ({content.Length} kar.). Előzmény mentve.";
+
+            _copyButtonText = "Másolva! ✓";
+            StateHasChanged();
+            await Task.Delay(2000);
+            _copyButtonText = "Másolás";
+            StateHasChanged();
         }
 
         #region Browser Mode

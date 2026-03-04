@@ -463,18 +463,21 @@ namespace LlmContextCollector.Components.Pages
             var selectedNodes = new List<FileNode>();
             FindSelectedNodes(AppState.FileTree, selectedNodes);
 
-            var paths = selectedNodes
+            var items = selectedNodes
                 .Where(n => !n.IsDirectory)
-                .Select(n => n.FullPath)
+                .Select(n => (
+                    FullPath: n.FullPath, 
+                    DisplayPath: Path.GetRelativePath(AppState.ProjectRoot, n.FullPath).Replace('\\', '/')
+                ))
                 .ToList();
 
-            if (!paths.Any())
+            if (!items.Any())
             {
                 AppState.StatusText = "Nincs fájl kiválasztva.";
                 return;
             }
 
-            await CopyFilesContentToClipboard(paths);
+            await CopyFilesContentToClipboard(items);
         }
 
         private async Task CopySelectedFilesContentFromList()
@@ -482,56 +485,52 @@ namespace LlmContextCollector.Components.Pages
             HideContextMenus();
             if (!_selectedInContextList.Any()) return;
 
-            var paths = new List<string>();
+            var items = new List<(string FullPath, string DisplayPath)>();
             foreach (var relPath in _selectedInContextList)
             {
+                string? fullPath = null;
                 if (relPath.StartsWith("[ADO]"))
                 {
                     if (!string.IsNullOrEmpty(AppState.AdoDocsPath))
                     {
-                        paths.Add(Path.Combine(AppState.AdoDocsPath, relPath.Substring(5)));
+                        fullPath = Path.Combine(AppState.AdoDocsPath, relPath.Substring(5));
                     }
                 }
                 else if (!string.IsNullOrEmpty(AppState.ProjectRoot))
                 {
-                    paths.Add(Path.Combine(AppState.ProjectRoot, relPath.Replace('/', Path.DirectorySeparatorChar)));
+                    fullPath = Path.Combine(AppState.ProjectRoot, relPath.Replace('/', Path.DirectorySeparatorChar));
+                }
+
+                if (fullPath != null)
+                {
+                    items.Add((fullPath, relPath));
                 }
             }
 
-            await CopyFilesContentToClipboard(paths);
+            await CopyFilesContentToClipboard(items);
         }
 
-        private async Task CopyFilesContentToClipboard(List<string> paths)
+        private async Task CopyFilesContentToClipboard(List<(string FullPath, string DisplayPath)> items)
         {
-            if (!paths.Any()) return;
+            if (!items.Any()) return;
 
             try
             {
                 var sb = new StringBuilder();
-                if (paths.Count == 1)
+                foreach (var item in items)
                 {
-                    if (File.Exists(paths[0]))
+                    if (File.Exists(item.FullPath))
                     {
-                        sb.Append(await File.ReadAllTextAsync(paths[0]));
-                    }
-                }
-                else
-                {
-                    foreach (var path in paths)
-                    {
-                        if (File.Exists(path))
-                        {
-                            sb.AppendLine($"// --- Fájl: {Path.GetFileName(path)} ---");
-                            sb.AppendLine(await File.ReadAllTextAsync(path));
-                            sb.AppendLine();
-                        }
+                        sb.AppendLine($"// --- Fájl: {item.DisplayPath} ---");
+                        sb.AppendLine(await File.ReadAllTextAsync(item.FullPath));
+                        sb.AppendLine();
                     }
                 }
 
                 if (sb.Length > 0)
                 {
-                    await Clipboard.SetTextAsync(sb.ToString());
-                    AppState.StatusText = $"{paths.Count} fájl tartalma másolva a vágólapra.";
+                    await Clipboard.SetTextAsync(sb.ToString().Trim());
+                    AppState.StatusText = $"{items.Count} fájl tartalma másolva a vágólapra.";
                 }
                 else
                 {

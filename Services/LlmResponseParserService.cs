@@ -20,14 +20,12 @@ namespace LlmContextCollector.Services
         {
             var parsedFilesDict = new Dictionary<string, ParsedFile>(StringComparer.OrdinalIgnoreCase);
 
-            // Fájl fejlécek keresése (Új Fájl: ... vagy Fájl: ...)
-            var headerRegex = new Regex(@"(?:^|\n)(?<type>Új Fájl|Fájl):\s*(?<path>[^\r\n]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            var headerRegex = new Regex(@"^(?<type>Új Fájl|Fájl):\s*(?<path>[^\r\n]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
             var matches = headerRegex.Matches(text);
 
             string globalExplanation = "";
             string nextFileExplanation = "";
 
-            // 1. Globális magyarázat kinyerése az első fájl előtt
             if (matches.Count > 0)
             {
                 var preamble = text.Substring(0, matches[0].Index);
@@ -38,12 +36,15 @@ namespace LlmContextCollector.Services
                 globalExplanation = text.Trim();
             }
 
-            // 2. Fájlok feldolgozása és összefésülése (kumulatív mód)
             for (int i = 0; i < matches.Count; i++)
             {
                 var match = matches[i];
                 var typeStr = match.Groups["type"].Value;
-                var path = match.Groups["path"].Value.Trim().Replace('\\', '/');
+                var rawPath = match.Groups["path"].Value.Trim().Replace('\\', '/');
+                
+                var path = rawPath.StartsWith("./") ? rawPath.Substring(2) : rawPath;
+                path = path.TrimStart('/');
+
                 var status = typeStr.StartsWith("Új", StringComparison.OrdinalIgnoreCase) ? DiffStatus.New : DiffStatus.Modified;
 
                 int contentStart = match.Index + match.Length;
@@ -55,10 +56,12 @@ namespace LlmContextCollector.Services
 
                 if (parsedFilesDict.TryGetValue(path, out var existing))
                 {
-                    // Ha ugyanaz a fájl többször szerepel, összefűzzük a tartalmat (pl. több patch blokk)
-                    existing.NewContent += "\n" + cleanCode;
+                    if (!existing.NewContent.Contains(cleanCode))
+                    {
+                        existing.NewContent = (existing.NewContent + "\n" + cleanCode).Trim();
+                    }
                     if (!string.IsNullOrWhiteSpace(nextFileExplanation))
-                        existing.Explanation += "\n" + nextFileExplanation;
+                        existing.Explanation = (existing.Explanation + "\n" + nextFileExplanation).Trim();
                 }
                 else
                 {

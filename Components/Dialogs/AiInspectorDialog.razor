@@ -1,3 +1,6 @@
+@using System.ComponentModel
+@using System.Collections.Specialized
+@implements IDisposable
 @inject AiLogService AiLogService
 @inject AppState AppState
 @inject IJSRuntime JSRuntime
@@ -106,6 +109,31 @@
 
 @code {
     private AiLogEntry? _selectedLog;
+
+    protected override void OnInitialized()
+    {
+        AppState.PropertyChanged += OnAppStateChanged;
+        AiLogService.Logs.CollectionChanged += OnLogsChanged;
+    }
+
+    private async void OnAppStateChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppState.IsAiInspectorVisible))
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async void OnLogsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AppState.PropertyChanged -= OnAppStateChanged;
+        AiLogService.Logs.CollectionChanged -= OnLogsChanged;
+    }
 
     private void Close()
     {

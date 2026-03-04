@@ -2,6 +2,7 @@
 @using LlmContextCollector.Utils
 @using LlmContextCollector.Services
 @using System.Text.RegularExpressions
+@using System.Threading
 @inject IClipboard Clipboard
 @inject AppState AppState
 @inject GitWorkflowService GitWorkflowService
@@ -312,6 +313,7 @@
     private bool _isResizingSbs = false;
     private double _sbsContainerLeft = 0, _sbsContainerWidth = 0;
     private List<bool> _editorLineHighlights = new();
+    private CancellationTokenSource? _diffCts;
 
     private record DiffMarkerInfo(string Type, double TopPercent);
     private record SbsLeftItem(string Content, bool IsGap, int HeightInLines, string CssClass);
@@ -321,137 +323,173 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (IsVisible && !_prevIsVisible)
-        {
-            _selectedResult = null;
-            _suggestedBranch = string.Empty;
-            _suggestedCommit = string.Empty;
-            _hasSuggestions = false;
-            _globalExplanationText = GlobalExplanation ?? string.Empty;
-            _isFullResponseView = false;
-            _viewMode = "unified";
+        bool becameVisible = IsVisible && !_prevIsVisible;
+        bool dataChanged = IsVisible && DiffResults != null && (becameVisible || _localDiffResults.Count != DiffResults.Count);
 
+        if (becameVisible || dataChanged)
+        {
+            if (becameVisible)
+            {
+                _selectedResult = null;
+                _suggestedBranch = string.Empty;
+                _suggestedCommit = string.Empty;
+                _hasSuggestions = false;
+                _isFullResponseView = false;
+                _viewMode = "unified";
+            }
+
+            _globalExplanationText = GlobalExplanation ?? string.Empty;
             _localDiffResults = DiffResults?.ToList() ?? new();
             _isGitDiffMode = string.IsNullOrEmpty(FullLlmResponse);
             
             if (_isGitDiffMode)
             {
                 _globalExplanationText = string.Empty;
-                await LoadBranchesAsync();
+                if (becameVisible) await LoadBranchesAsync();
             }
             else
             {
                 ParseGlobalExplanation();
             }
             
-            await SelectResult(_localDiffResults.FirstOrDefault());
+            // Ha változott a lista, de a kijelölt fájl még megvan, tartsuk meg, különben válasszuk az elsőt
+            if (_selectedResult == null || !_localDiffResults.Any(r => r.Path == _selectedResult.Path))
+            {
+                await SelectResult(_localDiffResults.FirstOrDefault());
+            }
         }
         _prevIsVisible = IsVisible;
     }
 
     private async Task SelectResult(DiffResult? result)
     {
+        _diffCts?.Cancel();
+        _diffCts = new CancellationTokenSource();
+        var token = _diffCts.Token;
+
         _selectedResult = result;
         if (string.IsNullOrEmpty(_viewMode)) _viewMode = "unified";
-        await GenerateDiffViewAsync();
-        if (_viewMode == "sbs") UpdateEditorHighlights();
+        
+        try 
+        {
+            await GenerateDiffViewAsync(token);
+            if (!token.IsCancellationRequested && _viewMode == "sbs") UpdateEditorHighlights();
+        }
+        catch (OperationCanceledException) { }
     }
 
-    private async Task GenerateDiffViewAsync()
+    private async Task GenerateDiffViewAsync(CancellationToken ct)
     {
         _isGeneratingDiff = true;
         StateHasChanged();
 
-        _unifiedDiffLines.Clear();
-        _unifiedDiffMarkers.Clear();
-        _sbsDiffMarkers.Clear();
-        _sbsLeftMarkers.Clear();
-        _sbsLeftLines.Clear();
-
-        if (_selectedResult == null) { _isGeneratingDiff = false; return; }
+        if (_selectedResult == null) 
+        { 
+            _unifiedDiffLines = new();
+            _unifiedDiffMarkers = new();
+            _sbsDiffMarkers = new();
+            _sbsLeftMarkers = new();
+            _sbsLeftLines = new();
+            _isGeneratingDiff = false;
+            return; 
+        }
 
         var oldLines = _selectedResult.OldContent.Replace("\r\n", "\n").Split('\n');
         var newLines = _selectedResult.NewContent.Replace("\r\n", "\n").Split('\n');
         var opcodes = await DiffUtility.GetOpcodesAsync(oldLines, newLines);
 
+        if (ct.IsCancellationRequested) return;
+
+        // Lokális listákba gyűjtjük az adatokat, hogy elkerüljük a többszöri kiírást párhuzamos futásnál
+        var localUnifiedLines = new List<DiffUtility.DiffLineItem>();
         foreach (var op in opcodes)
         {
             switch (op.Tag)
             {
                 case 'e':
                     for (int i = 0; i < (op.I2 - op.I1); i++)
-                        _unifiedDiffLines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Context, oldLines[op.I1 + i], op.I1 + i, op.J1 + i));
+                        localUnifiedLines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Context, oldLines[op.I1 + i], op.I1 + i, op.J1 + i));
                     break;
                 case 'd':
                     for (int i = 0; i < (op.I2 - op.I1); i++)
-                        _unifiedDiffLines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Delete, oldLines[op.I1 + i], op.I1 + i, null));
+                        localUnifiedLines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Delete, oldLines[op.I1 + i], op.I1 + i, null));
                     break;
                 case 'i':
                     for (int j = 0; j < (op.J2 - op.J1); j++)
-                        _unifiedDiffLines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Add, newLines[op.J1 + j], null, op.J1 + j));
+                        localUnifiedLines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Add, newLines[op.J1 + j], null, op.J1 + j));
                     break;
                 case 'r':
                     for (int i = 0; i < (op.I2 - op.I1); i++)
-                        _unifiedDiffLines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Delete, oldLines[op.I1 + i], op.I1 + i, null));
+                        localUnifiedLines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Delete, oldLines[op.I1 + i], op.I1 + i, null));
                     for (int j = 0; j < (op.J2 - op.J1); j++)
-                        _unifiedDiffLines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Add, newLines[op.J1 + j], null, op.J1 + j));
+                        localUnifiedLines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Add, newLines[op.J1 + j], null, op.J1 + j));
                     break;
             }
         }
 
-        GenerateUnifiedMarkers(opcodes);
-        GenerateSbsData(opcodes, oldLines, newLines);
+        if (ct.IsCancellationRequested) return;
+
+        var localUnifiedMarkers = new List<DiffMarkerInfo>();
+        double totalUnifiedCount = localUnifiedLines.Count;
+        if (totalUnifiedCount > 0)
+        {
+            double currentLine = 0;
+            foreach (var op in opcodes)
+            {
+                string? markerType = op.Tag switch { 'd' => "del", 'i' => "add", 'r' => "replace", _ => null };
+                if (markerType != null) localUnifiedMarkers.Add(new DiffMarkerInfo(markerType, (currentLine / totalUnifiedCount) * 100));
+                currentLine += op.Tag switch { 'e' => op.I2 - op.I1, 'd' => op.I2 - op.I1, 'i' => op.J2 - op.J1, 'r' => (op.I2 - op.I1) + (op.J2 - op.J1), _ => 0 };
+            }
+        }
+
+        var localSbsDiffMarkers = new List<DiffMarkerInfo>();
+        var localSbsLeftLines = new List<SbsLeftItem>();
+        double totalNewLines = Math.Max(1, newLines.Length);
+
+        foreach (var op in opcodes)
+        {
+            switch (op.Tag)
+            {
+                case 'e':
+                    for (int i = op.I1; i < op.I2; i++) localSbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, ""));
+                    break;
+                case 'd':
+                    localSbsDiffMarkers.Add(new DiffMarkerInfo("del", (op.J1 / totalNewLines) * 100));
+                    for (int i = op.I1; i < op.I2; i++) localSbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, "sbs-del"));
+                    break;
+                case 'i':
+                    localSbsDiffMarkers.Add(new DiffMarkerInfo("add", (op.J1 / totalNewLines) * 100));
+                    localSbsLeftLines.Add(new SbsLeftItem("", true, op.J2 - op.J1, ""));
+                    break;
+                case 'r':
+                    localSbsDiffMarkers.Add(new DiffMarkerInfo("replace", (op.J1 / totalNewLines) * 100));
+                    for (int i = op.I1; i < op.I2; i++) localSbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, "sbs-del"));
+                    if ((op.J2 - op.J1) > (op.I2 - op.I1)) localSbsLeftLines.Add(new SbsLeftItem("", true, (op.J2 - op.J1) - (op.I2 - op.I1), ""));
+                    break;
+            }
+        }
+
+        var localSbsLeftMarkers = new List<DiffMarkerInfo>();
+        double totalLeftVisualLines = Math.Max(1, localSbsLeftLines.Sum(x => x.HeightInLines));
+        double currentVisualLine = 0;
+        foreach (var item in localSbsLeftLines)
+        {
+            string? mType = item.IsGap ? "add" : (item.CssClass.Contains("sbs-del") ? "del" : null);
+            if (mType != null) localSbsLeftMarkers.Add(new DiffMarkerInfo(mType, (currentVisualLine / totalLeftVisualLines) * 100));
+            currentVisualLine += item.HeightInLines;
+        }
+
+        if (ct.IsCancellationRequested) return;
+
+        // Atomian frissítjük az osztályszintű listákat
+        _unifiedDiffLines = localUnifiedLines;
+        _unifiedDiffMarkers = localUnifiedMarkers;
+        _sbsDiffMarkers = localSbsDiffMarkers;
+        _sbsLeftMarkers = localSbsLeftMarkers;
+        _sbsLeftLines = localSbsLeftLines;
 
         _isGeneratingDiff = false;
         StateHasChanged();
-    }
-
-    private void GenerateUnifiedMarkers(List<DiffUtility.DiffOpcode> opcodes)
-    {
-        double totalLines = _unifiedDiffLines.Count;
-        if (totalLines < 1) return;
-        double currentLine = 0;
-        foreach (var op in opcodes)
-        {
-            string? markerType = op.Tag switch { 'd' => "del", 'i' => "add", 'r' => "replace", _ => null };
-            if (markerType != null) _unifiedDiffMarkers.Add(new DiffMarkerInfo(markerType, (currentLine / totalLines) * 100));
-            currentLine += op.Tag switch { 'e' => op.I2 - op.I1, 'd' => op.I2 - op.I1, 'i' => op.J2 - op.J1, 'r' => (op.I2 - op.I1) + (op.J2 - op.J1), _ => 0 };
-        }
-    }
-
-    private void GenerateSbsData(List<DiffUtility.DiffOpcode> opcodes, string[] oldLines, string[] newLines)
-    {
-        double totalNewLines = Math.Max(1, newLines.Length);
-        foreach (var op in opcodes)
-        {
-            switch (op.Tag)
-            {
-                case 'e':
-                    for (int i = op.I1; i < op.I2; i++) _sbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, ""));
-                    break;
-                case 'd':
-                    _sbsDiffMarkers.Add(new DiffMarkerInfo("del", (op.J1 / totalNewLines) * 100));
-                    for (int i = op.I1; i < op.I2; i++) _sbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, "sbs-del"));
-                    break;
-                case 'i':
-                    _sbsDiffMarkers.Add(new DiffMarkerInfo("add", (op.J1 / totalNewLines) * 100));
-                    _sbsLeftLines.Add(new SbsLeftItem("", true, op.J2 - op.J1, ""));
-                    break;
-                case 'r':
-                    _sbsDiffMarkers.Add(new DiffMarkerInfo("replace", (op.J1 / totalNewLines) * 100));
-                    for (int i = op.I1; i < op.I2; i++) _sbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, "sbs-del"));
-                    if ((op.J2 - op.J1) > (op.I2 - op.I1)) _sbsLeftLines.Add(new SbsLeftItem("", true, (op.J2 - op.J1) - (op.I2 - op.I1), ""));
-                    break;
-            }
-        }
-        double totalLeftVisualLines = Math.Max(1, _sbsLeftLines.Sum(x => x.HeightInLines));
-        double currentVisualLine = 0;
-        foreach (var item in _sbsLeftLines)
-        {
-            string? mType = item.IsGap ? "add" : (item.CssClass.Contains("sbs-del") ? "del" : null);
-            if (mType != null) _sbsLeftMarkers.Add(new DiffMarkerInfo(mType, (currentVisualLine / totalLeftVisualLines) * 100));
-            currentVisualLine += item.HeightInLines;
-        }
     }
 
     private void UpdateEditorHighlights()
@@ -467,7 +505,15 @@
     }
 
     private async Task SetViewMode(string newMode) { _viewMode = newMode; if (_viewMode == "sbs") UpdateEditorHighlights(); }
-    private async Task OnContentChanged() { await GenerateDiffViewAsync(); UpdateEditorHighlights(); }
+    
+    private async Task OnContentChanged() 
+    { 
+        _diffCts?.Cancel();
+        _diffCts = new CancellationTokenSource();
+        await GenerateDiffViewAsync(_diffCts.Token); 
+        UpdateEditorHighlights(); 
+    }
+
     private async Task SyncScroll() => await JSRuntime.InvokeVoidAsync("syncEditorScroll", "editor-textarea", "editor-backdrop", "editor-left-display");
     private async void OnAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) { if (e.PropertyName == nameof(AppState.CurrentGitBranch)) await InvokeAsync(StateHasChanged); }
     private void ToggleFullResponseView() => _isFullResponseView = !_isFullResponseView;
@@ -506,5 +552,11 @@
     private void OnMouseMove(MouseEventArgs e) { if (_isResizingPane) _leftPaneWidthPercent = Math.Clamp((e.ClientX / _windowWidth) * 100, 15, 85); }
     private async Task StartSbsResize(MouseEventArgs e) { _isResizingSbs = true; var r = await JSRuntime.InvokeAsync<BoundingRect>("getElementBoundingClientRect", "sbs-container"); if (r != null) { _sbsContainerLeft = r.Left; _sbsContainerWidth = r.Width; } }
     private async Task OnNavRailClick(MouseEventArgs e) { var r = await JSRuntime.InvokeAsync<BoundingRect>("getElementBoundingClientRect", "sbs-nav-rail"); if (r != null) await JSRuntime.InvokeVoidAsync("scrollEditorToPercent", "editor-textarea", e.OffsetY / r.Height); }
-    public void Dispose() => AppState.PropertyChanged -= OnAppStateChanged;
+    
+    public void Dispose() 
+    {
+        AppState.PropertyChanged -= OnAppStateChanged;
+        _diffCts?.Cancel();
+        _diffCts?.Dispose();
+    }
 }
