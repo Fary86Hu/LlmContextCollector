@@ -158,98 +158,28 @@
                             </div>
                         }
                         
-                        <div class="diff-view-switcher">
-                            <div class="view-modes">
-                                <label>
-                                    <input type="radio" name="diff-view" value="unified" checked="@(_viewMode == "unified")" @onchange="@(() => SetViewMode("unified"))" />
-                                    Egységes nézet (Olvasás)
-                                </label>
-                                <label>
-                                    <input type="radio" name="diff-view" value="sbs" checked="@(_viewMode == "sbs")" @onchange="@(() => SetViewMode("sbs"))" />
-                                    Side-by-Side (Szerkesztés)
-                                </label>
+                        <div class="diff-content-wrapper">
+                            <div class="diff-content unified-diff-list">
+                                @foreach (var line in _unifiedDiffLines)
+                                {
+                                    <div class="diff-row @GetDiffLineClass(line)" @oncontextmenu="(e) => ShowLineContextMenu(e, line)" @oncontextmenu:preventDefault>
+                                        <span class="diff-marker-text">@GetDiffLineMarker(line)</span>
+                                        <span class="diff-text">@line.Content</span>
+                                    </div>
+                                }
+                            </div>
+                            <div class="diff-scrollbar-track">
+                                @foreach (var marker in _unifiedDiffMarkers)
+                                {
+                                    <div class="diff-marker @marker.Type" style="top: @marker.TopPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%"></div>
+                                }
                             </div>
                         </div>
 
-                        @if (_viewMode == "sbs")
+                        @if (_showContextMenu && _contextMenuTargetLine != null && _contextMenuTargetLine.Type == DiffUtility.DiffLineType.Add)
                         {
-                            <div id="sbs-container" class="diff-editor-container" style="gap: 0;">
-                                <div class="editor-pane" style="flex: none; width: @(_sbsLeftPaneWidthPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%">
-                                    <div class="editor-header">Eredeti (Olvasás - Piros: Törölt)</div>
-                                    <div id="editor-left-display" class="editor-display-container">
-                                        @foreach (var item in _sbsLeftLines)
-                                        {
-                                            @if (item.IsGap)
-                                            {
-                                                <div class="sbs-gap" style="height: @(item.HeightInLines * 1.5)em;"></div>
-                                            }
-                                            else
-                                            {
-                                                <div class="sbs-line-item @item.CssClass">@item.Content</div>
-                                            }
-                                        }
-                                    </div>
-                                    <div class="diff-scrollbar-track">
-                                        @foreach (var marker in _sbsLeftMarkers)
-                                        {
-                                            <div class="diff-marker @marker.Type" style="top: @marker.TopPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%"></div>
-                                        }
-                                    </div>
-                                </div>
-
-                                <div id="sbs-nav-rail" class="diff-nav-rail" @onclick="OnNavRailClick" title="Kattints a görgetéshez">
-                                    @foreach (var marker in _sbsLeftMarkers)
-                                    {
-                                        <div class="nav-marker @marker.Type" style="top: @marker.TopPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%"></div>
-                                    }
-                                </div>
-
-                                <div class="diff-splitter" @onmousedown="StartSbsResize"></div>
-
-                                <div class="editor-pane" style="flex: none; width: @((100 - _sbsLeftPaneWidthPercent).ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%">
-                                    <div class="editor-header">Új / Módosított (Szerkeszthető - Zöld: Új)</div>
-                                    <div class="layered-editor-container">
-                                        <div id="editor-backdrop" class="editor-backdrop">
-                                            @foreach (var isNew in _editorLineHighlights)
-                                            {
-                                                <div class="line-bg @(isNew ? "is-new" : "")">&nbsp;</div>
-                                            }
-                                        </div>
-                                        <textarea id="editor-textarea" 
-                                                  class="editor-textarea"
-                                                  @bind="_selectedResult.NewContent" 
-                                                  @bind:event="oninput" 
-                                                  @onkeyup="OnContentChanged"
-                                                  @onscroll="SyncScroll"></textarea>
-                                                  
-                                        <div class="diff-scrollbar-track">
-                                            @foreach (var marker in _sbsDiffMarkers)
-                                            {
-                                                <div class="diff-marker @marker.Type" style="top: @marker.TopPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%"></div>
-                                            }
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="diff-content-wrapper">
-                                <div class="diff-content unified-diff-list">
-                                    @foreach (var line in _unifiedDiffLines)
-                                    {
-                                        <div class="diff-row @GetDiffLineClass(line)" @oncontextmenu="(e) => ShowLineContextMenu(e, line)" @oncontextmenu:preventDefault>
-                                            <span class="diff-marker-text">@GetDiffLineMarker(line)</span>
-                                            <span class="diff-text">@line.Content</span>
-                                        </div>
-                                    }
-                                </div>
-                                <div class="diff-scrollbar-track">
-                                    @foreach (var marker in _unifiedDiffMarkers)
-                                    {
-                                        <div class="diff-marker @marker.Type" style="top: @marker.TopPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%"></div>
-                                    }
-                                </div>
+                            <div class="context-menu" style="top: @(_contextMenuY)px; left: @(_contextMenuX)px;" @onclick:stopPropagation>
+                                <div class="context-menu-item" @onclick="DeleteLine">Sor törlése</div>
                             </div>
                         }
                     }
@@ -284,12 +214,8 @@
 
     private List<DiffResult> _localDiffResults = new();
     private DiffResult? _selectedResult;
-    private string _viewMode = "unified";
     private List<DiffUtility.DiffLineItem> _unifiedDiffLines = new();
     private List<DiffMarkerInfo> _unifiedDiffMarkers = new();
-    private List<DiffMarkerInfo> _sbsDiffMarkers = new();
-    private List<DiffMarkerInfo> _sbsLeftMarkers = new();
-    private List<SbsLeftItem> _sbsLeftLines = new();
     private string _suggestedBranch = string.Empty;
     private string _suggestedCommit = string.Empty;
     private string _globalExplanationText = string.Empty;
@@ -309,14 +235,9 @@
     private double _leftPaneWidthPercent = 35.0;
     private bool _isResizingPane = false;
     private double _windowWidth = 0;
-    private double _sbsLeftPaneWidthPercent = 50.0;
-    private bool _isResizingSbs = false;
-    private double _sbsContainerLeft = 0, _sbsContainerWidth = 0;
-    private List<bool> _editorLineHighlights = new();
     private CancellationTokenSource? _diffCts;
 
     private record DiffMarkerInfo(string Type, double TopPercent);
-    private record SbsLeftItem(string Content, bool IsGap, int HeightInLines, string CssClass);
     private record BoundingRect(double Left, double Width, double Height);
 
     protected override void OnInitialized() => AppState.PropertyChanged += OnAppStateChanged;
@@ -335,7 +256,6 @@
                 _suggestedCommit = string.Empty;
                 _hasSuggestions = false;
                 _isFullResponseView = false;
-                _viewMode = "unified";
             }
 
             _globalExplanationText = GlobalExplanation ?? string.Empty;
@@ -352,7 +272,6 @@
                 ParseGlobalExplanation();
             }
             
-            // Ha változott a lista, de a kijelölt fájl még megvan, tartsuk meg, különben válasszuk az elsőt
             if (_selectedResult == null || !_localDiffResults.Any(r => r.Path == _selectedResult.Path))
             {
                 await SelectResult(_localDiffResults.FirstOrDefault());
@@ -368,12 +287,10 @@
         var token = _diffCts.Token;
 
         _selectedResult = result;
-        if (string.IsNullOrEmpty(_viewMode)) _viewMode = "unified";
         
         try 
         {
             await GenerateDiffViewAsync(token);
-            if (!token.IsCancellationRequested && _viewMode == "sbs") UpdateEditorHighlights();
         }
         catch (OperationCanceledException) { }
     }
@@ -387,9 +304,6 @@
         { 
             _unifiedDiffLines = new();
             _unifiedDiffMarkers = new();
-            _sbsDiffMarkers = new();
-            _sbsLeftMarkers = new();
-            _sbsLeftLines = new();
             _isGeneratingDiff = false;
             return; 
         }
@@ -400,7 +314,6 @@
 
         if (ct.IsCancellationRequested) return;
 
-        // Lokális listákba gyűjtjük az adatokat, hogy elkerüljük a többszöri kiírást párhuzamos futásnál
         var localUnifiedLines = new List<DiffUtility.DiffLineItem>();
         foreach (var op in opcodes)
         {
@@ -442,79 +355,22 @@
             }
         }
 
-        var localSbsDiffMarkers = new List<DiffMarkerInfo>();
-        var localSbsLeftLines = new List<SbsLeftItem>();
-        double totalNewLines = Math.Max(1, newLines.Length);
-
-        foreach (var op in opcodes)
-        {
-            switch (op.Tag)
-            {
-                case 'e':
-                    for (int i = op.I1; i < op.I2; i++) localSbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, ""));
-                    break;
-                case 'd':
-                    localSbsDiffMarkers.Add(new DiffMarkerInfo("del", (op.J1 / totalNewLines) * 100));
-                    for (int i = op.I1; i < op.I2; i++) localSbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, "sbs-del"));
-                    break;
-                case 'i':
-                    localSbsDiffMarkers.Add(new DiffMarkerInfo("add", (op.J1 / totalNewLines) * 100));
-                    localSbsLeftLines.Add(new SbsLeftItem("", true, op.J2 - op.J1, ""));
-                    break;
-                case 'r':
-                    localSbsDiffMarkers.Add(new DiffMarkerInfo("replace", (op.J1 / totalNewLines) * 100));
-                    for (int i = op.I1; i < op.I2; i++) localSbsLeftLines.Add(new SbsLeftItem(oldLines[i], false, 1, "sbs-del"));
-                    if ((op.J2 - op.J1) > (op.I2 - op.I1)) localSbsLeftLines.Add(new SbsLeftItem("", true, (op.J2 - op.J1) - (op.I2 - op.I1), ""));
-                    break;
-            }
-        }
-
-        var localSbsLeftMarkers = new List<DiffMarkerInfo>();
-        double totalLeftVisualLines = Math.Max(1, localSbsLeftLines.Sum(x => x.HeightInLines));
-        double currentVisualLine = 0;
-        foreach (var item in localSbsLeftLines)
-        {
-            string? mType = item.IsGap ? "add" : (item.CssClass.Contains("sbs-del") ? "del" : null);
-            if (mType != null) localSbsLeftMarkers.Add(new DiffMarkerInfo(mType, (currentVisualLine / totalLeftVisualLines) * 100));
-            currentVisualLine += item.HeightInLines;
-        }
-
         if (ct.IsCancellationRequested) return;
 
-        // Atomian frissítjük az osztályszintű listákat
         _unifiedDiffLines = localUnifiedLines;
         _unifiedDiffMarkers = localUnifiedMarkers;
-        _sbsDiffMarkers = localSbsDiffMarkers;
-        _sbsLeftMarkers = localSbsLeftMarkers;
-        _sbsLeftLines = localSbsLeftLines;
 
         _isGeneratingDiff = false;
         StateHasChanged();
     }
 
-    private void UpdateEditorHighlights()
-    {
-        _editorLineHighlights.Clear();
-        if (_selectedResult == null) return;
-        var oldLines = _selectedResult.OldContent.Replace("\r\n", "\n").Split('\n');
-        var newLines = _selectedResult.NewContent.Replace("\r\n", "\n").Split('\n');
-        var opcodes = DiffUtility.GetOpcodes(oldLines, newLines);
-        var flags = new bool[newLines.Length];
-        foreach (var op in opcodes) if (op.Tag == 'i' || op.Tag == 'r') for (int j = op.J1; j < op.J2; j++) if (j < flags.Length) flags[j] = true;
-        _editorLineHighlights.AddRange(flags);
-    }
-
-    private async Task SetViewMode(string newMode) { _viewMode = newMode; if (_viewMode == "sbs") UpdateEditorHighlights(); }
-    
     private async Task OnContentChanged() 
     { 
         _diffCts?.Cancel();
         _diffCts = new CancellationTokenSource();
         await GenerateDiffViewAsync(_diffCts.Token); 
-        UpdateEditorHighlights(); 
     }
 
-    private async Task SyncScroll() => await JSRuntime.InvokeVoidAsync("syncEditorScroll", "editor-textarea", "editor-backdrop", "editor-left-display");
     private async void OnAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) { if (e.PropertyName == nameof(AppState.CurrentGitBranch)) await InvokeAsync(StateHasChanged); }
     private void ToggleFullResponseView() => _isFullResponseView = !_isFullResponseView;
     private async Task LoadBranchesAsync() { _allBranches = await GitWorkflowService.GetBranchesAsync(); if (_allBranches.Any()) _selectedTargetBranch = _allBranches.First(); }
@@ -538,7 +394,31 @@
     private string GetDiffLineClass(DiffUtility.DiffLineItem l) => l.Type == DiffUtility.DiffLineType.Add ? "add" : (l.Type == DiffUtility.DiffLineType.Delete ? "del" : "");
     private string GetDiffLineMarker(DiffUtility.DiffLineItem l) => l.Type == DiffUtility.DiffLineType.Add ? "+" : (l.Type == DiffUtility.DiffLineType.Delete ? "-" : " ");
     private void HideContextMenu() => _showContextMenu = false;
-    private void ShowLineContextMenu(MouseEventArgs e, DiffUtility.DiffLineItem l) { if (l.Type == DiffUtility.DiffLineType.Context) return; _contextMenuX = e.ClientX; _contextMenuY = e.ClientY; _contextMenuTargetLine = l; _showContextMenu = true; }
+    private void ShowLineContextMenu(MouseEventArgs e, DiffUtility.DiffLineItem l) 
+    { 
+        if (l.Type != DiffUtility.DiffLineType.Add) return; 
+        _contextMenuX = e.ClientX; 
+        _contextMenuY = e.ClientY; 
+        _contextMenuTargetLine = l; 
+        _showContextMenu = true; 
+    }
+
+    private async Task DeleteLine()
+    {
+        if (_selectedResult == null || _contextMenuTargetLine == null || _contextMenuTargetLine.NewIndex == null) return;
+        
+        var lines = _selectedResult.NewContent.Replace("\r\n", "\n").Split('\n').ToList();
+        int index = _contextMenuTargetLine.NewIndex.Value;
+        
+        if (index >= 0 && index < lines.Count)
+        {
+            lines.RemoveAt(index);
+            _selectedResult.NewContent = string.Join("\n", lines);
+            _showContextMenu = false;
+            await OnContentChanged();
+        }
+    }
+
     private async Task AcceptSelectedChanges() { var acc = _localDiffResults.Where(r => r.IsSelectedForAccept).ToList(); if (acc.Any()) await OnAccept.InvokeAsync(acc); }
     private async Task CreateBranch() { if (!string.IsNullOrEmpty(_suggestedBranch)) await OnCreateBranch.InvokeAsync(_suggestedBranch); }
     private async Task Commit() { var acc = _localDiffResults.Where(r => r.IsSelectedForAccept).ToList(); if (acc.Any()) await OnCommit.InvokeAsync(new CommitAndPushArgs(_suggestedBranch, _suggestedCommit, acc)); }
@@ -548,10 +428,8 @@
     private async Task Close() { await OnClose.InvokeAsync(); }
     private async Task RevertFile(DiffResult r) { if (_isGitDiffMode) await GitWorkflowService.DiscardFileChangesAsync(r); else _localDiffResults.Remove(r); await LoadSelectedDiffsAsync(); }
     private async Task StartPaneResize(MouseEventArgs e) { _isResizingPane = true; _windowWidth = await JSRuntime.InvokeAsync<double>("eval", "window.innerWidth"); }
-    private void StopPaneResize(MouseEventArgs e) { _isResizingPane = false; _isResizingSbs = false; }
+    private void StopPaneResize(MouseEventArgs e) { _isResizingPane = false; }
     private void OnMouseMove(MouseEventArgs e) { if (_isResizingPane) _leftPaneWidthPercent = Math.Clamp((e.ClientX / _windowWidth) * 100, 15, 85); }
-    private async Task StartSbsResize(MouseEventArgs e) { _isResizingSbs = true; var r = await JSRuntime.InvokeAsync<BoundingRect>("getElementBoundingClientRect", "sbs-container"); if (r != null) { _sbsContainerLeft = r.Left; _sbsContainerWidth = r.Width; } }
-    private async Task OnNavRailClick(MouseEventArgs e) { var r = await JSRuntime.InvokeAsync<BoundingRect>("getElementBoundingClientRect", "sbs-nav-rail"); if (r != null) await JSRuntime.InvokeVoidAsync("scrollEditorToPercent", "editor-textarea", e.OffsetY / r.Height); }
     
     public void Dispose() 
     {
