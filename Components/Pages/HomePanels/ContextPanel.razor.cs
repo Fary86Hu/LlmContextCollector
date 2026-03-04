@@ -89,9 +89,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private Dictionary<string, string> _projectTypeMap = new(StringComparer.OrdinalIgnoreCase);
         private DotNetObjectReference<ContextPanel>? _objRef;
 
-        private bool _includePromptInCopy = true;
-        private bool _includeSystemPrompt = true;
-        private bool _includeFiles = true;
         private string _copyButtonText = "Másolás";
 
         private List<ContextListItem> _sortedFiles = new();
@@ -563,9 +560,9 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
             
             var content = await ContextProcessingService.BuildContextForClipboardAsync(
-                _includePromptInCopy, 
-                _includeSystemPrompt, 
-                _includeFiles,
+                AppState.IncludePromptInCopy, 
+                AppState.IncludeSystemPromptInCopy, 
+                AppState.IncludeFilesInCopy,
                 sortedPaths);
 
             if (string.IsNullOrWhiteSpace(content))

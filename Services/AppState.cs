@@ -148,6 +148,27 @@ namespace LlmContextCollector.Services
             set => SetField(ref _theme, value);
         }
 
+        private bool _includePromptInCopy = true;
+        public bool IncludePromptInCopy
+        {
+            get => _includePromptInCopy;
+            set => SetField(ref _includePromptInCopy, value);
+        }
+
+        private bool _includeSystemPromptInCopy = true;
+        public bool IncludeSystemPromptInCopy
+        {
+            get => _includeSystemPromptInCopy;
+            set => SetField(ref _includeSystemPromptInCopy, value);
+        }
+
+        private bool _includeFilesInCopy = true;
+        public bool IncludeFilesInCopy
+        {
+            get => _includeFilesInCopy;
+            set => SetField(ref _includeFilesInCopy, value);
+        }
+
         private Guid _activeGlobalPromptId;
         public Guid ActiveGlobalPromptId
         {

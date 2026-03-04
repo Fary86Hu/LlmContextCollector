@@ -40,6 +40,15 @@ namespace LlmContextCollector
                 if (_appState != null)
                 {
                     _appState.PropertyChanged += AppState_PropertyChanged;
+                    
+                    PromptCheckBox.IsChecked = _appState.IncludePromptInCopy;
+                    SystemPromptCheckBox.IsChecked = _appState.IncludeSystemPromptInCopy;
+                    FileContextCheckBox.IsChecked = _appState.IncludeFilesInCopy;
+
+                    PromptCheckBox.CheckedChanged += (s, args) => _appState.IncludePromptInCopy = args.Value;
+                    SystemPromptCheckBox.CheckedChanged += (s, args) => _appState.IncludeSystemPromptInCopy = args.Value;
+                    FileContextCheckBox.CheckedChanged += (s, args) => _appState.IncludeFilesInCopy = args.Value;
+
                     UpdatePromptPicker();
                 }
             }
@@ -50,6 +59,18 @@ namespace LlmContextCollector
             if (e.PropertyName == nameof(AppState.PromptTemplates) || e.PropertyName == nameof(AppState.ActiveGlobalPromptId))
             {
                 MainThread.BeginInvokeOnMainThread(UpdatePromptPicker);
+            }
+            else if (e.PropertyName == nameof(AppState.IncludePromptInCopy))
+            {
+                MainThread.BeginInvokeOnMainThread(() => PromptCheckBox.IsChecked = _appState!.IncludePromptInCopy);
+            }
+            else if (e.PropertyName == nameof(AppState.IncludeSystemPromptInCopy))
+            {
+                MainThread.BeginInvokeOnMainThread(() => SystemPromptCheckBox.IsChecked = _appState!.IncludeSystemPromptInCopy);
+            }
+            else if (e.PropertyName == nameof(AppState.IncludeFilesInCopy))
+            {
+                MainThread.BeginInvokeOnMainThread(() => FileContextCheckBox.IsChecked = _appState!.IncludeFilesInCopy);
             }
         }
 
@@ -216,9 +237,9 @@ namespace LlmContextCollector
             {
                 var sortedFiles = _appState.SelectedFilesForContext.OrderBy(x => x).ToList();
                 var content = await _contextProcessingService.BuildContextForClipboardAsync(
-                    includePrompt: PromptCheckBox.IsChecked,
-                    includeSystemPrompt: SystemPromptCheckBox.IsChecked,
-                    includeFiles: FileContextCheckBox.IsChecked,
+                    includePrompt: _appState.IncludePromptInCopy,
+                    includeSystemPrompt: _appState.IncludeSystemPromptInCopy,
+                    includeFiles: _appState.IncludeFilesInCopy,
                     sortedFilePaths: sortedFiles);
 
                 if (string.IsNullOrWhiteSpace(content))

@@ -132,9 +132,9 @@
         <div class="main-actions">
             <div class="copy-group">
                 <div class="copy-options-inline">
-                    <label title="Felhasználói prompt hozzáadása"><input type="checkbox" @bind="_includePromptInCopy" />Prompt</label>
-                    <label title="Rendszer utasítások hozzáadása"><input type="checkbox" @bind="_includeSystemPrompt" />System</label>
-                    <label title="Kiválasztott fájlok tartalmának hozzáadása"><input type="checkbox" @bind="_includeFiles" />Fájlok</label>
+                    <label title="Felhasználói prompt hozzáadása"><input type="checkbox" @bind="AppState.IncludePromptInCopy" />Prompt</label>
+                    <label title="Rendszer utasítások hozzáadása"><input type="checkbox" @bind="AppState.IncludeSystemPromptInCopy" />System</label>
+                    <label title="Kiválasztott fájlok tartalmának hozzáadása"><input type="checkbox" @bind="AppState.IncludeFilesInCopy" />Fájlok</label>
                 </div>
                 <select class="prompt-select-inline" @bind="AppState.ActiveGlobalPromptId" style="margin: 0 8px; flex-grow: 1; max-width: 250px;">
                     @foreach (var prompt in AppState.PromptTemplates)
