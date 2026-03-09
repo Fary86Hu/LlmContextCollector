@@ -33,7 +33,8 @@
                       OnRequestRemoveSelected="RemoveSelectedFilesFromContext"
                       OnHistorySaveRequested="() => HistoryService.SaveCurrentStateAsync()"
                       OnSplitterMouseDown="args => StartResize(args.Item1, args.Item2)"
-                      OnShowLocalAiChat="ShowLocalAiChat" />
+                      OnShowLocalAiChat="ShowLocalAiChat"
+                      OnRequestLocalizationPath="HandleRequestLocPath" />
     </div>
     </CascadingValue>
     <StatusBar />
@@ -70,6 +71,10 @@
 <PromptManagerDialog IsVisible="isPromptManagerVisible" OnClose="OnPromptManagerClose" />
 <SettingsDialog IsVisible="_isSettingsDialogVisible" OnClose="OnSettingsDialogClose" />
 <AzureDevOpsDialog IsVisible="_isAzureDevOpsDialogVisible" OnClose="OnAzureDevOpsDialogClose" OnDownload="HandleDownloadWorkItemsAsync" />
+<LocalizationPathDialog IsVisible="_isLocPathDialogVisible" 
+                        OnClose="() => _isLocPathDialogVisible = false" 
+                        OnConfirm="HandleLocalizationPathSet" />
+
 <DiffDialog IsVisible="AppState.IsDiffDialogVisible"
             GlobalExplanation="@AppState.DiffGlobalExplanation"
             FullLlmResponse="@AppState.DiffFullLlmResponse"

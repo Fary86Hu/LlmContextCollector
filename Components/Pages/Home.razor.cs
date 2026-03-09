@@ -45,6 +45,8 @@ namespace LlmContextCollector.Components.Pages
         private IEmbeddingProvider EmbeddingProvider { get; set; } = null!;
         [Inject]
         private ProjectSettingsService ProjectSettingsService { get; set; } = null!;
+        [Inject]
+        private LocalizationService LocalizationService { get; set; } = null!;
 
 
         private ContextPanel? _contextPanelRef;
@@ -59,6 +61,8 @@ namespace LlmContextCollector.Components.Pages
         private bool _isDocumentSearchDialogVisible = false;
         private bool _isLocalAiChatVisible = false;
         private bool _isExclusionsDialogVisible = false;
+        private bool _isLocPathDialogVisible = false;
+        private DiffResultArgs? _pendingLocDiffArgs;
         private string _localAiPrompt = string.Empty;
         private string _localAiSystem = string.Empty;
         private string _localAiFiles = string.Empty;
@@ -622,6 +626,36 @@ namespace LlmContextCollector.Components.Pages
             _localAiPrompt = string.Empty;
             _localAiSystem = string.Empty;
             _localAiFiles = string.Empty;
+            StateHasChanged();
+        }
+
+        private void HandleRequestLocPath(DiffResultArgs args)
+        {
+            _pendingLocDiffArgs = args;
+            _isLocPathDialogVisible = true;
+            StateHasChanged();
+        }
+
+        private async Task HandleLocalizationPathSet(string path)
+        {
+            AppState.LocalizationResourcePath = path;
+            _isLocPathDialogVisible = false;
+            
+            // Mentjük a beállítást a projekthez
+            await AzureDevOpsService.SaveSettingsForCurrentProjectAsync();
+
+            if (_pendingLocDiffArgs != null)
+            {
+                // Újraindítjuk a lokalizáció mentését
+                int added = await LocalizationService.UpdateResourceFileAsync(path, _pendingLocDiffArgs.LocalizationData);
+                AppState.StatusText = $"Lokalizáció mentve ({added} kulcs).";
+                
+                if (_pendingLocDiffArgs.DiffResults.Any())
+                {
+                    ShowDiffDialog(_pendingLocDiffArgs);
+                }
+                _pendingLocDiffArgs = null;
+            }
             StateHasChanged();
         }
 

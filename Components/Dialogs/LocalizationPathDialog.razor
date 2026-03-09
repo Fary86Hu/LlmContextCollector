@@ -1,0 +1,50 @@
+@inject AppState AppState
+@inject IFolderPickerService FolderPickerService
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>Lokalizációs Fájl Beállítása</h3>
+                <button class="close-btn" @onclick="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    Az LLM válasz lokalizációs adatokat tartalmaz, de a projekthez még nincs beállítva a cél resource fájl (.resx).
+                    Kérlek, add meg a fájl pontos elérési útját!
+                </p>
+                <div class="ado-form-group">
+                    <label>Resource Fájl (.resx):</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="text" style="flex-grow: 1;" @bind="AppState.LocalizationResourcePath" placeholder="C:\...\Resources\Resource.resx" />
+                        <button class="secondary" @onclick="PickResxFile">Tallózás...</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button @onclick="Close">Mégsem</button>
+                <button class="primary" @onclick="Confirm" disabled="@(string.IsNullOrWhiteSpace(AppState.LocalizationResourcePath))">Beállítás és Mentés</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<string> OnConfirm { get; set; }
+
+    private async Task PickResxFile()
+    {
+        // A FolderPickerService kiterjesztése vagy manuális megadás szükséges lehet fájl választáshoz, 
+        // de az egyszerűség kedvéért itt most az AppState-be írunk.
+    }
+
+    private async Task Confirm()
+    {
+        await OnConfirm.InvokeAsync(AppState.LocalizationResourcePath);
+    }
+
+    private async Task Close() => await OnClose.InvokeAsync();
+}

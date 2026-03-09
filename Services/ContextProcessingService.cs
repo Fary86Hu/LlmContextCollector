@@ -78,7 +78,13 @@ namespace LlmContextCollector.Services
             var (explanation, parsedFiles) = _llmResponseParserService.ParseResponse(clipboardText);
             _appState.LastLlmGlobalExplanation = explanation;
 
-            if (!parsedFiles.Any()) return new DiffResultArgs(explanation, new List<DiffResult>(), clipboardText);
+            // Lokalizációs adatok kinyerése
+            var locRegex = new System.Text.RegularExpressions.Regex(@"<data name=""[^""]+"" xml:space=""preserve"">[\s\S]*?</data>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var locMatches = locRegex.Matches(clipboardText);
+            var localizationFragment = string.Join("\n", locMatches.Select(m => m.Value));
+
+            if (!parsedFiles.Any() && string.IsNullOrEmpty(localizationFragment)) 
+                return new DiffResultArgs(explanation, new List<DiffResult>(), clipboardText, string.Empty);
 
             var diffResults = new List<DiffResult>();
             foreach (var fileData in parsedFiles)
@@ -108,7 +114,7 @@ namespace LlmContextCollector.Services
                     Explanation = fileData.Explanation
                 });
             }
-            return new DiffResultArgs(explanation, diffResults, clipboardText);
+            return new DiffResultArgs(explanation, diffResults, clipboardText, localizationFragment);
         }
 
         private string ApplyPatches(string originalContent, string patchContent)

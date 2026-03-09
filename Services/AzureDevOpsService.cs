@@ -51,6 +51,7 @@ namespace LlmContextCollector.Services
             _appState.AzureDevOpsPat = settings.Pat;
             _appState.AdoDownloadOnlyMine = settings.DownloadOnlyMine;
             _appState.AdoLastDownloadDate = settings.LastFullDownloadUtc;
+            _appState.LocalizationResourcePath = settings.LocalizationResourcePath;
         }
 
         public async Task SaveSettingsForCurrentProjectAsync(DateTime? newDownloadTimestamp = null)
@@ -66,7 +67,8 @@ namespace LlmContextCollector.Services
                 IterationPath = _appState.AzureDevOpsIterationPath,
                 Pat = _appState.AzureDevOpsPat,
                 DownloadOnlyMine = _appState.AdoDownloadOnlyMine,
-                LastFullDownloadUtc = newDownloadTimestamp ?? _appState.AdoLastDownloadDate
+                LastFullDownloadUtc = newDownloadTimestamp ?? _appState.AdoLastDownloadDate,
+                LocalizationResourcePath = _appState.LocalizationResourcePath
             };
             var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(path, json);

@@ -43,6 +43,10 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private OllamaService OllamaService { get; set; } = null!;
         [Inject]
         private BrowserService BrowserService { get; set; } = null!;
+        [Inject]
+        private LocalizationService LocalizationService { get; set; } = null!;
+        [Inject]
+        private AzureDevOpsService SettingsStore { get; set; } = null!;
 
 
         [Parameter]
@@ -665,6 +669,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             return Regex.IsMatch(text, @"\[Q\d+\]");
         }
 
+        [Parameter] public EventCallback<DiffResultArgs> OnRequestLocalizationPath { get; set; }
+
         private async Task RouteResponseAsync(string responseContent)
         {
             if (IsQuestionResponse(responseContent))
@@ -676,12 +682,31 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             {
                 var diffArgs = await ContextProcessingService.ProcessChangesFromClipboardAsync(responseContent);
 
-                if (!diffArgs.DiffResults.Any())
+                if (!string.IsNullOrEmpty(diffArgs.LocalizationData))
                 {
-                    await JSRuntime.InvokeVoidAsync("alert", "A válasz nem tartalmazott feldolgozható kódot és kérdéseket sem.\n\nNyers válasz:\n" + (responseContent.Length > 500 ? responseContent.Substring(0, 500) + "..." : responseContent));
-                    AppState.StatusText = "A válasz nem értelmezhető kódként vagy kérdésként.";
+                    if (string.IsNullOrEmpty(AppState.LocalizationResourcePath))
+                    {
+                        AppState.StatusText = "Lokalizáció észlelve, de hiányzik a resource fájl útvonala.";
+                        await OnRequestLocalizationPath.InvokeAsync(diffArgs);
+                        return;
+                    }
+
+                    try
+                    {
+                        int added = await LocalizationService.UpdateResourceFileAsync(AppState.LocalizationResourcePath, diffArgs.LocalizationData);
+                        AppState.StatusText += $" {added} lokalizációs kulcs frissítve.";
+                    }
+                    catch (Exception ex)
+                    {
+                        await JSRuntime.InvokeVoidAsync("alert", $"Lokalizáció mentési hiba: {ex.Message}");
+                    }
                 }
-                else
+
+                if (!diffArgs.DiffResults.Any() && string.IsNullOrEmpty(diffArgs.LocalizationData))
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", "A válasz nem tartalmazott feldolgozható kódot, lokalizációt vagy kérdéseket sem.");
+                }
+                else if (diffArgs.DiffResults.Any())
                 {
                     AppState.StatusText = $"{diffArgs.DiffResults.Count} fájl feldolgozva. Változások ablak megnyitva.";
                     await OnShowDiffDialog.InvokeAsync(diffArgs);
@@ -1088,11 +1113,13 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         public string GlobalExplanation { get; }
         public List<DiffResult> DiffResults { get; }
         public string FullLlmResponse { get; }
-        public DiffResultArgs(string globalExplanation, List<DiffResult> diffResults, string fullLlmResponse)
+        public string LocalizationData { get; }
+        public DiffResultArgs(string globalExplanation, List<DiffResult> diffResults, string fullLlmResponse, string localizationData = "")
         {
             GlobalExplanation = globalExplanation;
             DiffResults = diffResults;
             FullLlmResponse = fullLlmResponse;
+            LocalizationData = localizationData;
         }
     }
 }

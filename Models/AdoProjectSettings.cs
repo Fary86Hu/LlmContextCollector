@@ -11,5 +11,6 @@ namespace LlmContextCollector.Models
         public string Pat { get; set; } = string.Empty;
         public bool DownloadOnlyMine { get; set; } = false;
         public DateTime? LastFullDownloadUtc { get; set; }
+        public string LocalizationResourcePath { get; set; } = string.Empty;
     }
 }

@@ -63,8 +63,7 @@ namespace LlmContextCollector
             builder.Services.AddTransient<QueryBuilders>();
             builder.Services.AddTransient<OllamaService>();
             builder.Services.AddSingleton<BrowserService>();
-            
-            // --- Új szolgáltatások regisztrálása ---
+            builder.Services.AddSingleton<LocalizationService>();
             builder.Services.AddTransient<AgentContentLoader>();
             builder.Services.AddTransient<AgentPromptBuilder>();
 
@@ -88,17 +87,12 @@ namespace LlmContextCollector
                 c.BaseAddress = new Uri(appState.OllamaApiUrl);
                 c.Timeout = TimeSpan.FromMinutes(10); 
             });
-
-            // Külön HttpClient az embeddingnek, hogy ne akadjon össze a chat-tel, ha más timeout kellene
             builder.Services.AddHttpClient("OllamaEmbed", (sp, c) =>
             {
                  c.Timeout = TimeSpan.FromMinutes(5);
             });
 
             builder.Services.AddSingleton<ITextGenerationProvider, GroqTextGenerationProvider>();
-            
-            // --- Embedding Provider Setup ---
-
             builder.Services.AddSingleton<NullEmbeddingProvider>();
             builder.Services.AddSingleton<OllamaEmbeddingProvider>();
             builder.Services.AddSingleton<IChunker, SimpleChunker>();

@@ -267,6 +267,9 @@ namespace LlmContextCollector.Services
         private string _azureDevOpsPat = "";
         public string AzureDevOpsPat { get => _azureDevOpsPat; set => SetField(ref _azureDevOpsPat, value); }
 
+        private string _localizationResourcePath = string.Empty;
+        public string LocalizationResourcePath { get => _localizationResourcePath; set => SetField(ref _localizationResourcePath, value); }
+
         private string _adoDocsPath = string.Empty;
         public string AdoDocsPath { get => _adoDocsPath; set => SetField(ref _adoDocsPath, value); }
         private bool _adoDocsExist = false;
