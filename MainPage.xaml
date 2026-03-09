@@ -86,6 +86,10 @@
                             TextColor="Black"
                             BackgroundColor="#EEE"
                             Margin="0,0,5,0" />
+                    
+                    <Button x:Name="CopyTemplateButton" Text="📋" Clicked="CopyTemplate_Clicked" BackgroundColor="#DDD" TextColor="Black" HeightRequest="32" WidthRequest="40" Padding="0" FontSize="14" VerticalOptions="Center" Margin="0,0,5,0" ToolTipProperties.Text="Sablon másolása" />
+
+                    <BoxView WidthRequest="1" HeightRequest="20" BackgroundColor="#CCC" VerticalOptions="Center" Margin="5,0" />
 
                     <Button x:Name="CopyButton" Text="Másolás" Clicked="CopyContext_Clicked" BackgroundColor="#0078d4" TextColor="White" HeightRequest="34" Padding="15,0" FontSize="12" FontAttributes="Bold" VerticalOptions="Center" Margin="10,0,0,0" />
                 </HorizontalStackLayout>

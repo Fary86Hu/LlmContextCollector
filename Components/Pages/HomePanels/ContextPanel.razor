@@ -2,13 +2,27 @@
     
     <div class="right-top-section">
         <div class="toolbar" style="align-items: center;">
-            <label for="prompt-template" style="margin-right: 5px;">Globális Prompt:</label>
-            <select id="prompt-template" style="flex-grow: 1;" @bind="AppState.ActiveGlobalPromptId">
-                @foreach (var prompt in AppState.PromptTemplates)
+            <label style="margin-right: 5px;">Globális Prompt:</label>
+            <div class="custom-dropdown-container" style="flex-grow: 1;">
+                <div class="custom-dropdown-trigger" @onclick="ToggleTopDropdown" @onclick:stopPropagation="true">
+                    <span>@(AppState.PromptTemplates.FirstOrDefault(p => p.Id == AppState.ActiveGlobalPromptId)?.Title ?? "Válassz...")</span>
+                    <span class="dropdown-arrow">▼</span>
+                </div>
+                @if (_isTopDropdownOpen)
                 {
-                    <option value="@prompt.Id">@prompt.Title</option>
+                    <div class="custom-dropdown-list">
+                        @foreach (var prompt in AppState.PromptTemplates)
+                        {
+                            <div class="custom-dropdown-item @(prompt.Id == AppState.ActiveGlobalPromptId ? "active" : "")" @onclick="() => SelectTopPrompt(prompt.Id)">
+                                <span class="item-text">@prompt.Title</span>
+                                <button class="copy-item-btn" @onclick:stopPropagation="true" @onclick="() => CopyTemplateById(prompt.Id)" title="Csak a sablon tartalmának másolása">
+                                    📋
+                                </button>
+                            </div>
+                        }
+                    </div>
                 }
-            </select>
+            </div>
             <button @onclick="OnShowPromptManager">Szerkesztés...</button>
             <button @onclick="() => AppState.IsAiInspectorVisible = true" title="AI Inspector" style="margin: 0 5px;">📜</button>
             <button @onclick="OnShowSettingsDialog" title="Beállítások" style="margin: 0 0 0 5px;">⚙️</button>
@@ -137,12 +151,26 @@
                     <label title="Kiválasztott fájlok tartalmának hozzáadása"><input type="checkbox" @bind="AppState.IncludeFilesInCopy" />Fájlok</label>
                     <label title="A projekt teljes látható fájllistájának hozzáadása"><input type="checkbox" @bind="AppState.IncludeProjectTreeInCopy" />Struktúra</label>
                 </div>
-                <select class="prompt-select-inline" @bind="AppState.ActiveGlobalPromptId" style="margin: 0 8px; flex-grow: 1; max-width: 250px;">
-                    @foreach (var prompt in AppState.PromptTemplates)
+                <div class="custom-dropdown-container inline-dropdown" style="margin: 0 8px; flex-grow: 1; max-width: 250px;">
+                    <div class="custom-dropdown-trigger" @onclick="ToggleBottomDropdown" @onclick:stopPropagation="true">
+                        <span>@(AppState.PromptTemplates.FirstOrDefault(p => p.Id == AppState.ActiveGlobalPromptId)?.Title ?? "Válassz...")</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </div>
+                    @if (_isBottomDropdownOpen)
                     {
-                        <option value="@prompt.Id">@prompt.Title</option>
+                        <div class="custom-dropdown-list bottom-dropdown">
+                            @foreach (var prompt in AppState.PromptTemplates)
+                            {
+                                <div class="custom-dropdown-item @(prompt.Id == AppState.ActiveGlobalPromptId ? "active" : "")" @onclick="() => SelectBottomPrompt(prompt.Id)">
+                                    <span class="item-text">@prompt.Title</span>
+                                    <button class="copy-item-btn" @onclick:stopPropagation="true" @onclick="() => CopyTemplateById(prompt.Id)" title="Csak a sablon tartalmának másolása">
+                                        📋
+                                    </button>
+                                </div>
+                            }
+                        </div>
                     }
-                </select>
+                </div>
                 <button class="copy-button primary" @onclick="CopyToClipboard" title="Vágólapra másolás (a pipáknak megfelelően)">@_copyButtonText</button>
             </div>
             

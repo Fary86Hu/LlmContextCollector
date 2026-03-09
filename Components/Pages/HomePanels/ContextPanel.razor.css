@@ -274,6 +274,123 @@
     color: white;
 }
 
+.icon-btn-toolbar {
+    background: none;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.icon-btn-toolbar:hover {
+    background-color: var(--hover-bg-color);
+    border-color: var(--border-color);
+}
+
+/* Custom Dropdown Styling */
+.custom-dropdown-container {
+    position: relative;
+    user-select: none;
+}
+
+.custom-dropdown-trigger {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 8px;
+    background-color: var(--input-bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    height: 30px;
+    box-sizing: border-box;
+}
+
+.dropdown-arrow {
+    font-size: 8px;
+    margin-left: 8px;
+    opacity: 0.6;
+}
+
+.custom-dropdown-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0 0 3px 3px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    z-index: 1000;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.bottom-dropdown {
+    top: auto;
+    bottom: 100%;
+    border-radius: 3px 3px 0 0;
+    box-shadow: 0 -4px 6px rgba(0,0,0,0.1);
+}
+
+.custom-dropdown-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    color: var(--text-color);
+}
+
+.custom-dropdown-item:hover {
+    background-color: var(--hover-bg-color);
+}
+
+.custom-dropdown-item.active {
+    background-color: var(--selected-bg-color);
+    color: var(--selected-text-color);
+}
+
+.item-text {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.copy-item-btn {
+    background: none;
+    border: none;
+    padding: 2px 4px;
+    margin-left: 8px;
+    cursor: pointer;
+    opacity: 0.4;
+    transition: opacity 0.2s;
+    font-size: 14px;
+    border-radius: 3px;
+    color: var(--text-color);
+}
+
+.custom-dropdown-item:hover .copy-item-btn {
+    opacity: 1;
+}
+
+.copy-item-btn:hover {
+    background-color: rgba(0,0,0,0.1);
+}
+
+.custom-dropdown-item.active .copy-item-btn {
+    color: white;
+}
+
 /* --- Dynamic Highlights (Search & References) --- */
 
 /* Search Highlights */

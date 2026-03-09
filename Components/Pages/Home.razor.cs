@@ -392,6 +392,7 @@ namespace LlmContextCollector.Components.Pages
                 _showListContextMenu = false;
                 StateHasChanged();
             }
+            _contextPanelRef?.CloseCustomDropdowns();
         }
 
         private async Task ExcludeSelectedFromTree()

@@ -44,7 +44,8 @@ namespace LlmContextCollector.Services
             if (_appState.IncludeProjectTreeInCopy && !string.IsNullOrEmpty(_appState.ProjectRoot))
             {
                 sb.AppendLine("\n--- PROJECT STRUCTURE (VISIBLE FILES) ---");
-                AppendVisibleFilesRecursive(_appState.FileTree, sb);
+                sb.AppendLine("// Note: [*] indicates files already included in the full context below.");
+                AppendCompactTreeRecursive(_appState.FileTree, sb, 0);
                 sb.AppendLine("--- END PROJECT STRUCTURE ---\n");
             }
 
@@ -80,19 +81,26 @@ namespace LlmContextCollector.Services
             return sb.ToString().Trim();
         }
 
-        private void AppendVisibleFilesRecursive(IEnumerable<FileNode> nodes, StringBuilder sb)
+        private void AppendCompactTreeRecursive(IEnumerable<FileNode> nodes, StringBuilder sb, int indent)
         {
-            foreach (var node in nodes)
+            var visibleNodes = nodes.Where(n => n.IsVisible).ToList();
+            if (!visibleNodes.Any()) return;
+
+            var indentation = new string(' ', indent * 2);
+
+            foreach (var node in visibleNodes)
             {
-                if (!node.IsVisible) continue;
-                if (!node.IsDirectory)
+                if (node.IsDirectory)
+                {
+                    sb.AppendLine($"{indentation}{node.Name}/");
+                    AppendCompactTreeRecursive(node.Children, sb, indent + 1);
+                }
+                else
                 {
                     var relPath = Path.GetRelativePath(_appState.ProjectRoot, node.FullPath).Replace('\\', '/');
-                    sb.AppendLine(relPath);
-                }
-                if (node.Children.Any())
-                {
-                    AppendVisibleFilesRecursive(node.Children, sb);
+                    var isIncluded = _appState.SelectedFilesForContext.Contains(relPath);
+                    
+                    sb.AppendLine($"{indentation}{(isIncluded ? "[*] " : "")}{node.Name}");
                 }
             }
         }

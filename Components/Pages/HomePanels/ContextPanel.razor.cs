@@ -94,6 +94,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private DotNetObjectReference<ContextPanel>? _objRef;
 
         private string _copyButtonText = "Másolás";
+        private bool _isTopDropdownOpen = false;
+        private bool _isBottomDropdownOpen = false;
 
         private List<ContextListItem> _sortedFiles = new();
         private string _currentSortKey = "path";
@@ -558,7 +560,32 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             AppState.PromptText = string.Empty;
             StateHasChanged();
         }
-        
+
+        private void ToggleTopDropdown() { _isTopDropdownOpen = !_isTopDropdownOpen; _isBottomDropdownOpen = false; }
+        private void ToggleBottomDropdown() { _isBottomDropdownOpen = !_isBottomDropdownOpen; _isTopDropdownOpen = false; }
+        private void SelectTopPrompt(Guid id) { AppState.ActiveGlobalPromptId = id; _isTopDropdownOpen = false; }
+        private void SelectBottomPrompt(Guid id) { AppState.ActiveGlobalPromptId = id; _isBottomDropdownOpen = false; }
+
+        public void CloseCustomDropdowns()
+        {
+            if (_isTopDropdownOpen || _isBottomDropdownOpen)
+            {
+                _isTopDropdownOpen = false;
+                _isBottomDropdownOpen = false;
+                StateHasChanged();
+            }
+        }
+
+        private async Task CopyTemplateById(Guid id)
+        {
+            var prompt = AppState.PromptTemplates.FirstOrDefault(p => p.Id == id);
+            if (prompt != null)
+            {
+                await Clipboard.SetTextAsync(prompt.Content);
+                AppState.StatusText = $"'{prompt.Title}' sablon tartalom másolva a vágólapra.";
+            }
+        }
+
         private async Task CopyToClipboard()
         {
             var sortedPaths = _sortedFiles.Select(f => f.RelativePath);

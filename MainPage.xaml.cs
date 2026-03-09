@@ -222,6 +222,19 @@ namespace LlmContextCollector
             _browserService?.CloseBrowser();
         }
 
+        private async void CopyTemplate_Clicked(object sender, EventArgs e)
+        {
+            if (SystemPromptPicker.SelectedItem is PromptTemplate selected && _clipboard != null)
+            {
+                await _clipboard.SetTextAsync(selected.Content);
+                
+                var originalText = CopyTemplateButton.Text;
+                CopyTemplateButton.Text = "✓";
+                await Task.Delay(1000);
+                CopyTemplateButton.Text = originalText;
+            }
+        }
+
         private async void ExtractBrowser_Clicked(object sender, EventArgs e)
         {
             if (_browserService != null)
