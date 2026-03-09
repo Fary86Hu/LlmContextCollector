@@ -44,10 +44,12 @@ namespace LlmContextCollector
                     PromptCheckBox.IsChecked = _appState.IncludePromptInCopy;
                     SystemPromptCheckBox.IsChecked = _appState.IncludeSystemPromptInCopy;
                     FileContextCheckBox.IsChecked = _appState.IncludeFilesInCopy;
+                    TreeContextCheckBox.IsChecked = _appState.IncludeProjectTreeInCopy;
 
                     PromptCheckBox.CheckedChanged += (s, args) => _appState.IncludePromptInCopy = args.Value;
                     SystemPromptCheckBox.CheckedChanged += (s, args) => _appState.IncludeSystemPromptInCopy = args.Value;
                     FileContextCheckBox.CheckedChanged += (s, args) => _appState.IncludeFilesInCopy = args.Value;
+                    TreeContextCheckBox.CheckedChanged += (s, args) => _appState.IncludeProjectTreeInCopy = args.Value;
 
                     UpdatePromptPicker();
                 }
@@ -71,6 +73,10 @@ namespace LlmContextCollector
             else if (e.PropertyName == nameof(AppState.IncludeFilesInCopy))
             {
                 MainThread.BeginInvokeOnMainThread(() => FileContextCheckBox.IsChecked = _appState!.IncludeFilesInCopy);
+            }
+            else if (e.PropertyName == nameof(AppState.IncludeProjectTreeInCopy))
+            {
+                MainThread.BeginInvokeOnMainThread(() => TreeContextCheckBox.IsChecked = _appState!.IncludeProjectTreeInCopy);
             }
         }
 
@@ -281,6 +287,11 @@ namespace LlmContextCollector
         private void FilesLabel_Tapped(object sender, EventArgs e)
         {
             FileContextCheckBox.IsChecked = !FileContextCheckBox.IsChecked;
+        }
+
+        private void TreeLabel_Tapped(object sender, EventArgs e)
+        {
+            TreeContextCheckBox.IsChecked = !TreeContextCheckBox.IsChecked;
         }
     }
 }

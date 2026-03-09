@@ -41,6 +41,13 @@ namespace LlmContextCollector.Services
                 }
             }
 
+            if (_appState.IncludeProjectTreeInCopy && !string.IsNullOrEmpty(_appState.ProjectRoot))
+            {
+                sb.AppendLine("\n--- PROJECT STRUCTURE (VISIBLE FILES) ---");
+                AppendVisibleFilesRecursive(_appState.FileTree, sb);
+                sb.AppendLine("--- END PROJECT STRUCTURE ---\n");
+            }
+
             if (includeFiles && _appState.SelectedFilesForContext.Any())
             {
                 if (sb.Length > 0) sb.AppendLine("\n\n// --- Kód Kontextus alább --- \n");
@@ -71,6 +78,23 @@ namespace LlmContextCollector.Services
                 }
             }
             return sb.ToString().Trim();
+        }
+
+        private void AppendVisibleFilesRecursive(IEnumerable<FileNode> nodes, StringBuilder sb)
+        {
+            foreach (var node in nodes)
+            {
+                if (!node.IsVisible) continue;
+                if (!node.IsDirectory)
+                {
+                    var relPath = Path.GetRelativePath(_appState.ProjectRoot, node.FullPath).Replace('\\', '/');
+                    sb.AppendLine(relPath);
+                }
+                if (node.Children.Any())
+                {
+                    AppendVisibleFilesRecursive(node.Children, sb);
+                }
+            }
         }
 
         public async Task<DiffResultArgs> ProcessChangesFromClipboardAsync(string clipboardText)

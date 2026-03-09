@@ -63,6 +63,16 @@
                         </Label>
                     </Grid>
 
+                    <!-- Tree Checkbox -->
+                    <Grid ColumnDefinitions="30,Auto" VerticalOptions="Center">
+                        <CheckBox x:Name="TreeContextCheckBox" Grid.Column="0" IsChecked="False" Color="#0078d4" WidthRequest="30" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="Struktúra" VerticalOptions="Center" TextColor="#333" FontSize="12">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="TreeLabel_Tapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </Grid>
+
                     <BoxView WidthRequest="1" HeightRequest="20" BackgroundColor="#CCC" VerticalOptions="Center" Margin="5,0" />
 
                     <Label Text="Sablon:" VerticalOptions="Center" TextColor="#333" FontSize="12" FontAttributes="Bold" />

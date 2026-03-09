@@ -169,6 +169,13 @@ namespace LlmContextCollector.Services
             set => SetField(ref _includeFilesInCopy, value);
         }
 
+        private bool _includeProjectTreeInCopy = false;
+        public bool IncludeProjectTreeInCopy
+        {
+            get => _includeProjectTreeInCopy;
+            set => SetField(ref _includeProjectTreeInCopy, value);
+        }
+
         private Guid _activeGlobalPromptId;
         public Guid ActiveGlobalPromptId
         {
