@@ -3,7 +3,7 @@
 
 <div class="main-container" @onclick="HideContextMenus" @onmousemove="OnMouseMove" @onmouseup="StopResize" @onmouseleave="StopResize">
     <CascadingValue Value="this">
-    <div class="content-wrapper" style="--left-flex:@(AppState.LeftPanelFlex); --middle-flex:@(AppState.MiddlePanelFlex); --right-flex:@(AppState.RightPanelFlex)">
+    <div class="content-wrapper" style="--left-flex:@(AppState.LeftPanelFlex.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)); --middle-flex:@(AppState.MiddlePanelFlex.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)); --right-flex:@(AppState.RightPanelFlex.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))">
 
         <FileTreePanel OnRequestApplyFiltersAndReload="() => ApplyFiltersAndReload(true)"
                        OnLoadHistoryEntry="LoadHistoryEntry"

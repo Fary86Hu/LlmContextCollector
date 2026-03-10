@@ -187,10 +187,12 @@
         try
         {
             var apiMessages = _messages.Select(m => new { role = m.Role, content = m.Content }).ToList<object>();
+            var responseSb = new StringBuilder();
 
             await foreach (var token in OllamaService.GetChatResponseStreamAsync(apiMessages, _cts.Token))
             {
-                _currentResponse += token;
+                responseSb.Append(token);
+                _currentResponse = responseSb.ToString();
                 StateHasChanged();
                 await ScrollToBottom();
             }

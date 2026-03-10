@@ -29,7 +29,7 @@ namespace LlmContextCollector.Services
 
         public async Task<List<string>> GetBranchesAsync()
         {
-            var (success, output, error) = await _gitService.RunGitCommandAsync("branch");
+            var (success, output, error) = await _gitService.RunGitCommandAsync(new[] { "branch" });
             if (!success) return new List<string>();
 
             return output.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
@@ -42,7 +42,7 @@ namespace LlmContextCollector.Services
         {
             var allBranches = await GetBranchesAsync();
 
-            var (success, remoteBranchesOutput, _) = await _gitService.RunGitCommandAsync("branch -r");
+            var (success, remoteBranchesOutput, _) = await _gitService.RunGitCommandAsync(new[] { "branch", "-r" });
             if (success)
             {
                 var remoteBranches = remoteBranchesOutput
@@ -68,7 +68,7 @@ namespace LlmContextCollector.Services
                 return "master";
             }
 
-            var (headSuccess, headOutput, _) = await _gitService.RunGitCommandAsync("symbolic-ref refs/remotes/origin/HEAD");
+            var (headSuccess, headOutput, _) = await _gitService.RunGitCommandAsync(new[] { "symbolic-ref", "refs/remotes/origin/HEAD" });
             if (headSuccess && !string.IsNullOrWhiteSpace(headOutput))
             {
                 var match = Regex.Match(headOutput, @"refs/remotes/origin/(.+)");
@@ -86,36 +86,36 @@ namespace LlmContextCollector.Services
                 return await GetUncommittedDiffsAsync();
             }
 
-            string diffCommand;
+            List<string> diffCommandArgs;
             switch (mode)
             {
                 case DiffMode.SinceBranchCreation:
                     var devBranch = await GetDevelopmentBranchNameAsync();
-                    diffCommand = $"diff --name-status {devBranch}...HEAD";
+                    diffCommandArgs = new List<string> { "diff", "--name-status", $"{devBranch}...HEAD" };
                     break;
                 case DiffMode.AgainstBranch:
                     if (string.IsNullOrWhiteSpace(targetBranch)) return new List<DiffResult>();
-                    diffCommand = $"diff --name-status {targetBranch}...HEAD";
+                    diffCommandArgs = new List<string> { "diff", "--name-status", $"{targetBranch}...HEAD" };
                     break;
                 default:
                     return new List<DiffResult>();
             }
 
-            var (success, output, error) = await _gitService.RunGitCommandAsync(diffCommand);
+            var (success, output, error) = await _gitService.RunGitCommandAsync(diffCommandArgs);
             if (!success) throw new InvalidOperationException($"Git diff failed: {error}");
 
-            return await ParseDiffNameStatusOutputAsync(output, diffCommand.Split(' ')[0]);
+            return await ParseDiffNameStatusOutputAsync(output, diffCommandArgs[0]); // Here "diff" is fine, but ref is ignored anyway for uncommitted
         }
 
         private async Task<List<DiffResult>> GetUncommittedDiffsAsync()
         {
             var diffResults = new List<DiffResult>();
-            var (trackedSuccess, trackedDiff, trackedError) = await _gitService.RunGitCommandAsync("diff --name-status HEAD");
+            var (trackedSuccess, trackedDiff, trackedError) = await _gitService.RunGitCommandAsync(new[] { "diff", "--name-status", "HEAD" });
             if (!trackedSuccess) throw new InvalidOperationException(trackedError);
 
             diffResults.AddRange(await ParseDiffNameStatusOutputAsync(trackedDiff, "HEAD"));
 
-            var (untrackedSuccess, untrackedFiles, untrackedError) = await _gitService.RunGitCommandAsync("ls-files --others --exclude-standard");
+            var (untrackedSuccess, untrackedFiles, untrackedError) = await _gitService.RunGitCommandAsync(new[] { "ls-files", "--others", "--exclude-standard" });
             if (!untrackedSuccess) throw new InvalidOperationException(untrackedError);
 
             var untrackedLines = untrackedFiles.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
@@ -153,7 +153,7 @@ namespace LlmContextCollector.Services
                     case 'M': 
                     case 'R': 
                         result.Status = DiffStatus.Modified;
-                        result.OldContent = (await _gitService.RunGitCommandAsync($"show {oldContentRef}:\"{oldPath}\"")).output;
+                        result.OldContent = (await _gitService.RunGitCommandAsync(new[] { "show", $"{oldContentRef}:{oldPath}" })).output;
                         if (File.Exists(fullPath)) result.NewContent = await File.ReadAllTextAsync(fullPath);
                         break;
                     case 'A': 
@@ -163,7 +163,7 @@ namespace LlmContextCollector.Services
                         break;
                     case 'D': 
                         result.Status = DiffStatus.Deleted;
-                        result.OldContent = (await _gitService.RunGitCommandAsync($"show {oldContentRef}:\"{oldPath}\"")).output;
+                        result.OldContent = (await _gitService.RunGitCommandAsync(new[] { "show", $"{oldContentRef}:{oldPath}" })).output;
                         result.NewContent = "";
                         break;
                     default:
@@ -182,7 +182,12 @@ namespace LlmContextCollector.Services
             {
                 try
                 {
-                    var fullPath = Path.Combine(_appState.ProjectRoot, result.Path.Replace('/', Path.DirectorySeparatorChar));
+                    var fullPath = Path.GetFullPath(Path.Combine(_appState.ProjectRoot, result.Path.Replace('/', Path.DirectorySeparatorChar)));
+                    var fullRoot = Path.GetFullPath(_appState.ProjectRoot);
+                    if (!fullPath.StartsWith(fullRoot))
+                    {
+                        throw new UnauthorizedAccessException("Path traversal attempt detected.");
+                    }
 
                     if (result.Status == DiffStatus.Deleted)
                     {

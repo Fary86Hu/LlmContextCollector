@@ -65,7 +65,10 @@ namespace LlmContextCollector.Services
                     }
                     else if (!string.IsNullOrEmpty(_appState.ProjectRoot))
                     {
-                        fullPath = Path.Combine(_appState.ProjectRoot, fileRelPath.Replace('/', Path.DirectorySeparatorChar));
+                        fullPath = Path.GetFullPath(Path.Combine(_appState.ProjectRoot, fileRelPath.Replace('/', Path.DirectorySeparatorChar)));
+                        var fullRoot = Path.GetFullPath(_appState.ProjectRoot);
+                        if (!fullPath.StartsWith(fullRoot)) continue; // Path traversal protection
+
                         header = $"// --- Fájl: {fileRelPath.Replace('\\', '/')} ---";
                     }
                     else continue;
@@ -121,7 +124,15 @@ namespace LlmContextCollector.Services
             var diffResults = new List<DiffResult>();
             foreach (var fileData in parsedFiles)
             {
-                var fullPath = Path.Combine(_appState.ProjectRoot, fileData.Path.Replace('/', Path.DirectorySeparatorChar));
+                var fullPath = Path.GetFullPath(Path.Combine(_appState.ProjectRoot, fileData.Path.Replace('/', Path.DirectorySeparatorChar)));
+                var fullRoot = Path.GetFullPath(_appState.ProjectRoot);
+                
+                if (!fullPath.StartsWith(fullRoot))
+                {
+                    fileData.Explanation += $"\n[HIBA: Érvénytelen útvonal (Path Traversal gyanú): {fileData.Path}]";
+                    continue;
+                }
+
                 var status = fileData.Status;
                 string oldContent = "";
                 string finalNewContent = fileData.NewContent;

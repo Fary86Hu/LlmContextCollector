@@ -156,8 +156,13 @@ namespace LlmContextCollector.Services
 
                 parentNode.Children = parentNode.Children.OrderBy(c => !c.IsDirectory).ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToList();
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException ex)
             {
+                System.Diagnostics.Debug.WriteLine($"Access denied scanning directory: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error scanning directory: {ex.Message}");
             }
         }
 

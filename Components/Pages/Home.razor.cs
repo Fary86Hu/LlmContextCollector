@@ -91,9 +91,9 @@ namespace LlmContextCollector.Components.Pages
             }
         }
 
-        private async void OnAppStateChanged(object? sender, PropertyChangedEventArgs e)
+        private void OnAppStateChanged(object? sender, PropertyChangedEventArgs e)
         {
-            await InvokeAsync(StateHasChanged);
+            InvokeAsync(StateHasChanged);
         }
 
         private async Task ApplyFiltersAndReload(bool preserveSelection = true, bool showIndicator = true)
@@ -128,20 +128,12 @@ namespace LlmContextCollector.Components.Pages
         }
 
 
-        private void GetAllFileNodes(IEnumerable<FileNode> nodes, List<FileNode> fileNodes)
+        private string GetRelativeNodePath(FileNode node)
         {
-            foreach (var node in nodes)
-            {
-                if (node.IsDirectory)
-                {
-                    GetAllFileNodes(node.Children, fileNodes);
-                }
-                else
-                {
-                    fileNodes.Add(node);
-                }
-            }
+            return Path.GetRelativePath(AppState.ProjectRoot, node.FullPath).Replace('\\', '/');
         }
+
+
 
         private async Task HandleNodeClick((FileNode Node, MouseEventArgs Args) payload)
         {
@@ -171,7 +163,7 @@ namespace LlmContextCollector.Components.Pages
                         // Ha Ctrl is le van nyomva (pl Ctrl+Alt), akkor hozzáadunk a meglévőhöz.
                         if (!e.CtrlKey)
                         {
-                            DeselectAllNodes(AppState.FileTree);
+                            Utils.FileTreeHelper.DeselectAllNodes(AppState.FileTree);
                         }
 
                         for (int i = low; i <= high; i++)
@@ -187,7 +179,7 @@ namespace LlmContextCollector.Components.Pages
                 }
                 else
                 {
-                    DeselectAllNodes(AppState.FileTree);
+                    Utils.FileTreeHelper.DeselectAllNodes(AppState.FileTree);
                     node.IsSelectedInTree = true;
                     _lastInteractionNode = node;
                 }
@@ -195,7 +187,7 @@ namespace LlmContextCollector.Components.Pages
             else
             {
                 // Programmatic selection (e.g. search navigation)
-                DeselectAllNodes(AppState.FileTree);
+                Utils.FileTreeHelper.DeselectAllNodes(AppState.FileTree);
                 node.IsSelectedInTree = true;
                 _lastInteractionNode = node;
                 AppState.ExpandNodeParents(node);
@@ -211,11 +203,11 @@ namespace LlmContextCollector.Components.Pages
             }
 
             var selectedNodes = new List<FileNode>();
-            FindSelectedNodes(AppState.FileTree, selectedNodes);
+            Utils.FileTreeHelper.FindSelectedNodes(AppState.FileTree, selectedNodes);
 
             var selectedPathsFromTree = selectedNodes
                 .Where(n => !n.IsDirectory)
-                .Select(n => Path.GetRelativePath(AppState.ProjectRoot, n.FullPath).Replace('\\', '/'))
+                .Select(n => GetRelativeNodePath(n))
                 .ToList();
 
             _selectedInContextList = selectedPathsFromTree
@@ -226,7 +218,7 @@ namespace LlmContextCollector.Components.Pages
             {
                 if (selectedNodes.Count == 1 && !selectedNodes[0].IsDirectory)
                 {
-                    var relativePath = Path.GetRelativePath(AppState.ProjectRoot, selectedNodes[0].FullPath).Replace('\\', '/');
+                    var relativePath = GetRelativeNodePath(selectedNodes[0]);
                     await _contextPanelRef.UpdatePreview(relativePath);
 
                     if (e == null && AppState.SearchInContent && !string.IsNullOrWhiteSpace(AppState.SearchTerm))
@@ -262,7 +254,7 @@ namespace LlmContextCollector.Components.Pages
         private async Task HandleContextSelectionChanged(List<string> selectedFiles)
         {
             _selectedInContextList = selectedFiles;
-            DeselectAllNodes(AppState.FileTree);
+            Utils.FileTreeHelper.DeselectAllNodes(AppState.FileTree);
 
             if (_selectedInContextList.Any() && !string.IsNullOrEmpty(AppState.ProjectRoot))
             {
@@ -329,39 +321,12 @@ namespace LlmContextCollector.Components.Pages
             _selectedInContextList.Clear();
         }
 
-        private void FindSelectedNodes(IEnumerable<FileNode> nodes, List<FileNode> selected)
-        {
-            foreach (var node in nodes)
-            {
-                if (node.IsSelectedInTree)
-                {
-                    selected.Add(node);
-                }
-                if (node.Children.Any())
-                {
-                    FindSelectedNodes(node.Children, selected);
-                }
-            }
-        }
-
-        private void DeselectAllNodes(IEnumerable<FileNode> nodes)
-        {
-            foreach (var node in nodes)
-            {
-                node.IsSelectedInTree = false;
-                if (node.Children.Any())
-                {
-                    DeselectAllNodes(node.Children);
-                }
-            }
-        }
-
         #region Context Menus & Exclude
 
         private void ShowTreeContextMenu(MouseEventArgs e)
         {
             var selectedNodes = new List<FileNode>();
-            FindSelectedNodes(AppState.FileTree, selectedNodes);
+            Utils.FileTreeHelper.FindSelectedNodes(AppState.FileTree, selectedNodes);
             if (selectedNodes.Any())
             {
                 _showTreeContextMenu = true;
@@ -399,15 +364,14 @@ namespace LlmContextCollector.Components.Pages
         {
             HideContextMenus();
             var selectedNodes = new List<FileNode>();
-            FindSelectedNodes(AppState.FileTree, selectedNodes);
+            Utils.FileTreeHelper.FindSelectedNodes(AppState.FileTree, selectedNodes);
 
             if (!selectedNodes.Any()) return;
 
             var newIgnores = new List<string>();
             foreach (var node in selectedNodes)
             {
-                var relativePath = Path.GetRelativePath(AppState.ProjectRoot, node.FullPath).Replace('\\', '/');
-                newIgnores.Add(relativePath);
+                newIgnores.Add(GetRelativeNodePath(node));
                 node.IsSelectedInTree = false;
             }
 
@@ -430,7 +394,7 @@ namespace LlmContextCollector.Components.Pages
         {
             HideContextMenus();
             var selectedNodes = new List<FileNode>();
-            FindSelectedNodes(AppState.FileTree, selectedNodes);
+            Utils.FileTreeHelper.FindSelectedNodes(AppState.FileTree, selectedNodes);
 
             if (selectedNodes.Count == 1)
             {
@@ -447,12 +411,12 @@ namespace LlmContextCollector.Components.Pages
         {
             HideContextMenus();
             var selectedNodes = new List<FileNode>();
-            FindSelectedNodes(AppState.FileTree, selectedNodes);
+            Utils.FileTreeHelper.FindSelectedNodes(AppState.FileTree, selectedNodes);
 
             if (selectedNodes.Count == 1)
             {
                 var node = selectedNodes.First();
-                var relativePath = Path.GetRelativePath(AppState.ProjectRoot, node.FullPath).Replace('\\', '/');
+                var relativePath = GetRelativeNodePath(node);
                 await Clipboard.SetTextAsync(relativePath);
                 AppState.StatusText = $"Útvonal másolva: {relativePath}";
             }
@@ -466,13 +430,13 @@ namespace LlmContextCollector.Components.Pages
         {
             HideContextMenus();
             var selectedNodes = new List<FileNode>();
-            FindSelectedNodes(AppState.FileTree, selectedNodes);
+            Utils.FileTreeHelper.FindSelectedNodes(AppState.FileTree, selectedNodes);
 
             var items = selectedNodes
                 .Where(n => !n.IsDirectory)
                 .Select(n => (
                     FullPath: n.FullPath, 
-                    DisplayPath: Path.GetRelativePath(AppState.ProjectRoot, n.FullPath).Replace('\\', '/')
+                    DisplayPath: GetRelativeNodePath(n)
                 ))
                 .ToList();
 
@@ -842,7 +806,7 @@ namespace LlmContextCollector.Components.Pages
                 return;
             }
             var allFileNodes = new List<FileNode>();
-            GetAllFileNodes(AppState.FileTree, allFileNodes);
+            Utils.FileTreeHelper.GetAllFileNodes(AppState.FileTree, allFileNodes);
             EmbeddingIndexService.StartBuildingIndex(allFileNodes);
         }
 
@@ -863,12 +827,23 @@ namespace LlmContextCollector.Components.Pages
         private double _startLeftFlex, _startMiddleFlex, _startRightFlex;
         private double _startTopFlex, _startMidFlex, _startBotFlex;
 
-        private void StartResize(MouseEventArgs e, string splitter)
+        private double _containerWidth = 1000;
+        private double _containerHeight = 800;
+
+        private async Task StartResize(MouseEventArgs e, string splitter)
         {
             _isResizing = true;
             _activeSplitter = splitter;
             _startX = e.ClientX;
             _startY = e.ClientY;
+
+            // Lekérjük az aktuális ablakméreteket a pontos flex számításhoz
+            try
+            {
+                _containerWidth = await JSRuntime.InvokeAsync<double>("eval", "window.innerWidth");
+                _containerHeight = await JSRuntime.InvokeAsync<double>("eval", "window.innerHeight");
+            }
+            catch { /* Fallback az alapértelmezett értékekre */ }
 
             _startLeftFlex = AppState.LeftPanelFlex;
             _startMiddleFlex = AppState.MiddlePanelFlex;
@@ -892,32 +867,34 @@ namespace LlmContextCollector.Components.Pages
             var deltaX = e.ClientX - _startX;
             var deltaY = e.ClientY - _startY;
 
-            const double flexFactor = 0.2;
+            // A flexFactor az ablakméret és a teljes flex súly (100) aránya a folyamatos mozgáshoz
+            double flexFactorX = 100.0 / Math.Max(1, _containerWidth);
+            double flexFactorY = 100.0 / Math.Max(1, _containerHeight);
 
             switch (_activeSplitter)
             {
                 case "LeftMiddle":
-                    var flexDeltaX1 = deltaX * flexFactor;
-                    AppState.LeftPanelFlex = Math.Max(10, _startLeftFlex + flexDeltaX1);
-                    AppState.MiddlePanelFlex = Math.Max(10, _startMiddleFlex - flexDeltaX1);
+                    var flexDeltaX1 = deltaX * flexFactorX;
+                    AppState.LeftPanelFlex = Math.Clamp(_startLeftFlex + flexDeltaX1, 10, 80);
+                    AppState.MiddlePanelFlex = Math.Clamp(_startMiddleFlex - flexDeltaX1, 10, 80);
                     break;
 
                 case "MiddleRight":
-                    var flexDeltaX2 = deltaX * flexFactor;
-                    AppState.MiddlePanelFlex = Math.Max(10, _startMiddleFlex + flexDeltaX2);
-                    AppState.RightPanelFlex = Math.Max(10, _startRightFlex - flexDeltaX2);
+                    var flexDeltaX2 = deltaX * flexFactorX;
+                    AppState.MiddlePanelFlex = Math.Clamp(_startMiddleFlex + flexDeltaX2, 10, 80);
+                    AppState.RightPanelFlex = Math.Clamp(_startRightFlex - flexDeltaX2, 10, 80);
                     break;
 
                 case "RightTop":
-                    var flexDeltaY1 = deltaY * flexFactor;
-                    AppState.RightTopPanelFlex = Math.Max(10, _startTopFlex + flexDeltaY1);
-                    AppState.RightMiddlePanelFlex = Math.Max(10, _startMidFlex - flexDeltaY1);
+                    var flexDeltaY1 = deltaY * flexFactorY;
+                    AppState.RightTopPanelFlex = Math.Clamp(_startTopFlex + flexDeltaY1, 10, 80);
+                    AppState.RightMiddlePanelFlex = Math.Clamp(_startMidFlex - flexDeltaY1, 10, 80);
                     break;
 
                 case "RightMiddle":
-                    var flexDeltaY2 = deltaY * flexFactor;
-                    AppState.RightMiddlePanelFlex = Math.Max(10, _startMidFlex + flexDeltaY2);
-                    AppState.RightBottomPanelFlex = Math.Max(10, _startBotFlex - flexDeltaY2);
+                    var flexDeltaY2 = deltaY * flexFactorY;
+                    AppState.RightMiddlePanelFlex = Math.Clamp(_startMidFlex + flexDeltaY2, 10, 80);
+                    AppState.RightBottomPanelFlex = Math.Clamp(_startBotFlex - flexDeltaY2, 10, 80);
                     break;
             }
         }

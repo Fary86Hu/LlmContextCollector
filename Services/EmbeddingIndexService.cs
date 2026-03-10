@@ -42,13 +42,11 @@ namespace LlmContextCollector.Services
                 try
                 {
                     _cancellationTokenSource.Cancel();
-                    _currentIndexingTask.Wait(TimeSpan.FromSeconds(1));
+                    // Removed synchronous Wait() to prevent UI deadlock
                 }
-                catch (OperationCanceledException) { }
-                catch (AggregateException ae) when (ae.InnerExceptions.All(e => e is OperationCanceledException)) { }
-                finally
+                catch (Exception ex)
                 {
-                    _cancellationTokenSource.Dispose();
+                    System.Diagnostics.Debug.WriteLine($"Error canceling indexing: {ex.Message}");
                 }
             }
         }

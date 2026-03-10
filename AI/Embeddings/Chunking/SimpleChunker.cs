@@ -29,12 +29,14 @@ namespace LlmContextCollector.AI.Embeddings.Chunking
             }
 
             int start = 0;
+            int step = Math.Max(1, _chunkSize - _overlap);
+
             while (start < text.Length)
             {
                 int length = Math.Min(_chunkSize, text.Length - start);
                 yield return text.Substring(start, length);
 
-                start += (_chunkSize - _overlap);
+                start += step;
                 
                 // Biztonsági fék, ha az overlap rosszul lenne beállítva
                 if (length < _chunkSize) break;

@@ -21,7 +21,7 @@ namespace LlmContextCollector.Services
         {
             var relatedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var allProjectFiles = new List<FileNode>();
-            GetAllFileNodes(allNodes, allProjectFiles);
+            Utils.FileTreeHelper.GetAllFileNodes(allNodes, allProjectFiles);
             
             var allProjectPaths = new HashSet<string>(
                 allProjectFiles.Select(f => Path.GetRelativePath(projectRoot, f.FullPath).Replace('\\', '/')), 
@@ -65,7 +65,7 @@ namespace LlmContextCollector.Services
             var filesToScanNextRel = new HashSet<string>(startingFilesRel);
 
             var allProjectFiles = new List<FileNode>();
-            GetAllFileNodes(allNodes, allProjectFiles);
+            Utils.FileTreeHelper.GetAllFileNodes(allNodes, allProjectFiles);
 
             for (int i = 0; i < depth; i++)
             {
@@ -102,7 +102,10 @@ namespace LlmContextCollector.Services
                             }
                         }
                     }
-                    catch { }
+                    catch (Exception ex) 
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error reading file for references {fullPath}: {ex.Message}");
+                    }
                 }
 
                 if (!potentialTypeNames.Any()) continue;
@@ -181,7 +184,7 @@ namespace LlmContextCollector.Services
             var searchRegex = new Regex($@"(?<![\w.])(?<!\b(?:string|int|bool|var|double|float|decimal|long|short|byte|char|object|dynamic|void|sbyte|uint|ushort|ulong)\s+)({string.Join("|", escapedTokens)})(?!\w)(?!\s*\{{\s*(?:get|set|init)\b)(?!\s*=>)(?!\s*[-+*/%&|^!<>]?=)", RegexOptions.Compiled);
 
             var allProjectFiles = new List<FileNode>();
-            GetAllFileNodes(allNodes, allProjectFiles);
+            Utils.FileTreeHelper.GetAllFileNodes(allNodes, allProjectFiles);
 
             var targetSet = new HashSet<string>(targetFilesRel);
             var candidates = allProjectFiles.Where(f => !f.IsDirectory).ToList();
@@ -206,27 +209,13 @@ namespace LlmContextCollector.Services
                         referencingFiles.Add(relPath);
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
+                    System.Diagnostics.Debug.WriteLine($"Error reading file for referencing search {candidate.FullPath}: {ex.Message}");
                 }
             }
 
             return referencingFiles.ToList();
-        }
-
-        private void GetAllFileNodes(IEnumerable<FileNode> nodes, List<FileNode> flatList)
-        {
-            foreach (var node in nodes)
-            {
-                if (node.IsDirectory)
-                {
-                    GetAllFileNodes(node.Children, flatList);
-                }
-                else
-                {
-                    flatList.Add(node);
-                }
-            }
         }
     }
 }

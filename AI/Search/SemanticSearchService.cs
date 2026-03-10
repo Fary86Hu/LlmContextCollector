@@ -115,6 +115,7 @@ namespace LlmContextCollector.AI.Search
 
             var rerankedKeys = new List<string>();
             var candidatePool = new List<(string key, double score)>(candidates);
+            var maxSimCache = new Dictionary<string, double>();
 
             while (rerankedKeys.Count < cfg.Rerank && candidatePool.Any())
             {
@@ -131,13 +132,26 @@ namespace LlmContextCollector.AI.Search
                 int bestCandidateIndex = -1;
                 bestCandidate = ("", -1.0);
 
+                var lastSelectedVector = index[rerankedKeys.Last()];
+
                 for (int i = 0; i < candidatePool.Count; i++)
                 {
                     var cand = candidatePool[i];
                     var candVector = index[cand.key];
-                    var maxSimToSelected = rerankedKeys.Max(selKey => Cosine(candVector, index[selKey]));
                     
-                    var mmrScore = cfg.MmrLambda * cand.score - (1 - cfg.MmrLambda) * maxSimToSelected;
+                    double simToLast = Cosine(candVector, lastSelectedVector);
+                    
+                    if (!maxSimCache.TryGetValue(cand.key, out double currentMaxSim))
+                    {
+                        currentMaxSim = simToLast;
+                    }
+                    else
+                    {
+                        currentMaxSim = Math.Max(currentMaxSim, simToLast);
+                    }
+                    maxSimCache[cand.key] = currentMaxSim;
+                    
+                    var mmrScore = cfg.MmrLambda * cand.score - (1 - cfg.MmrLambda) * currentMaxSim;
 
                     if (mmrScore > bestMmrScore)
                     {

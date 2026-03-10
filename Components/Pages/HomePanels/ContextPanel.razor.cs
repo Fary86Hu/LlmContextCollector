@@ -134,7 +134,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             }
         }
 
-        private async void OnAppStateChanged(object? sender, PropertyChangedEventArgs e)
+        private void OnAppStateChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(AppState.PromptText))
             {
@@ -145,7 +145,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 e.PropertyName == nameof(AppState.ActiveGlobalPromptId) || 
                 e.PropertyName == nameof(AppState.PromptTemplates))
             {
-                await InvokeAsync(StateHasChanged);
+                InvokeAsync(StateHasChanged);
             }
         }
 
@@ -316,6 +316,15 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             await OnShowListContextMenu.InvokeAsync(e);
         }
 
+        private string GetFullPathFromRelative(string relPath)
+        {
+            if (relPath.StartsWith(AdoFilePrefix))
+            {
+                return Path.Combine(AppState.AdoDocsPath ?? string.Empty, relPath.Substring(AdoFilePrefix.Length));
+            }
+            return Path.Combine(AppState.ProjectRoot ?? string.Empty, relPath.Replace('/', Path.DirectorySeparatorChar));
+        }
+
         public async Task UpdatePreview(string? path = null)
         {
             await ClearPreviewSearch();
@@ -343,15 +352,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 }
             }
 
-            string fullPath;
-            if (fileRelPath.StartsWith(AdoFilePrefix))
-            {
-                fullPath = Path.Combine(AppState.AdoDocsPath, fileRelPath.Substring(AdoFilePrefix.Length));
-            }
-            else
-            {
-                fullPath = Path.Combine(AppState.ProjectRoot ?? "", fileRelPath.Replace('/', Path.DirectorySeparatorChar));
-            }
+            string fullPath = GetFullPathFromRelative(fileRelPath);
 
             try
             {
@@ -387,23 +388,16 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             {
                 try
                 {
-                    string fullPath;
-                    if (fileRelPath.StartsWith(AdoFilePrefix))
-                    {
-                        fullPath = Path.Combine(AppState.AdoDocsPath, fileRelPath.Substring(AdoFilePrefix.Length));
-                    }
-                    else
-                    {
-                        fullPath = Path.Combine(AppState.ProjectRoot, fileRelPath.Replace('/', Path.DirectorySeparatorChar));
-                    }
-
+                    string fullPath = GetFullPathFromRelative(fileRelPath);
                     if (File.Exists(fullPath))
                     {
-                        var fileInfo = new FileInfo(fullPath);
-                        currentChars += fileInfo.Length;
+                        currentChars += new FileInfo(fullPath).Length;
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error reading size for {fileRelPath}: {ex.Message}");
+                }
             }
             _charCount = currentChars;
             _tokenCount = _charCount > 0 ? _charCount / 4 : 0;
@@ -422,41 +416,21 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                     continue;
                 }
 
+                var score = _semanticScores.GetValueOrDefault(fileRelPath, -1.0);
+                string fileName = fileRelPath.StartsWith(AdoFilePrefix) 
+                    ? fileRelPath.Substring(AdoFilePrefix.Length) 
+                    : Path.GetFileName(fileRelPath);
+
                 try
                 {
-                    var score = _semanticScores.GetValueOrDefault(fileRelPath, -1.0);
-                    if (fileRelPath.StartsWith(AdoFilePrefix))
-                    {
-                        var fileName = fileRelPath.Substring(AdoFilePrefix.Length);
-                        var fullPath = Path.Combine(AppState.AdoDocsPath, fileName);
-                        if (File.Exists(fullPath))
-                        {
-                            var fileInfo = new FileInfo(fullPath);
-                            _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, fileName, fileInfo.Length, score));
-                        }
-                        else
-                        {
-                            _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, fileName, 0, score));
-                        }
-                    }
-                    else if (!string.IsNullOrEmpty(AppState.ProjectRoot))
-                    {
-                        var fullPath = Path.Combine(AppState.ProjectRoot, fileRelPath.Replace('/', Path.DirectorySeparatorChar));
-                        if (File.Exists(fullPath))
-                        {
-                            var fileInfo = new FileInfo(fullPath);
-                            _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, Path.GetFileName(fileRelPath), fileInfo.Length, score));
-                        }
-                        else
-                        {
-                            _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, Path.GetFileName(fileRelPath), 0, score));
-                        }
-                    }
+                    string fullPath = GetFullPathFromRelative(fileRelPath);
+                    long size = File.Exists(fullPath) ? new FileInfo(fullPath).Length : 0;
+                    _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, fileName, size, score));
                 }
-                catch
+                catch (Exception ex)
                 {
-                    var score = _semanticScores.GetValueOrDefault(fileRelPath, -1.0);
-                    _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, Path.GetFileName(fileRelPath), 0, score));
+                    System.Diagnostics.Debug.WriteLine($"Error adding file {fileRelPath}: {ex.Message}");
+                    _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, fileName, 0, score));
                 }
             }
         }
@@ -984,11 +958,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             // 1. Üzemmód: Referenciák
             if (_showReferences)
             {
-                // Egyszerű regex a PascalCase szavakra
-                // Kizárjuk a kulcsszavakat egyszerű módon: csak azt jelöljük meg, ami benne van a _projectTypeMap-ben
-                var refRegex = new Regex(@"\b[A-Z][a-zA-Z0-9_]*\b", RegexOptions.Compiled);
-                
-                var highlightedContent = refRegex.Replace(encodedContent, m =>
+                var highlightedContent = Regex.Replace(encodedContent, @"\b[A-Z][a-zA-Z0-9_]*\b", m =>
                 {
                     var token = m.Value;
                     if (_projectTypeMap.TryGetValue(token, out var relPath))

@@ -30,33 +30,49 @@ namespace LlmContextCollector.Services
             {
                 var matchedNodes = new HashSet<FileNode>();
 
-                async Task SearchNodes(IEnumerable<FileNode> nodes)
+                var flatFiles = new List<FileNode>();
+                void CollectFiles(IEnumerable<FileNode> nodes)
                 {
                     foreach (var node in nodes)
                     {
-                        bool isPathMatch = node.Name.ToLowerInvariant().Contains(term);
-                        bool isContentMatch = false;
+                        if (!node.IsDirectory) flatFiles.Add(node);
+                        else CollectFiles(node.Children);
+                    }
+                }
+                CollectFiles(_appState.FileTree);
 
-                        if (isPathMatch)
-                        {
-                            node.IsPathMatch = true;
-                        }
+                var syncObj = new object();
 
-                        if (_appState.SearchInContent && !node.IsDirectory)
+                await Parallel.ForEachAsync(flatFiles, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(2, Environment.ProcessorCount - 1) }, async (node, ct) =>
+                {
+                    bool isPathMatch = node.Name.ToLowerInvariant().Contains(term);
+                    bool isContentMatch = false;
+
+                    if (isPathMatch)
+                    {
+                        node.IsPathMatch = true;
+                    }
+
+                    if (_appState.SearchInContent && !node.IsDirectory)
+                    {
+                        try
                         {
-                            try
+                            var content = await File.ReadAllTextAsync(node.FullPath, ct);
+                            if (content.ToLowerInvariant().Contains(term))
                             {
-                                var content = await File.ReadAllTextAsync(node.FullPath);
-                                if (content.ToLowerInvariant().Contains(term))
-                                {
-                                    isContentMatch = true;
-                                    node.IsContentMatch = true;
-                                }
+                                isContentMatch = true;
+                                node.IsContentMatch = true;
                             }
-                            catch { }
                         }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Error reading file for search: {node.FullPath} - {ex.Message}");
+                        }
+                    }
 
-                        if (isPathMatch || isContentMatch)
+                    if (isPathMatch || isContentMatch)
+                    {
+                        lock (syncObj)
                         {
                             matchedNodes.Add(node);
                             var current = node.Parent;
@@ -66,15 +82,8 @@ namespace LlmContextCollector.Services
                                 current = current.Parent;
                             }
                         }
-
-                        if (node.IsDirectory)
-                        {
-                            await SearchNodes(node.Children);
-                        }
                     }
-                }
-
-                await SearchNodes(_appState.FileTree);
+                });
 
                 void UpdateVisibility(IEnumerable<FileNode> nodes)
                 {

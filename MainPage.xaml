@@ -23,6 +23,26 @@
             <!-- Böngésző -->
             <WebView x:Name="InternalBrowser" Grid.Row="0" BackgroundColor="White" />
 
+            <!-- Custom Dropdown List (Floating UPWARDS from toolbar) -->
+            <Frame x:Name="PickerDropdown" Grid.Row="0" IsVisible="False" Padding="0" Margin="235,0,0,5" 
+                   BackgroundColor="White" BorderColor="#0078d4" HasShadow="True" ZIndex="2000" 
+                   VerticalOptions="End" HorizontalOptions="Start" 
+                   MaximumHeightRequest="350" WidthRequest="280">
+                <CollectionView x:Name="TemplatesListView" SelectionMode="Single" SelectionChanged="TemplatesListView_SelectionChanged">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ColumnDefinitions="*, Auto" Padding="12,8">
+                                <Label Text="{Binding Title}" FontSize="12" TextColor="Black" VerticalOptions="Center" />
+                                <Button Grid.Column="1" Text="📋" Clicked="CopyTemplateItem_Clicked" 
+                                        BackgroundColor="Transparent" TextColor="#0078d4" 
+                                        HeightRequest="32" WidthRequest="32" Padding="0" FontSize="16" 
+                                        VerticalOptions="Center" ToolTipProperties.Text="Sablon másolása" />
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </Frame>
+
             <!-- Vezérlő Sáv -->
             <Grid Grid.Row="1" BackgroundColor="#E0E0E0" Padding="10" RowSpacing="8">
                 <Grid.RowDefinitions>
@@ -76,18 +96,19 @@
                     <BoxView WidthRequest="1" HeightRequest="20" BackgroundColor="#CCC" VerticalOptions="Center" Margin="5,0" />
 
                     <Label Text="Sablon:" VerticalOptions="Center" TextColor="#333" FontSize="12" FontAttributes="Bold" />
-                    <Picker x:Name="SystemPromptPicker" 
-                            ItemDisplayBinding="{Binding Title}"
-                            SelectedIndexChanged="SystemPromptPicker_SelectedIndexChanged"
-                            FontSize="12"
-                            HeightRequest="32"
-                            WidthRequest="200"
-                            VerticalOptions="Center"
-                            TextColor="Black"
-                            BackgroundColor="#EEE"
-                            Margin="0,0,5,0" />
                     
-                    <Button x:Name="CopyTemplateButton" Text="📋" Clicked="CopyTemplate_Clicked" BackgroundColor="#DDD" TextColor="Black" HeightRequest="32" WidthRequest="40" Padding="0" FontSize="14" VerticalOptions="Center" Margin="0,0,5,0" ToolTipProperties.Text="Sablon másolása" />
+                    <!-- Custom Dropdown Trigger -->
+                    <Grid VerticalOptions="Center" WidthRequest="200" Margin="0,0,5,0">
+                        <Frame Padding="8,4" HeightRequest="32" BackgroundColor="#EEE" BorderColor="#CCC" HasShadow="False" CornerRadius="4">
+                            <Frame.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="TogglePicker_Tapped" />
+                            </Frame.GestureRecognizers>
+                            <Grid ColumnDefinitions="*, Auto">
+                                <Label x:Name="SelectedTemplateLabel" Text="Válassz..." FontSize="12" TextColor="Black" VerticalOptions="Center" LineBreakMode="NoWrap" />
+                                <Label Grid.Column="1" Text="▼" FontSize="8" TextColor="#666" VerticalOptions="Center" Margin="5,0,0,0" />
+                            </Grid>
+                        </Frame>
+                    </Grid>
 
                     <BoxView WidthRequest="1" HeightRequest="20" BackgroundColor="#CCC" VerticalOptions="Center" Margin="5,0" />
 

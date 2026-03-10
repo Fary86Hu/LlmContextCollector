@@ -370,11 +370,12 @@ namespace LlmContextCollector.Services
             return text;
         }
 
+        private static readonly string _invalidChars = new string(Path.GetInvalidFileNameChars()) + new string(Path.GetInvalidPathChars());
+        private static readonly Regex _invalidFileNameRegex = new Regex($"[{Regex.Escape(_invalidChars)}]", RegexOptions.Compiled);
+
         private string SanitizeFileName(string fileName)
         {
-            var invalidChars = new string(Path.GetInvalidFileNameChars()) + new string(Path.GetInvalidPathChars());
-            var regex = new Regex($"[{Regex.Escape(invalidChars)}]");
-            var sanitized = regex.Replace(fileName, "");
+            var sanitized = _invalidFileNameRegex.Replace(fileName, "");
             return sanitized.Length > 150 ? sanitized.Substring(0, 150) : sanitized;
         }
     }

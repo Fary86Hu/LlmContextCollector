@@ -1,4 +1,4 @@
-<div class="panel panel-right" style="--right-top-flex:@(AppState.RightTopPanelFlex); --right-middle-flex:@(AppState.RightMiddlePanelFlex); --right-bottom-flex:@(AppState.RightBottomPanelFlex);">
+<div class="panel panel-right" style="--right-top-flex:@(AppState.RightTopPanelFlex.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)); --right-middle-flex:@(AppState.RightMiddlePanelFlex.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)); --right-bottom-flex:@(AppState.RightBottomPanelFlex.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));">
     
     <div class="right-top-section">
         <div class="toolbar" style="align-items: center;">
@@ -152,7 +152,7 @@
                     <label title="A projekt teljes látható fájllistájának hozzáadása"><input type="checkbox" @bind="AppState.IncludeProjectTreeInCopy" />Struktúra</label>
                 </div>
                 <div class="custom-dropdown-container inline-dropdown" style="margin: 0 8px; flex-grow: 1; max-width: 250px;">
-                    <div class="custom-dropdown-trigger" @onclick="ToggleBottomDropdown" @onclick:stopPropagation="true">
+                    <div class="custom-dropdown-trigger" @onclick="ToggleBottomDropdown" @onclick:stopPropagation="true" style="width: 160px;">
                         <span>@(AppState.PromptTemplates.FirstOrDefault(p => p.Id == AppState.ActiveGlobalPromptId)?.Title ?? "Válassz...")</span>
                         <span class="dropdown-arrow">▼</span>
                     </div>

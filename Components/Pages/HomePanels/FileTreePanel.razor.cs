@@ -307,25 +307,10 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             }
 
             var selectedNodes = new List<FileNode>();
-            FindSelectedNodes(AppState.FileTree, selectedNodes);
+            Utils.FileTreeHelper.FindSelectedNodes(AppState.FileTree, selectedNodes);
 
             var firstSelected = selectedNodes.FirstOrDefault();
             return firstSelected?.FullPath;
-        }
-
-        private void FindSelectedNodes(IEnumerable<FileNode> nodes, List<FileNode> selected)
-        {
-            foreach (var node in nodes)
-            {
-                if (node.IsSelectedInTree)
-                {
-                    selected.Add(node);
-                }
-                if (node.Children.Any())
-                {
-                    FindSelectedNodes(node.Children, selected);
-                }
-            }
         }
 
         private async Task ReselectNode(string? nodePath)

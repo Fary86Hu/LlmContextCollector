@@ -61,7 +61,7 @@ namespace LlmContextCollector.Services
             _azureDevOpsService.UpdateAdoPaths(_appState.ProjectRoot);
             
             var allFilePaths = new HashSet<string>();
-            GetAllFilePaths(_appState.FileTree, allFilePaths, _appState.ProjectRoot);
+            Utils.FileTreeHelper.GetAllFilePaths(_appState.FileTree, allFilePaths, _appState.ProjectRoot);
 
             _appState.SelectedFilesForContext.Clear();
             foreach (var file in filesToPreserve)
@@ -73,21 +73,6 @@ namespace LlmContextCollector.Services
             }
             _appState.SaveContextListState();
             _appState.StatusText = $"Szkennelés befejezve. {allFilePaths.Count} fájl található a fa nézetben.";
-        }
-
-        private void GetAllFilePaths(IEnumerable<FileNode> nodes, HashSet<string> paths, string root)
-        {
-            foreach (var node in nodes)
-            {
-                if (node.IsDirectory)
-                {
-                    GetAllFilePaths(node.Children, paths, root);
-                }
-                else
-                {
-                    paths.Add(Path.GetRelativePath(root, node.FullPath).Replace('\\', '/'));
-                }
-            }
         }
     }
 }

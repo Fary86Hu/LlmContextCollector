@@ -12,14 +12,13 @@ namespace LlmContextCollector.Services
             _appState = appState;
         }
 
-        public async Task<(bool success, string output, string error)> RunGitCommandAsync(string arguments, bool throwOnError = false)
+        public async Task<(bool success, string output, string error)> RunGitCommandAsync(IEnumerable<string> arguments, bool throwOnError = false)
         {
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "git",
-                    Arguments = arguments,
                     WorkingDirectory = _appState.ProjectRoot,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -29,6 +28,11 @@ namespace LlmContextCollector.Services
                     StandardErrorEncoding = Encoding.UTF8
                 }
             };
+
+            foreach (var arg in arguments)
+            {
+                process.StartInfo.ArgumentList.Add(arg);
+            }
 
             process.Start();
             string output = await process.StandardOutput.ReadToEndAsync();
@@ -45,20 +49,20 @@ namespace LlmContextCollector.Services
 
         public async Task<(string branchName, bool success, string error)> GetCurrentBranchAsync()
         {
-            var (success, output, error) = await RunGitCommandAsync("rev-parse --abbrev-ref HEAD");
+            var (success, output, error) = await RunGitCommandAsync(new[] { "rev-parse", "--abbrev-ref", "HEAD" });
             return (output.Trim(), success, error);
         }
 
         public async Task CreateAndCheckoutBranchAsync(string branchName)
         {
-            await RunGitCommandAsync($"checkout -b {branchName}", throwOnError: true);
+            await RunGitCommandAsync(new[] { "checkout", "-b", branchName }, throwOnError: true);
         }
 
         public async Task StageFilesAsync(IEnumerable<string> filePaths)
         {
             foreach (var path in filePaths)
             {
-                await RunGitCommandAsync($"add \"{path}\"", throwOnError: true);
+                await RunGitCommandAsync(new[] { "add", path }, throwOnError: true);
             }
         }
 
@@ -95,7 +99,7 @@ namespace LlmContextCollector.Services
 
         public async Task PushAsync(string branchName)
         {
-            await RunGitCommandAsync($"push --set-upstream origin {branchName}", throwOnError: true);
+            await RunGitCommandAsync(new[] { "push", "--set-upstream", "origin", branchName }, throwOnError: true);
         }
 
         public async Task DiscardChangesAsync(string filePath)
@@ -103,7 +107,7 @@ namespace LlmContextCollector.Services
             // Unstage and discard changes in working directory
             // --source=HEAD ensures we revert to the last commit state
             // --staged --worktree handles both staged and unstaged changes
-            await RunGitCommandAsync($"restore --source=HEAD --staged --worktree \"{filePath}\"", throwOnError: true);
+            await RunGitCommandAsync(new[] { "restore", "--source=HEAD", "--staged", "--worktree", filePath }, throwOnError: true);
         }
     }
 }

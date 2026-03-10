@@ -84,33 +84,55 @@ namespace LlmContextCollector
         {
             if (_appState == null || _appState.PromptTemplates == null) return;
 
-            var templates = _appState.PromptTemplates.ToList();
+            // Csak a valid sablonokat mutatjuk (kiszűrjük az üreseket)
+            var templates = _appState.PromptTemplates
+                .Where(p => p != null && !string.IsNullOrWhiteSpace(p.Title))
+                .ToList();
+
             if (templates.Count == 0) return;
 
-            // Először leállítjuk az eseménykezelőt, hogy a betöltés ne váltson ki felesleges mentést
-            SystemPromptPicker.SelectedIndexChanged -= SystemPromptPicker_SelectedIndexChanged;
-
-            SystemPromptPicker.ItemsSource = templates;
+            TemplatesListView.ItemsSource = templates;
             
             var selected = templates.FirstOrDefault(p => p.Id == _appState.ActiveGlobalPromptId) 
                            ?? templates.FirstOrDefault();
 
             if (selected != null)
             {
-                SystemPromptPicker.SelectedItem = selected;
+                SelectedTemplateLabel.Text = selected.Title;
+                TemplatesListView.SelectedItem = selected;
             }
-
-            SystemPromptPicker.SelectedIndexChanged += SystemPromptPicker_SelectedIndexChanged;
         }
 
-        private void SystemPromptPicker_SelectedIndexChanged(object? sender, EventArgs e)
+        private void TogglePicker_Tapped(object? sender, EventArgs e)
         {
-            if (SystemPromptPicker.SelectedItem is PromptTemplate selected && _appState != null)
+            PickerDropdown.IsVisible = !PickerDropdown.IsVisible;
+        }
+
+        private void TemplatesListView_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+        {
+            if (e.CurrentSelection.FirstOrDefault() is PromptTemplate selected && _appState != null)
             {
+                SelectedTemplateLabel.Text = selected.Title;
                 if (_appState.ActiveGlobalPromptId != selected.Id)
                 {
                     _appState.ActiveGlobalPromptId = selected.Id;
                 }
+                PickerDropdown.IsVisible = false;
+            }
+        }
+
+        private async void CopyTemplateItem_Clicked(object? sender, EventArgs e)
+        {
+            if (sender is Button btn && btn.BindingContext is PromptTemplate selected && _clipboard != null)
+            {
+                await _clipboard.SetTextAsync(selected.Content);
+                
+                PickerDropdown.IsVisible = false;
+
+                var originalText = btn.Text;
+                btn.Text = "✓";
+                await Task.Delay(1000);
+                btn.Text = originalText;
             }
         }
 
@@ -130,6 +152,7 @@ namespace LlmContextCollector
                 }
 
                 BrowserOverlay.IsVisible = true;
+                PickerDropdown.IsVisible = false;
             });
         }
 
@@ -138,6 +161,7 @@ namespace LlmContextCollector
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 BrowserOverlay.IsVisible = false;
+                PickerDropdown.IsVisible = false;
             });
         }
 
@@ -220,19 +244,6 @@ namespace LlmContextCollector
         private void CloseBrowser_Clicked(object sender, EventArgs e)
         {
             _browserService?.CloseBrowser();
-        }
-
-        private async void CopyTemplate_Clicked(object sender, EventArgs e)
-        {
-            if (SystemPromptPicker.SelectedItem is PromptTemplate selected && _clipboard != null)
-            {
-                await _clipboard.SetTextAsync(selected.Content);
-                
-                var originalText = CopyTemplateButton.Text;
-                CopyTemplateButton.Text = "✓";
-                await Task.Delay(1000);
-                CopyTemplateButton.Text = originalText;
-            }
         }
 
         private async void ExtractBrowser_Clicked(object sender, EventArgs e)

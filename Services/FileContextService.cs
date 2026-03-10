@@ -20,7 +20,7 @@ namespace LlmContextCollector.Services
         public async Task AddSelectedTreeNodesToContextAsync()
         {
             var selectedNodes = new List<FileNode>();
-            FindSelectedNodes(_appState.FileTree, selectedNodes);
+            Utils.FileTreeHelper.FindSelectedNodes(_appState.FileTree, selectedNodes);
 
             if (!selectedNodes.Any())
             {
@@ -50,7 +50,7 @@ namespace LlmContextCollector.Services
                 }
 
                 var allProjectPaths = new HashSet<string>();
-                GetAllFilePaths(_appState.FileTree, allProjectPaths, projectRootPath);
+                Utils.FileTreeHelper.GetAllFilePaths(_appState.FileTree, allProjectPaths, projectRootPath);
 
                 var additionalFiles = new HashSet<string>();
                 foreach (var selectedFile in filesFromSelection)
@@ -163,36 +163,6 @@ namespace LlmContextCollector.Services
             {
                 var relativePath = Path.GetRelativePath(root, node.FullPath).Replace('\\', '/');
                 files.Add(relativePath);
-            }
-        }
-
-        private void FindSelectedNodes(IEnumerable<FileNode> nodes, List<FileNode> selected)
-        {
-            foreach (var node in nodes)
-            {
-                if (node.IsSelectedInTree)
-                {
-                    selected.Add(node);
-                }
-                if (node.Children.Any())
-                {
-                    FindSelectedNodes(node.Children, selected);
-                }
-            }
-        }
-
-        private void GetAllFilePaths(IEnumerable<FileNode> nodes, HashSet<string> paths, string root)
-        {
-            foreach (var node in nodes)
-            {
-                if (node.IsDirectory)
-                {
-                    GetAllFilePaths(node.Children, paths, root);
-                }
-                else
-                {
-                    paths.Add(Path.GetRelativePath(root, node.FullPath).Replace('\\', '/'));
-                }
             }
         }
     }

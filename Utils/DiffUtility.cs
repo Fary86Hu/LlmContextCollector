@@ -107,6 +107,16 @@ namespace LlmContextCollector.Utils
             private static List<DiffChange> Compute(string[] textA, string[] textB)
             {
                 int n = textA.Length, m = textB.Length, max = n + m;
+                
+                // Fallback for extremely large files to avoid OutOfMemoryException
+                if (max > 10000)
+                {
+                    var fallbackChanges = new List<DiffChange>();
+                    for (int i = 0; i < n; i++) fallbackChanges.Add(new DiffChange(ChangeType.Delete, i, 0));
+                    for (int j = 0; j < m; j++) fallbackChanges.Add(new DiffChange(ChangeType.Insert, n, j));
+                    return fallbackChanges;
+                }
+
                 var v = new int[2 * max + 1];
                 var trace = new List<int[]>();
 
