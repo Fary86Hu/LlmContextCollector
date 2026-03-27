@@ -68,6 +68,9 @@ namespace LlmContextCollector.Components.Dialogs
                     _suggestedCommit = string.Empty;
                     _hasSuggestions = false;
                     _isFullResponseView = false;
+                    _selectedViewMode = ViewMode.Uncommitted;
+                    _historyEntries.Clear();
+                    _selectedHistoryEntryId = null;
                 }
 
                 _globalExplanationText = GlobalExplanation ?? string.Empty;
@@ -304,6 +307,41 @@ namespace LlmContextCollector.Components.Dialogs
             {
                 await GitWorkflowService.RevertLlmHistoryChangesAsync(acc);
                 AppState.StatusText = $"{acc.Count} fájl sikeresen visszavonva az előzmények alapján.";
+                await ChangeViewMode(ViewMode.Uncommitted);
+                await LoadSelectedDiffsAsync();
+            }
+        }
+
+        private async Task RevertEntireHistoryEntryAsync()
+        {
+            if (_selectedHistoryEntryId == null || !_historyEntries.Any()) return;
+
+            var selectedIndex = _historyEntries.FindIndex(x => x.Id == _selectedHistoryEntryId);
+            if (selectedIndex == -1) return;
+
+            bool confirm = await JSRuntime.InvokeAsync<bool>("confirm", 
+                $"Visszaállás a kiválasztott pontra: Ez a művelet visszavonja ezt a módosítást ÉS az összes azóta elfogadott LLM választ ({selectedIndex + 1} bejegyzés összesen). Folytatja?");
+            
+            if (!confirm) return;
+
+            var finalReverts = new Dictionary<string, DiffResult>(StringComparer.OrdinalIgnoreCase);
+
+            for (int i = selectedIndex; i >= 0; i--)
+            {
+                foreach (var file in _historyEntries[i].Files)
+                {
+                    if (!finalReverts.ContainsKey(file.Path))
+                    {
+                        // Első alkalommal látjuk a fájlt a láncban (ez a legkorábbi állapota)
+                        finalReverts[file.Path] = file;
+                    }
+                }
+            }
+
+            if (finalReverts.Any())
+            {
+                await GitWorkflowService.RevertLlmHistoryChangesAsync(finalReverts.Values.ToList());
+                AppState.StatusText = $"Visszaállítva a(z) {selectedIndex + 1} bejegyzéssel ezelőtti állapotra ({finalReverts.Count} fájl érintett).";
                 await ChangeViewMode(ViewMode.Uncommitted);
                 await LoadSelectedDiffsAsync();
             }

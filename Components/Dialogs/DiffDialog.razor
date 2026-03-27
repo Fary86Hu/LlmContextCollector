@@ -210,6 +210,7 @@
                 <button @onclick="Close">Bezárás</button>
                 @if (_selectedViewMode == ViewMode.LlmHistory && _isGitDiffMode)
                 {
+                    <button class="primary" style="background-color: #6c757d; border-color: #6c757d;" @onclick="RevertEntireHistoryEntryAsync" disabled="@(_selectedHistoryEntryId == null)">Visszaállás erre a pontra</button>
                     <button class="primary" style="background-color: #dc3545; border-color: #dc3545;" @onclick="RevertSelectedHistoryChanges" disabled="@(!_localDiffResults.Any(r => r.IsSelectedForAccept))">Kijelöltek visszavonása</button>
                 }
                 else
