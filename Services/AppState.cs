@@ -81,9 +81,10 @@ namespace LlmContextCollector.Services
         private void SyncExclusionsFromRaw()
         {
             var lines = _ignorePatternsRaw.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            var currentPatterns = Exclusions.ToDictionary(e => e.Pattern);
-            
+
             var newRules = new List<ExclusionRule>();
+            var seenPatterns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             foreach (var line in lines)
             {
                 var trimmed = line.Trim();
@@ -92,7 +93,10 @@ namespace LlmContextCollector.Services
                 bool isEnabled = !trimmed.StartsWith("#");
                 string pattern = isEnabled ? trimmed : trimmed.Substring(1).Trim();
 
-                newRules.Add(new ExclusionRule { Pattern = pattern, IsEnabled = isEnabled });
+                if (seenPatterns.Add(pattern))
+                {
+                    newRules.Add(new ExclusionRule { Pattern = pattern, IsEnabled = isEnabled });
+                }
             }
 
             Exclusions.Clear();

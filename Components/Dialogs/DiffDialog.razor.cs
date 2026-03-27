@@ -10,6 +10,8 @@ namespace LlmContextCollector.Components.Dialogs
 {
     public partial class DiffDialog : ComponentBase, IDisposable
     {
+        [Inject] private AcceptedResponseHistoryService AcceptedResponseHistoryService { get; set; } = null!;
+
         [Parameter] public bool IsVisible { get; set; }
         [Parameter] public string GlobalExplanation { get; set; } = string.Empty;
         [Parameter] public string FullLlmResponse { get; set; } = string.Empty;
@@ -31,8 +33,11 @@ namespace LlmContextCollector.Components.Dialogs
         private bool _isFullResponseView = false;
         private bool _isGitDiffMode = false;
         private bool _isGeneratingDiff = false;
-        private GitWorkflowService.DiffMode _selectedDiffMode = GitWorkflowService.DiffMode.Uncommitted;
+        private enum ViewMode { Uncommitted, SinceBranchCreation, AgainstBranch, LlmHistory }
+        private ViewMode _selectedViewMode = ViewMode.Uncommitted;
         private List<string> _allBranches = new();
+        private List<LlmHistoryEntry> _historyEntries = new();
+        private Guid? _selectedHistoryEntryId;
         private string? _selectedTargetBranch;
         private bool _isLoadingDiffs = false;
         private bool _isRefreshingSuggestions = false;
@@ -181,7 +186,66 @@ namespace LlmContextCollector.Components.Dialogs
         private async void OnAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) { if (e.PropertyName == nameof(AppState.CurrentGitBranch)) await InvokeAsync(StateHasChanged); }
         private void ToggleFullResponseView() => _isFullResponseView = !_isFullResponseView;
         private async Task LoadBranchesAsync() { _allBranches = await GitWorkflowService.GetBranchesAsync(); if (_allBranches.Any()) _selectedTargetBranch = _allBranches.First(); }
-        private async Task LoadSelectedDiffsAsync() { _isLoadingDiffs = true; try { _localDiffResults = await GitWorkflowService.GetDiffsAsync(_selectedDiffMode, _selectedTargetBranch); await SelectResult(_localDiffResults.FirstOrDefault()); } finally { _isLoadingDiffs = false; } }
+        private async Task ChangeViewMode(ViewMode mode)
+        {
+            _selectedViewMode = mode;
+            if (mode == ViewMode.LlmHistory)
+            {
+                _historyEntries = await AcceptedResponseHistoryService.GetHistoryAsync(AppState.ProjectRoot);
+                _localDiffResults.Clear();
+                await SelectResult(null);
+            }
+        }
+
+        private string GetSnippet(string explanation)
+        {
+            if (string.IsNullOrWhiteSpace(explanation)) return "Nincs magyarázat";
+            var clean = explanation.Replace("\n", " ").Replace("\r", "");
+            return clean.Length > 40 ? clean.Substring(0, 40) + "..." : clean;
+        }
+
+        private async Task OnHistoryEntrySelected(ChangeEventArgs e)
+        {
+            if (Guid.TryParse(e.Value?.ToString(), out var id))
+            {
+                _selectedHistoryEntryId = id;
+                var entry = _historyEntries.FirstOrDefault(x => x.Id == id);
+                if (entry != null)
+                {
+                    _localDiffResults = entry.Files.Select(f => { f.IsSelectedForAccept = true; return f; }).ToList();
+                    _globalExplanationText = entry.Explanation;
+                    await SelectResult(_localDiffResults.FirstOrDefault());
+                }
+            }
+            else
+            {
+                _selectedHistoryEntryId = null;
+                _localDiffResults.Clear();
+                _globalExplanationText = string.Empty;
+                await SelectResult(null);
+            }
+        }
+
+        private async Task LoadSelectedDiffsAsync() 
+        { 
+            if (_selectedViewMode == ViewMode.LlmHistory) return;
+            _isLoadingDiffs = true; 
+            try 
+            { 
+                var gitMode = _selectedViewMode switch {
+                    ViewMode.SinceBranchCreation => GitWorkflowService.DiffMode.SinceBranchCreation,
+                    ViewMode.AgainstBranch => GitWorkflowService.DiffMode.AgainstBranch,
+                    _ => GitWorkflowService.DiffMode.Uncommitted
+                };
+                _localDiffResults = await GitWorkflowService.GetDiffsAsync(gitMode, _selectedTargetBranch); 
+                await SelectResult(_localDiffResults.FirstOrDefault()); 
+            } 
+            finally 
+            { 
+                _isLoadingDiffs = false; 
+            } 
+        }
+
         private async Task RefreshSuggestionsAsync() { _isRefreshingSuggestions = true; try { var (b, c) = await GitSuggestionService.GetSuggestionsAsync(_localDiffResults, _globalExplanationText); _suggestedBranch = b ?? ""; _suggestedCommit = c ?? ""; _hasSuggestions = b != null; } finally { _isRefreshingSuggestions = false; } }
         private void ParseGlobalExplanation()
         {
@@ -233,7 +297,40 @@ namespace LlmContextCollector.Components.Dialogs
         private string GetStatusText(DiffResult r) => r.Status.ToString().ToUpper();
         private string GetStatusClass(DiffResult r) => r.Status.ToString().ToLower();
         private async Task Close() { await OnClose.InvokeAsync(); }
-        private async Task RevertFile(DiffResult r) { if (_isGitDiffMode) await GitWorkflowService.DiscardFileChangesAsync(r); else _localDiffResults.Remove(r); await LoadSelectedDiffsAsync(); }
+        private async Task RevertSelectedHistoryChanges()
+        {
+            var acc = _localDiffResults.Where(r => r.IsSelectedForAccept).ToList();
+            if (acc.Any())
+            {
+                await GitWorkflowService.RevertLlmHistoryChangesAsync(acc);
+                AppState.StatusText = $"{acc.Count} fájl sikeresen visszavonva az előzmények alapján.";
+                await ChangeViewMode(ViewMode.Uncommitted);
+                await LoadSelectedDiffsAsync();
+            }
+        }
+
+        private async Task RevertFile(DiffResult r) 
+        { 
+            if (_isGitDiffMode) 
+            {
+                if (_selectedViewMode == ViewMode.LlmHistory)
+                {
+                    await GitWorkflowService.RevertLlmHistoryChangesAsync(new List<DiffResult> { r });
+                    AppState.StatusText = $"Fájl módosítás visszavonva: {r.Path}";
+                    r.IsSelectedForAccept = false;
+                }
+                else
+                {
+                    await GitWorkflowService.DiscardFileChangesAsync(r); 
+                    await LoadSelectedDiffsAsync(); 
+                }
+            }
+            else 
+            {
+                _localDiffResults.Remove(r); 
+                await SelectResult(_localDiffResults.FirstOrDefault());
+            }
+        }
         private async Task StartPaneResize(MouseEventArgs e) { _isResizingPane = true; _windowWidth = await JSRuntime.InvokeAsync<double>("eval", "window.innerWidth"); }
         private void StopPaneResize(MouseEventArgs e) { _isResizingPane = false; }
         private void OnMouseMove(MouseEventArgs e) { if (_isResizingPane) _leftPaneWidthPercent = Math.Clamp((e.ClientX / _windowWidth) * 100, 15, 85); }

@@ -13,13 +13,18 @@ namespace LlmContextCollector.Services
         private readonly AppState _appState;
         private readonly PromptService _promptService;
         private readonly LlmResponseParserService _llmResponseParserService;
+        private readonly GitService _gitService;
+        private readonly GitWorkflowService _gitWorkflowService;
         private const string AdoFilePrefix = "[ADO]";
+        private const string OriginalFilePrefix = "[ORIGINAL]";
 
-        public ContextProcessingService(AppState appState, PromptService promptService, LlmResponseParserService llmResponseParserService)
+        public ContextProcessingService(AppState appState, PromptService promptService, LlmResponseParserService llmResponseParserService, GitService gitService, GitWorkflowService gitWorkflowService)
         {
             _appState = appState;
             _promptService = promptService;
             _llmResponseParserService = llmResponseParserService;
+            _gitService = gitService;
+            _gitWorkflowService = gitWorkflowService;
         }
 
         public async Task<string> BuildContextForClipboardAsync(bool includePrompt, bool includeSystemPrompt, bool includeFiles, IEnumerable<string> sortedFilePaths)
@@ -62,22 +67,36 @@ namespace LlmContextCollector.Services
                         var fileName = fileRelPath.Substring(AdoFilePrefix.Length);
                         fullPath = Path.Combine(_appState.AdoDocsPath, fileName);
                         header = $"// --- Dokumentum: {fileName} ---";
+                        if (File.Exists(fullPath))
+                        {
+                            sb.AppendLine(header);
+                            sb.AppendLine(await File.ReadAllTextAsync(fullPath));
+                            sb.AppendLine();
+                        }
+                    }
+                    else if (fileRelPath.StartsWith(OriginalFilePrefix))
+                    {
+                        var purePath = fileRelPath.Substring(OriginalFilePrefix.Length);
+                        var devBranch = await _gitWorkflowService.GetDevelopmentBranchNameAsync();
+                        var originalContent = await _gitService.GetFileContentAtBranchAsync(devBranch, purePath);
+                        header = $"// --- Fájl: {purePath} (EREDETI VERZIÓ a(z) {devBranch} ágról) ---";
+                        sb.AppendLine(header);
+                        sb.AppendLine(originalContent);
+                        sb.AppendLine();
                     }
                     else if (!string.IsNullOrEmpty(_appState.ProjectRoot))
                     {
                         fullPath = Path.GetFullPath(Path.Combine(_appState.ProjectRoot, fileRelPath.Replace('/', Path.DirectorySeparatorChar)));
                         var fullRoot = Path.GetFullPath(_appState.ProjectRoot);
-                        if (!fullPath.StartsWith(fullRoot)) continue; // Path traversal protection
+                        if (!fullPath.StartsWith(fullRoot)) continue; 
 
                         header = $"// --- Fájl: {fileRelPath.Replace('\\', '/')} ---";
-                    }
-                    else continue;
-
-                    if (File.Exists(fullPath))
-                    {
-                        sb.AppendLine(header);
-                        sb.AppendLine(await File.ReadAllTextAsync(fullPath));
-                        sb.AppendLine();
+                        if (File.Exists(fullPath))
+                        {
+                            sb.AppendLine(header);
+                            sb.AppendLine(await File.ReadAllTextAsync(fullPath));
+                            sb.AppendLine();
+                        }
                     }
                 }
             }

@@ -234,6 +234,8 @@
     border: 1px solid var(--border-color);
     overflow: auto;
     min-height: 0;
+    user-select: text;
+    -webkit-user-select: text;
 }
 
     .preview-box pre {
@@ -243,6 +245,8 @@
         font-size: var(--font-size-sm);
         white-space: pre-wrap;
         word-break: break-all;
+        user-select: text;
+        -webkit-user-select: text;
     }
 
 .actions-cell {
@@ -430,7 +434,7 @@ html[data-theme="dark"] ::deep .highlight.current {
         margin-right: 4px;
     }
 
-/* Reference Badges - Text selection enabled */
+/* Reference Badges */
 /* ::deep is required because these are injected via MarkupString */
 ::deep .ref-badge {
     display: inline-block;
@@ -438,7 +442,6 @@ html[data-theme="dark"] ::deep .highlight.current {
     border-radius: 4px;
     font-weight: 600;
     cursor: pointer;
-    user-select: text;
     transition: all 0.2s;
     margin: 0 1px;
     border: 1px solid transparent;
@@ -461,6 +464,16 @@ html[data-theme="dark"] ::deep .highlight.current {
         background-color: #e8f5e9;
         color: #1b5e20;
         border-color: #c8e6c9;
+    }
+
+    /* Orange: Original version from Git */
+    ::deep .ref-badge.ref-original {
+        background-color: #fff3e0;
+        color: #e65100;
+        border-color: #ffe0b2;
+        font-size: 9px;
+        vertical-align: middle;
+        margin-right: 5px;
     }
 
 /* --- Footer Actions --- */

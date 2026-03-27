@@ -69,7 +69,13 @@
                             class="@(SelectedItems.Contains(fileInfo.RelativePath) ? "selected" : "")"
                             @onclick="(e) => OnFileRowClick(e, fileInfo.RelativePath)"
                             @oncontextmenu="(e) => ShowContextMenuForRow(e, fileInfo.RelativePath)" @oncontextmenu:preventDefault>
-                            <td>@fileInfo.DisplayPath</td>
+                            <td>
+                                @if (fileInfo.RelativePath.StartsWith("[ORIGINAL]"))
+                                {
+                                    <span class="ref-badge ref-original" title="A fájl eredeti verziója a merge-base ágról.">ORIG</span>
+                                }
+                                @fileInfo.DisplayPath
+                            </td>
                             <td>@fileInfo.FileName</td>
                             <td style="text-align: right;">@fileInfo.Size.ToString("N0")</td>
                             <td class="actions-cell" @onclick:stopPropagation>
@@ -87,6 +93,7 @@
             <button title="Újra" @onclick="AppState.RedoContextListChange" disabled="@(!AppState.CanRedo)">⮍</button>
         
             <button style="margin: 0 5px;" @onclick="OnShowDocumentSearchDialog" disabled="@(AppState.IsSemanticIndexBuilding || !IsIndexReady)">Keresés</button>
+            <button style="margin: 0 5px;" @onclick="GitWorkflowService.AddOriginalModifiedFilesToContextAsync" disabled="@(!AppState.IsGitRepository)" title="A branch nyitása óta módosított fájlok eredeti verziójának hozzáadása">Eredetiek</button>
         
             <span style="margin-left:auto;"></span>
             <span class="char-counter">@_charCount.ToString("N0") kar.</span>

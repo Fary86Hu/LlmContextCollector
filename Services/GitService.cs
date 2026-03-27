@@ -102,6 +102,13 @@ namespace LlmContextCollector.Services
             await RunGitCommandAsync(new[] { "push", "--set-upstream", "origin", branchName }, throwOnError: true);
         }
 
+        public async Task<string> GetFileContentAtBranchAsync(string branch, string filePath)
+        {
+            var (success, output, error) = await RunGitCommandAsync(new[] { "show", $"{branch}:{filePath}" });
+            if (!success) return $"[HIBA: Nem sikerült beolvasni az eredeti verziót ({branch}). Hiba: {error}]";
+            return output;
+        }
+
         public async Task DiscardChangesAsync(string filePath)
         {
             // Unstage and discard changes in working directory

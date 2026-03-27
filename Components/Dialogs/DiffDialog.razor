@@ -37,11 +37,12 @@
                         <div class="diff-selector-box">
                             <strong>Különbségek forrása:</strong>
                             <div class="diff-options">
-                                <label><input type="radio" name="diff-mode" @onchange="() => _selectedDiffMode = GitWorkflowService.DiffMode.Uncommitted" checked="@(_selectedDiffMode == GitWorkflowService.DiffMode.Uncommitted)" /> Jelenlegi változások</label>
-                                <label><input type="radio" name="diff-mode" @onchange="() => _selectedDiffMode = GitWorkflowService.DiffMode.SinceBranchCreation" checked="@(_selectedDiffMode == GitWorkflowService.DiffMode.SinceBranchCreation)" /> Branch nyitása óta</label>
-                                <label><input type="radio" name="diff-mode" @onchange="() => _selectedDiffMode = GitWorkflowService.DiffMode.AgainstBranch" checked="@(_selectedDiffMode == GitWorkflowService.DiffMode.AgainstBranch)" /> Másik branch-hez képest</label>
+                                <label><input type="radio" name="diff-mode" @onchange="() => ChangeViewMode(ViewMode.Uncommitted)" checked="@(_selectedViewMode == ViewMode.Uncommitted)" /> Jelenlegi változások</label>
+                                <label><input type="radio" name="diff-mode" @onchange="() => ChangeViewMode(ViewMode.SinceBranchCreation)" checked="@(_selectedViewMode == ViewMode.SinceBranchCreation)" /> Branch nyitása óta</label>
+                                <label><input type="radio" name="diff-mode" @onchange="() => ChangeViewMode(ViewMode.AgainstBranch)" checked="@(_selectedViewMode == ViewMode.AgainstBranch)" /> Másik branch-hez képest</label>
+                                <label><input type="radio" name="diff-mode" @onchange="() => ChangeViewMode(ViewMode.LlmHistory)" checked="@(_selectedViewMode == ViewMode.LlmHistory)" /> Elfogadott LLM válaszok</label>
                             </div>
-                            @if (_selectedDiffMode == GitWorkflowService.DiffMode.AgainstBranch)
+                            @if (_selectedViewMode == ViewMode.AgainstBranch)
                             {
                                 <select @bind="_selectedTargetBranch">
                                     @foreach (var branch in _allBranches)
@@ -50,16 +51,31 @@
                                     }
                                 </select>
                             }
-                            <button @onclick="LoadSelectedDiffsAsync" disabled="@_isLoadingDiffs">
-                                @if (_isLoadingDiffs)
-                                {
-                                    <span class="spinner-small"></span>
-                                }
-                                else
-                                {
-                                    <span>Különbségek mutatása</span>
-                                }
-                            </button>
+                            @if (_selectedViewMode == ViewMode.LlmHistory)
+                            {
+                                <select @onchange="OnHistoryEntrySelected">
+                                    <option value="" selected="@(_selectedHistoryEntryId == null)">Válassz előzményt...</option>
+                                    @foreach (var entry in _historyEntries)
+                                    {
+                                        <option value="@entry.Id" selected="@(_selectedHistoryEntryId == entry.Id)">
+                                            @entry.Timestamp.ToString("yyyy.MM.dd HH:mm") - @GetSnippet(entry.Explanation)
+                                        </option>
+                                    }
+                                </select>
+                            }
+                            @if (_selectedViewMode != ViewMode.LlmHistory)
+                            {
+                                <button @onclick="LoadSelectedDiffsAsync" disabled="@_isLoadingDiffs">
+                                    @if (_isLoadingDiffs)
+                                    {
+                                        <span class="spinner-small"></span>
+                                    }
+                                    else
+                                    {
+                                        <span>Különbségek mutatása</span>
+                                    }
+                                </button>
+                            }
                         </div>
                     }
 
@@ -192,10 +208,17 @@
             <div class="modal-footer">
                 <span>@($"{_localDiffResults.Count(r => r.IsSelectedForAccept)} fájl kijelölve")</span>
                 <button @onclick="Close">Bezárás</button>
-                <button class="primary" @onclick="AcceptSelectedChanges" disabled="@(!_localDiffResults.Any(r => r.IsSelectedForAccept))">Kijelöltek elfogadása</button>
-                <button class="primary" @onclick="CreateBranch" disabled="@(string.IsNullOrWhiteSpace(_suggestedBranch))">Branch Létrehozása</button>
-                <button class="primary" @onclick="Commit" disabled="@(string.IsNullOrWhiteSpace(_suggestedCommit) || !_localDiffResults.Any(r => r.IsSelectedForAccept))">Commit</button>
-                <button class="primary commit-btn" @onclick="Push">Push</button>
+                @if (_selectedViewMode == ViewMode.LlmHistory && _isGitDiffMode)
+                {
+                    <button class="primary" style="background-color: #dc3545; border-color: #dc3545;" @onclick="RevertSelectedHistoryChanges" disabled="@(!_localDiffResults.Any(r => r.IsSelectedForAccept))">Kijelöltek visszavonása</button>
+                }
+                else
+                {
+                    <button class="primary" @onclick="AcceptSelectedChanges" disabled="@(!_localDiffResults.Any(r => r.IsSelectedForAccept))">Kijelöltek elfogadása</button>
+                    <button class="primary" @onclick="CreateBranch" disabled="@(string.IsNullOrWhiteSpace(_suggestedBranch))">Branch Létrehozása</button>
+                    <button class="primary" @onclick="Commit" disabled="@(string.IsNullOrWhiteSpace(_suggestedCommit) || !_localDiffResults.Any(r => r.IsSelectedForAccept))">Commit</button>
+                    <button class="primary commit-btn" @onclick="Push">Push</button>
+                }
             </div>
         </div>
     </div>

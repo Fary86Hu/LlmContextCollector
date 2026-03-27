@@ -58,6 +58,7 @@ namespace LlmContextCollector
             builder.Services.AddTransient<LlmResponseParserService>();
             builder.Services.AddTransient<ContextProcessingService>();
             builder.Services.AddSingleton<GitWorkflowService>();
+            builder.Services.AddSingleton<AcceptedResponseHistoryService>();
             builder.Services.AddTransient<ProjectService>();
             builder.Services.AddTransient<FileContextService>();
             builder.Services.AddTransient<QueryBuilders>();

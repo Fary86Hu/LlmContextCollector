@@ -104,6 +104,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         
         private const string AdoFilePrefix = "[ADO]";
         private Dictionary<string, double> _semanticScores = new();
+        private Dictionary<string, long> _originalSizeCache = new();
         private string? _promptForLastSemanticSort;
         
         private bool _isClarificationDialogVisible = false;
@@ -151,12 +152,11 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         private void OnSelectedFilesChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            UpdateCounts();
+            _ = UpdateCountsAsync();
             UpdateSortedFiles();
             SortFiles();
             if (_showReferences)
             {
-                // Ha változott a kontextus, frissíteni kell a színeket (zöld/kék)
                 UpdatePreviewMarkup();
             }
             InvokeAsync(StateHasChanged);
@@ -203,6 +203,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         private async Task OnAddReferencingClick(string filePath)
         {
+            if (filePath.StartsWith("[ORIGINAL]")) return;
             if (string.IsNullOrEmpty(AppState.ProjectRoot)) return;
             AppState.ShowLoading("Hivatkozók keresése...");
             try
@@ -258,8 +259,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                     var min = Math.Min(startIndex, endIndex);
                     var max = Math.Max(startIndex, endIndex);
 
-                    // Ha nincs lenyomva a Ctrl (csak Shift), akkor töröljük a többit (standard viselkedés).
-                    // Ha Ctrl is le van nyomva (pl Ctrl+Alt), akkor hozzáadunk (additív).
                     if (!e.CtrlKey)
                     {
                         currentSelection.Clear();
@@ -322,6 +321,10 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             {
                 return Path.Combine(AppState.AdoDocsPath ?? string.Empty, relPath.Substring(AdoFilePrefix.Length));
             }
+            if (relPath.StartsWith("[ORIGINAL]"))
+            {
+                return string.Empty;
+            }
             return Path.Combine(AppState.ProjectRoot ?? string.Empty, relPath.Replace('/', Path.DirectorySeparatorChar));
         }
 
@@ -356,7 +359,22 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
             try
             {
-                if (File.Exists(fullPath))
+                if (fileRelPath.StartsWith("[ORIGINAL]"))
+                {
+                    var purePath = fileRelPath.Substring("[ORIGINAL]".Length);
+                    var devBranch = await GitWorkflowService.GetDevelopmentBranchNameAsync();
+                    var content = await GitService.GetFileContentAtBranchAsync(devBranch, purePath);
+                    
+                    if (content.Contains("exists on disk, but not in"))
+                    {
+                        _previewContent = $"[ÚJ FÁJL] Ez a fájl még nem létezik a(z) '{devBranch}' ágon.";
+                    }
+                    else
+                    {
+                        _previewContent = content;
+                    }
+                }
+                else if (File.Exists(fullPath))
                 {
                     _previewContent = await File.ReadAllTextAsync(fullPath);
                 }
@@ -374,24 +392,52 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             StateHasChanged();
         }
 
-        private void UpdateCounts()
+        private async Task UpdateCountsAsync()
         {
             long currentChars = 0;
             if (string.IsNullOrEmpty(AppState.ProjectRoot))
             {
                 _tokenCount = 0;
                 _charCount = 0;
+                await InvokeAsync(StateHasChanged);
                 return;
             }
 
+            bool needsUiRefresh = false;
             foreach (var fileRelPath in AppState.SelectedFilesForContext)
             {
                 try
                 {
-                    string fullPath = GetFullPathFromRelative(fileRelPath);
-                    if (File.Exists(fullPath))
+                    if (fileRelPath.StartsWith("[ORIGINAL]"))
                     {
-                        currentChars += new FileInfo(fullPath).Length;
+                        if (_originalSizeCache.TryGetValue(fileRelPath, out long cachedSize))
+                        {
+                            currentChars += cachedSize;
+                        }
+                        else
+                        {
+                            var purePath = fileRelPath.Substring("[ORIGINAL]".Length);
+                            var devBranch = await GitWorkflowService.GetDevelopmentBranchNameAsync();
+                            var content = await GitService.GetFileContentAtBranchAsync(devBranch, purePath);
+                            
+                            long size = 0;
+                            if (!content.Contains("exists on disk, but not in"))
+                            {
+                                size = content.Length;
+                            }
+                            
+                            _originalSizeCache[fileRelPath] = size;
+                            currentChars += size;
+                            needsUiRefresh = true;
+                        }
+                    }
+                    else
+                    {
+                        string fullPath = GetFullPathFromRelative(fileRelPath);
+                        if (File.Exists(fullPath))
+                        {
+                            currentChars += new FileInfo(fullPath).Length;
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -401,6 +447,14 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             }
             _charCount = currentChars;
             _tokenCount = _charCount > 0 ? _charCount / 4 : 0;
+
+            if (needsUiRefresh)
+            {
+                UpdateSortedFiles();
+                SortFiles();
+            }
+
+            await InvokeAsync(StateHasChanged);
         }
 
         private void UpdateSortedFiles()
@@ -417,20 +471,43 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 }
 
                 var score = _semanticScores.GetValueOrDefault(fileRelPath, -1.0);
-                string fileName = fileRelPath.StartsWith(AdoFilePrefix) 
-                    ? fileRelPath.Substring(AdoFilePrefix.Length) 
-                    : Path.GetFileName(fileRelPath);
+                
+                string fileName;
+                string displayPath;
+                if (fileRelPath.StartsWith(AdoFilePrefix))
+                {
+                    displayPath = fileRelPath;
+                    fileName = fileRelPath.Substring(AdoFilePrefix.Length);
+                }
+                else if (fileRelPath.StartsWith("[ORIGINAL]"))
+                {
+                    fileName = Path.GetFileName(fileRelPath);
+                    displayPath = fileRelPath.Substring("[ORIGINAL]".Length);
+                }
+                else
+                {
+                    displayPath = fileRelPath;
+                    fileName = Path.GetFileName(fileRelPath);
+                }
 
                 try
                 {
-                    string fullPath = GetFullPathFromRelative(fileRelPath);
-                    long size = File.Exists(fullPath) ? new FileInfo(fullPath).Length : 0;
-                    _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, fileName, size, score));
+                    long size = 0;
+                    if (fileRelPath.StartsWith("[ORIGINAL]"))
+                    {
+                        _originalSizeCache.TryGetValue(fileRelPath, out size);
+                    }
+                    else
+                    {
+                        string fullPath = GetFullPathFromRelative(fileRelPath);
+                        size = (!string.IsNullOrEmpty(fullPath) && File.Exists(fullPath)) ? new FileInfo(fullPath).Length : 0;
+                    }
+                    _sortedFiles.Add(new ContextListItem(fileRelPath, displayPath, fileName, size, score));
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"Error adding file {fileRelPath}: {ex.Message}");
-                    _sortedFiles.Add(new ContextListItem(fileRelPath, fileRelPath, fileName, 0, score));
+                    _sortedFiles.Add(new ContextListItem(fileRelPath, displayPath, fileName, 0, score));
                 }
             }
         }
@@ -687,7 +764,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 {
                     if (string.IsNullOrEmpty(AppState.LocalizationResourcePath))
                     {
-                        AppState.StatusText = "Lokalizáció észlelve, de hiányzik a resource fájl útvonala.";
+                        AppState.StatusText = "Lokalizáció észlelve, but hiányzik a resource fájl útvonala.";
                         await OnRequestLocalizationPath.InvokeAsync(diffArgs);
                         return;
                     }
@@ -819,7 +896,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 return;
             }
             
-            // Ha keresünk, kapcsoljuk ki a referencia módot, hogy látszódjon a találat
             if (_showReferences)
             {
                 _showReferences = false;
@@ -839,7 +915,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             _showReferences = (bool)(e.Value ?? false);
             if (_showReferences)
             {
-                _previewSearchTerm = string.Empty; // Keresés törlése
+                _previewSearchTerm = string.Empty;
                 await BuildProjectFileMap();
             }
             UpdatePreviewMarkup();
@@ -851,7 +927,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             _projectTypeMap.Clear();
             if (string.IsNullOrEmpty(AppState.ProjectRoot)) return;
 
-            // Gyors bejárás a FileTree-n
             void ScanNodes(IEnumerable<FileNode> nodes)
             {
                 foreach (var node in nodes)
@@ -865,7 +940,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                         var ext = Path.GetExtension(node.Name).ToLowerInvariant();
                         if (ext == ".cs" || ext == ".razor" || ext == ".cshtml")
                         {
-                            // Feltételezzük, hogy a fájlnév megegyezik a típusnévvel (konvenció)
                             var typeName = Path.GetFileNameWithoutExtension(node.Name);
                             if (!_projectTypeMap.ContainsKey(typeName))
                             {
@@ -955,7 +1029,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             
             var encodedContent = HttpUtility.HtmlEncode(_previewContent);
 
-            // 1. Üzemmód: Referenciák
             if (_showReferences)
             {
                 var highlightedContent = Regex.Replace(encodedContent, @"\b[A-Z][a-zA-Z0-9_]*\b", m =>
@@ -976,7 +1049,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 return;
             }
 
-            // 2. Üzemmód: Normál szöveges keresés
             if (string.IsNullOrWhiteSpace(_previewSearchTerm))
             {
                 _previewContentMarkup = new MarkupString(encodedContent);

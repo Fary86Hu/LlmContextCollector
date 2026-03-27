@@ -38,7 +38,7 @@ namespace LlmContextCollector.Services
                          .ToList();
         }
 
-        private async Task<string> GetDevelopmentBranchNameAsync()
+        public async Task<string> GetDevelopmentBranchNameAsync()
         {
             var allBranches = await GetBranchesAsync();
 
@@ -78,6 +78,42 @@ namespace LlmContextCollector.Services
             return "main";
         }
 
+        public async Task AddOriginalModifiedFilesToContextAsync()
+        {
+            if (string.IsNullOrEmpty(_appState.ProjectRoot) || !_appState.IsGitRepository) return;
+
+            var devBranch = await GetDevelopmentBranchNameAsync();
+            var (success, output, _) = await _gitService.RunGitCommandAsync(new[] { "diff", "--name-only", $"{devBranch}...HEAD" });
+            
+            if (!success) return;
+
+            var modifiedFiles = output.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                                      .Select(f => f.Trim().Replace('\\', '/'))
+                                      .ToList();
+
+            if (!modifiedFiles.Any())
+            {
+                _appState.StatusText = "Nincs változtatott fájl a branch nyitása óta.";
+                return;
+            }
+
+            int addedCount = 0;
+            foreach (var file in modifiedFiles)
+            {
+                var originalPath = $"[ORIGINAL]{file}";
+                if (!_appState.SelectedFilesForContext.Contains(originalPath))
+                {
+                    _appState.SelectedFilesForContext.Add(originalPath);
+                    addedCount++;
+                }
+            }
+
+            if (addedCount > 0)
+            {
+                _appState.SaveContextListState();
+                _appState.StatusText = $"{addedCount} fájl eredeti verziója hozzáadva a listához.";
+            }
+        }
 
         public async Task<List<DiffResult>> GetDiffsAsync(DiffMode mode, string? targetBranch = null)
         {
@@ -259,6 +295,33 @@ namespace LlmContextCollector.Services
             else
             {
                 await _gitService.DiscardChangesAsync(diffResult.Path);
+            }
+        }
+
+        public async Task RevertLlmHistoryChangesAsync(List<DiffResult> filesToRevert)
+        {
+            foreach (var result in filesToRevert)
+            {
+                var fullPath = Path.GetFullPath(Path.Combine(_appState.ProjectRoot, result.Path.Replace('/', Path.DirectorySeparatorChar)));
+                var fullRoot = Path.GetFullPath(_appState.ProjectRoot);
+                if (!fullPath.StartsWith(fullRoot)) continue;
+
+                if (result.Status == DiffStatus.New || result.Status == DiffStatus.NewFromModified)
+                {
+                    if (File.Exists(fullPath))
+                    {
+                        File.Delete(fullPath);
+                    }
+                }
+                else
+                {
+                    var dir = Path.GetDirectoryName(fullPath);
+                    if (dir != null && !Directory.Exists(dir))
+                    {
+                        Directory.CreateDirectory(dir);
+                    }
+                    await File.WriteAllTextAsync(fullPath, result.OldContent);
+                }
             }
         }
     }

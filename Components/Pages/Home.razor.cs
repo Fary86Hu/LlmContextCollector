@@ -47,6 +47,8 @@ namespace LlmContextCollector.Components.Pages
         private ProjectSettingsService ProjectSettingsService { get; set; } = null!;
         [Inject]
         private LocalizationService LocalizationService { get; set; } = null!;
+        [Inject]
+        private AcceptedResponseHistoryService AcceptedResponseHistoryService { get; set; } = null!;
 
 
         private ContextPanel? _contextPanelRef;
@@ -717,7 +719,22 @@ namespace LlmContextCollector.Components.Pages
 
         private async Task HandleAcceptChanges(List<DiffResult> acceptedResults)
         {
+            var historyFiles = acceptedResults.Select(r => new DiffResult 
+            { 
+                Path = r.Path, 
+                OldContent = r.OldContent, 
+                NewContent = r.NewContent, 
+                Status = r.Status, 
+                Explanation = r.Explanation 
+            }).ToList();
+
             var (acceptedCount, errorCount) = await GitWorkflowService.AcceptChangesAsync(acceptedResults);
+            
+            if (acceptedCount > 0 && !string.IsNullOrEmpty(AppState.ProjectRoot))
+            {
+                await AcceptedResponseHistoryService.AddEntryAsync(AppState.ProjectRoot, AppState.DiffGlobalExplanation, historyFiles);
+            }
+
             AppState.StatusText = $"Változások elfogadása befejezve. Elfogadva: {acceptedCount}, Hiba: {errorCount}.";
             StateHasChanged();
         }
