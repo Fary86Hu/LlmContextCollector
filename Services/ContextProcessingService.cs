@@ -168,13 +168,25 @@ namespace LlmContextCollector.Services
                 string oldContent = "";
                 string finalNewContent = fileData.NewContent;
 
+                bool patchFailed = false;
+                string failedPatchContent = string.Empty;
+
                 if (File.Exists(fullPath))
                 {
                     oldContent = await File.ReadAllTextAsync(fullPath);
                     if (status == DiffStatus.Modified && finalNewContent.Contains("<<<<<<< SEARCH"))
                     {
-                        try { finalNewContent = ApplyPatches(oldContent, finalNewContent); }
-                        catch (Exception ex) { fileData.Explanation += $"\n[HIBA: {ex.Message}]"; }
+                        try
+                        {
+                            finalNewContent = ApplyPatches(oldContent, finalNewContent);
+                        }
+                        catch (Exception ex)
+                        {
+                            fileData.Explanation += $"\n[HIBA: {ex.Message}]";
+                            patchFailed = true;
+                            failedPatchContent = finalNewContent;
+                            finalNewContent = oldContent; // Keep old content so they can edit it
+                        }
                     }
                 }
                 else if (status == DiffStatus.Modified) status = DiffStatus.NewFromModified;
@@ -185,7 +197,9 @@ namespace LlmContextCollector.Services
                     OldContent = oldContent,
                     NewContent = finalNewContent,
                     Status = status,
-                    Explanation = fileData.Explanation
+                    Explanation = fileData.Explanation,
+                    PatchFailed = patchFailed,
+                    FailedPatchContent = failedPatchContent
                 });
             }
             return new DiffResultArgs(explanation, diffResults, clipboardText, localizationFragment);

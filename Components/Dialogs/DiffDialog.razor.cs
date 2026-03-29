@@ -49,6 +49,9 @@ namespace LlmContextCollector.Components.Dialogs
         private bool _isResizingPane = false;
         private double _windowWidth = 0;
         private CancellationTokenSource? _diffCts;
+        
+        private bool _isManualMergeMode = false;
+        private string _manualMergeNewContent = string.Empty;
 
         private record DiffMarkerInfo(string Type, double TopPercent);
 
@@ -68,6 +71,8 @@ namespace LlmContextCollector.Components.Dialogs
                     _suggestedCommit = string.Empty;
                     _hasSuggestions = false;
                     _isFullResponseView = false;
+                    _isManualMergeMode = false;
+                    _manualMergeNewContent = string.Empty;
                     _selectedViewMode = ViewMode.Uncommitted;
                     _historyEntries.Clear();
                     _selectedHistoryEntryId = null;
@@ -275,6 +280,33 @@ namespace LlmContextCollector.Components.Dialogs
             _contextMenuY = e.ClientY; 
             _contextMenuTargetLine = l; 
             _showContextMenu = true; 
+        }
+
+        private void OpenManualMerge(DiffResult result)
+        {
+            _selectedResult = result;
+            _manualMergeNewContent = result.NewContent; 
+            _isManualMergeMode = true;
+        }
+
+        private async Task SaveManualMerge()
+        {
+            if (_selectedResult != null)
+            {
+                _selectedResult.NewContent = _manualMergeNewContent;
+                _selectedResult.PatchFailed = false;
+                if (!_selectedResult.Explanation.Contains("[KÉZI BEOLVASZTÁS SIKERES]"))
+                {
+                    _selectedResult.Explanation += "\n[KÉZI BEOLVASZTÁS SIKERES]";
+                }
+                _isManualMergeMode = false;
+                await OnContentChanged();
+            }
+        }
+
+        private void CloseManualMerge()
+        {
+            _isManualMergeMode = false;
         }
 
         private async Task DeleteLine()

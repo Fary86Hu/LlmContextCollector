@@ -31,6 +31,30 @@
                 </div>
             </div>
             <div class="modal-body diff-body">
+                @if (_isManualMergeMode && _selectedResult != null)
+                {
+                    <div class="manual-merge-view">
+                        <div class="manual-merge-toolbar">
+                            <strong>Kézi beolvasztás: @_selectedResult.Path</strong>
+                            <div style="display: flex; gap: 10px;">
+                                <button @onclick="CloseManualMerge">Mégsem</button>
+                                <button class="primary" @onclick="SaveManualMerge">Beolvasztás befejezése</button>
+                            </div>
+                        </div>
+                        <div class="manual-merge-editors">
+                            <div class="merge-editor-pane">
+                                <div class="editor-header">Sikertelen LLM Patch</div>
+                                <textarea class="merge-textarea" readonly>@_selectedResult.FailedPatchContent</textarea>
+                            </div>
+                            <div class="merge-editor-pane">
+                                <div class="editor-header">Végeredmény (Szerkeszthető)</div>
+                                <textarea class="merge-textarea" @bind="_manualMergeNewContent" @bind:event="oninput"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
                 <div class="diff-left-pane" style="width: @(_leftPaneWidthPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;">
                     @if (_isGitDiffMode)
                     {
@@ -133,6 +157,10 @@
                                     <span class="file-path-text" title="@result.Path">@result.Path</span>
                                     
                                     <div class="item-actions">
+                                        @if (result.PatchFailed)
+                                        {
+                                            <span class="patch-failed-indicator" title="Sikertelen beolvasztás">⚠️</span>
+                                        }
                                         @if (!string.IsNullOrEmpty(result.Explanation))
                                         {
                                             <span class="comment-indicator" title="Van magyarázat">💬</span>
@@ -173,6 +201,14 @@
                                 <p>@_selectedResult.Explanation</p>
                             </div>
                         }
+
+                        @if (_selectedResult.PatchFailed)
+                        {
+                            <div class="patch-failed-warning">
+                                <strong>Figyelem!</strong> Az automatikus beolvasztás sikertelen (SEARCH blokk nem található).
+                                <button class="primary" style="margin-top: 5px;" @onclick="() => OpenManualMerge(_selectedResult)">Kézi beolvasztás megnyitása</button>
+                            </div>
+                        }
                         
                         <div class="diff-content-wrapper">
                             <div class="diff-content unified-diff-list">
@@ -204,6 +240,7 @@
                         <div class="editor-placeholder">Válassz egy fájlt a változások megtekintéséhez.</div>
                     }
                 </div>
+                }
             </div>
             <div class="modal-footer">
                 <span>@($"{_localDiffResults.Count(r => r.IsSelectedForAccept)} fájl kijelölve")</span>

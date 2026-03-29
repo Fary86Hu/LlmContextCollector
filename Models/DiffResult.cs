@@ -9,6 +9,9 @@ namespace LlmContextCollector.Models
         public bool IsSelectedForAccept { get; set; } = true;
         
         public string Explanation { get; set; } = string.Empty;
+        
+        public bool PatchFailed { get; set; }
+        public string FailedPatchContent { get; set; } = string.Empty;
     }
 
     public enum DiffStatus
