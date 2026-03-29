@@ -17,13 +17,13 @@ namespace LlmContextCollector.AI
 
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly AppState _appState;
-        private readonly AiLogService _aiLogService;
+        private readonly AppLogService _logService;
 
-        public GroqTextGenerationProvider(IHttpClientFactory httpClientFactory, AppState appState, AiLogService aiLogService)
+        public GroqTextGenerationProvider(IHttpClientFactory httpClientFactory, AppState appState, AppLogService logService)
         {
             _httpClientFactory = httpClientFactory;
             _appState = appState;
-            _aiLogService = aiLogService;
+            _logService = logService;
         }
 
         public async Task<string> GenerateAsync(string prompt, CancellationToken ct = default)
@@ -76,7 +76,7 @@ namespace LlmContextCollector.AI
                 ? result.choices[0].message?.content ?? string.Empty
                 : string.Empty;
 
-            _aiLogService.Log("Groq", _appState.GroqModel, prompt, finalResponse);
+            _logService.LogAi("Groq", _appState.GroqModel, prompt, finalResponse);
 
             return finalResponse;
         }

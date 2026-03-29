@@ -1,0 +1,116 @@
+@using System.ComponentModel
+@using System.Collections.Specialized
+@implements IDisposable
+@inject AppLogService LogService
+@inject AppState AppState
+
+@if (AppState.IsAiInspectorVisible)
+{
+    <div class="modal-backdrop">
+        <div class="modal-dialog inspector-dialog">
+            <div class="modal-header">
+                <h3>Rendszer és AI Napló</h3>
+                <div class="header-controls">
+                    <button @onclick="LogService.Clear" class="secondary">Napló ürítése</button>
+                    <button class="close-btn" @onclick="Close">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body inspector-body">
+                <div class="log-list">
+                    @if (!LogService.Logs.Any())
+                    {
+                        <div class="editor-placeholder">Nincs rögzített esemény.</div>
+                    }
+                    @foreach (var log in LogService.Logs)
+                    {
+                        <div class="log-item @(GetLogClass(log)) @(_selectedLog == log ? "selected" : "")" @onclick="() => _selectedLog = log">
+                            <div class="log-item-header">
+                                <span class="log-time">@log.Timestamp.ToString("HH:mm:ss")</span>
+                                <span class="log-type-badge">@log.Type</span>
+                            </div>
+                            <span class="log-source">@log.Source</span>
+                            <span class="log-title">@log.Title</span>
+                        </div>
+                    }
+                </div>
+                <div class="log-details">
+                    @if (_selectedLog != null)
+                    {
+                        <div class="detail-header">
+                            <h4>@_selectedLog.Title</h4>
+                            <div class="meta-info">Forrás: @_selectedLog.Source | Idő: @_selectedLog.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</div>
+                        </div>
+
+                        @if (_selectedLog.Type == LogType.Ai)
+                        {
+                            <div class="detail-section">
+                                <strong>Modell:</strong> <span>@_selectedLog.Model</span>
+                            </div>
+                            <div class="detail-section flex-1">
+                                <strong>Prompt:</strong>
+                                <textarea readonly>@_selectedLog.Prompt</textarea>
+                            </div>
+                            <div class="detail-section flex-1">
+                                <strong>Válasz:</strong>
+                                <textarea readonly>@_selectedLog.Response</textarea>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="detail-section flex-1">
+                                <strong>Részletek:</strong>
+                                <textarea readonly>@_selectedLog.Content</textarea>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="editor-placeholder">Válassz egy bejegyzést a részletekért.</div>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button @onclick="Close">Bezárás</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private LogEntry? _selectedLog;
+
+    protected override void OnInitialized()
+    {
+        AppState.PropertyChanged += OnAppStateChanged;
+        LogService.Logs.CollectionChanged += OnLogsChanged;
+    }
+
+    private string GetLogClass(LogEntry log) => log.Type switch
+    {
+        LogType.Ai => "log-ai",
+        LogType.Error => "log-error",
+        LogType.Warning => "log-warning",
+        _ => "log-info"
+    };
+
+    private async void OnAppStateChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppState.IsAiInspectorVisible))
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async void OnLogsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AppState.PropertyChanged -= OnAppStateChanged;
+        LogService.Logs.CollectionChanged -= OnLogsChanged;
+    }
+
+    private void Close() => AppState.IsAiInspectorVisible = false;
+}

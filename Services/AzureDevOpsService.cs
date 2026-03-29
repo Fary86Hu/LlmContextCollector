@@ -1,4 +1,5 @@
 using LlmContextCollector.Models;
+using Microsoft.AspNetCore.Components;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -12,12 +13,14 @@ namespace LlmContextCollector.Services
     {
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly AppState _appState;
+        private readonly AppLogService _logService;
         private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-        public AzureDevOpsService(IHttpClientFactory httpClientFactory, AppState appState)
+        public AzureDevOpsService(IHttpClientFactory httpClientFactory, AppState appState, AppLogService logService)
         {
             _httpClientFactory = httpClientFactory;
             _appState = appState;
+            _logService = logService;
         }
 
         private string? GetSettingsPathForProject(string projectRoot)
@@ -98,8 +101,11 @@ namespace LlmContextCollector.Services
 
         public async Task<(string Text, List<AttachedImage> Images)> GetFormattedWorkItemAsync(int workItemId)
         {
+            _logService.LogInfo("ADO", $"Work Item {workItemId} lekérése indítva...");
+
             if (string.IsNullOrWhiteSpace(_appState.AzureDevOpsOrganizationUrl) || string.IsNullOrWhiteSpace(_appState.AzureDevOpsPat))
             {
+                _logService.LogError("ADO", "Hiányzó konfiguráció (URL vagy PAT).");
                 throw new InvalidOperationException("Az Azure DevOps beállítások (URL, PAT) nincsenek megadva.");
             }
 
@@ -120,72 +126,111 @@ namespace LlmContextCollector.Services
             }
 
             var workItem = await JsonSerializer.DeserializeAsync<WorkItem>(await response.Content.ReadAsStreamAsync(), _jsonOptions);
-            if (workItem == null) return (string.Empty, new List<AttachedImage>());
-
-            var downloadedImages = new List<AttachedImage>();
-            var attachmentMap = new Dictionary<string, string>(); // GUID -> UniqueFileName
-            var downloadTasks = new List<(string Guid, Task<AttachedImage?> Task)>();
-
-            if (workItem.Relations != null && workItem.Relations.Any())
+            if (workItem == null) 
             {
-                foreach (var rel in workItem.Relations)
+                _logService.LogWarning("ADO", $"Work Item {workItemId} nem található vagy üres.");
+                return (string.Empty, new List<AttachedImage>());
+            }
+
+            // 1. Kommentek lekérése előre, hogy lássuk az inline képeket is
+            var commentsUrl = $"{orgUrl}/{encodedProject}/_apis/wit/workitems/{workItemId}/comments?api-version=6.0-preview.3";
+            var commentsResponse = await client.GetAsync(commentsUrl);
+            var commentsData = commentsResponse.IsSuccessStatusCode 
+                ? await JsonSerializer.DeserializeAsync<WorkItemCommentListResponse>(await commentsResponse.Content.ReadAsStreamAsync(), _jsonOptions)
+                : null;
+
+            // 2. Képek összegyűjtése (relations + inline)
+            var attachmentMap = new Dictionary<string, string>(); 
+            var downloadTasks = new List<(string UrlKey, Task<AttachedImage?> Task)>();
+            var processedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // A: Relations listából
+            var relations = workItem.Relations?.Where(r => r.Rel == "AttachedFile").ToList() ?? new();
+            foreach (var rel in relations)
+            {
+                string originalName = "";
+                if (rel.Attributes != null && rel.Attributes.TryGetValue("name", out var nameObj) && nameObj is JsonElement nameElem)
+                    originalName = nameElem.GetString() ?? "";
+
+                if (string.IsNullOrWhiteSpace(originalName))
                 {
-                    // ADO-ban a "AttachedFile" reláció jelöli a képeket és fájlokat
-                    if (rel.Rel != "AttachedFile") continue;
-
-                    // GUID kinyerése: a /attachments/ utáni rész, a ? előtt
-                    var guidMatch = Regex.Match(rel.Url, @"/attachments/([^/?#]+)");
-                    if (!guidMatch.Success) continue;
-
-                    var guid = guidMatch.Groups[1].Value;
                     var nameMatch = Regex.Match(rel.Url, @"fileName=([^&]+)");
-                    var originalName = nameMatch.Success ? HttpUtility.UrlDecode(nameMatch.Groups[1].Value) : "image.png";
-                    
-                    // Biztosítjuk a kiterjesztést, ha hiányozna (pasted képeknél gyakori)
-                    if (!originalName.Contains('.')) originalName += ".png";
+                    originalName = nameMatch.Success ? HttpUtility.UrlDecode(nameMatch.Groups[1].Value) : "attachment";
+                }
 
-                    var uniqueFileName = $"{workItemId}_{guid.Substring(0, Math.Min(guid.Length, 8))}_{originalName}";
-                    var ext = Path.GetExtension(uniqueFileName).ToLowerInvariant();
-
-                    if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif")
+                var ext = Path.GetExtension(originalName).ToLowerInvariant();
+                if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" || ext == ".webp" || string.IsNullOrEmpty(ext))
+                {
+                    if (processedUrls.Add(rel.Url))
                     {
-                        downloadTasks.Add((guid, DownloadAttachmentAsync(client, rel.Url, uniqueFileName, workItemId)));
+                        var urlId = Regex.Match(rel.Url, @"/attachments/([^/?#]+)").Groups[1].Value;
+                        if (string.IsNullOrEmpty(urlId)) urlId = Guid.NewGuid().ToString("N").Substring(0, 8);
+                        
+                        var uniqueFileName = $"{workItemId}_{urlId}_{originalName}";
+                        if (string.IsNullOrEmpty(ext)) uniqueFileName += ".png";
+
+                        _logService.LogInfo("ADO", $"Csatolmány kép észlelve: {originalName}");
+                        downloadTasks.Add((rel.Url, DownloadAttachmentAsync(client, rel.Url, uniqueFileName, workItemId)));
                     }
+                }
+                else
+                {
+                    _logService.LogInfo("ADO", $"Csatolmány kihagyva (típusa alapján nem kép): {originalName}");
                 }
             }
 
-            // Letöltések futtatása párhuzamosan
+            // B: Inline képek keresése a szöveges mezőkben és kommentekben
+            var allHtml = new StringBuilder();
+            allHtml.Append(GetFieldAsString(workItem, "System.Description"));
+            allHtml.Append(GetFieldAsString(workItem, "Microsoft.VSTS.TCM.ReproSteps"));
+            allHtml.Append(GetFieldAsString(workItem, "Microsoft.VSTS.Common.AcceptanceCriteria"));
+            if (commentsData?.Comments != null)
+                foreach (var c in commentsData.Comments) allHtml.Append(c.Text);
+
+            var inlineUrls = ExtractImageUrlsFromHtml(allHtml.ToString());
+            foreach (var imurl in inlineUrls)
+            {
+                if (processedUrls.Add(imurl))
+                {
+                    var fileNameMatch = Regex.Match(imurl, @"fileName=([^&]+)");
+                    var originalName = fileNameMatch.Success ? HttpUtility.UrlDecode(fileNameMatch.Groups[1].Value) : "inline_image.png";
+                    var urlId = Regex.Match(imurl, @"/attachments/([^/?#]+)").Groups[1].Value;
+                    if (string.IsNullOrEmpty(urlId)) urlId = Guid.NewGuid().ToString("N").Substring(0, 8);
+
+                    var uniqueFileName = $"{workItemId}_{urlId}_{originalName}";
+                    _logService.LogInfo("ADO", $"Inline kép észlelve a szövegben: {originalName}");
+                    downloadTasks.Add((imurl, DownloadAttachmentAsync(client, imurl, uniqueFileName, workItemId)));
+                }
+            }
+
+            // 3. Letöltések végrehajtása
+            var downloadedImages = new List<AttachedImage>();
             if (downloadTasks.Any())
             {
                 await Task.WhenAll(downloadTasks.Select(t => t.Task));
-
                 foreach (var taskInfo in downloadTasks)
                 {
                     var resultImg = await taskInfo.Task;
                     if (resultImg != null)
                     {
                         downloadedImages.Add(resultImg);
-                        // A GUID-ot használjuk kulcsként a szövegben való azonosításhoz
-                        attachmentMap[taskInfo.Guid] = resultImg.FileName;
+                        attachmentMap[taskInfo.UrlKey] = resultImg.FileName;
+                        var guidMatch = Regex.Match(taskInfo.UrlKey, @"/attachments/([^/?#]+)");
+                        if (guidMatch.Success) attachmentMap[guidMatch.Groups[1].Value] = resultImg.FileName;
                     }
                 }
             }
 
-            var commentsUrl = $"{orgUrl}/{encodedProject}/_apis/wit/workitems/{workItemId}/comments?api-version=6.0-preview.3";
-            var commentsResponse = await client.GetAsync(commentsUrl);
+            // 4. Kommentek formázása a már letöltött képekkel
             var commentsText = new StringBuilder();
-            if (commentsResponse.IsSuccessStatusCode)
+            if (commentsData?.Comments != null && commentsData.Comments.Any())
             {
-                var commentsData = await JsonSerializer.DeserializeAsync<WorkItemCommentListResponse>(await commentsResponse.Content.ReadAsStreamAsync(), _jsonOptions);
-                if (commentsData?.Comments != null && commentsData.Comments.Any())
+                commentsText.AppendLine("\nKözösségi megjegyzések / Kommentek:");
+                foreach (var comment in commentsData.Comments.OrderByDescending(c => c.CreatedDate).Take(10))
                 {
-                    commentsText.AppendLine("\nKözösségi megjegyzések / Kommentek:");
-                    foreach (var comment in commentsData.Comments.OrderByDescending(c => c.CreatedDate).Take(10))
-                    {
-                        commentsText.AppendLine($"[{comment.CreatedDate:yyyy-MM-dd HH:mm}] {comment.CreatedBy?.DisplayName}:");
-                        commentsText.AppendLine(ProcessHtmlWithImageMarkers(comment.Text, attachmentMap));
-                        commentsText.AppendLine("---");
-                    }
+                    commentsText.AppendLine($"[{comment.CreatedDate:yyyy-MM-dd HH:mm}] {comment.CreatedBy?.DisplayName}:");
+                    commentsText.AppendLine(ProcessHtmlWithImageMarkers(comment.Text, attachmentMap));
+                    commentsText.AppendLine("---");
                 }
             }
 
@@ -224,16 +269,33 @@ namespace LlmContextCollector.Services
         {
             try
             {
-                // Először csak a headert kérjük le, hogy lássuk a méretet
+                _logService.LogInfo("ADO", $"Letöltés indítása: {fileName}");
                 using var resp = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-                if (!resp.IsSuccessStatusCode) return null;
+                if (!resp.IsSuccessStatusCode) 
+                {
+                    _logService.LogError("ADO", $"Hiba a letöltéskor ({resp.StatusCode}): {fileName}");
+                    return null;
+                }
+
+                // Tartalomtípus ellenőrzése a fejlécből
+                var contentType = resp.Content.Headers.ContentType?.MediaType;
+                if (contentType == null || !contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logService.LogInfo("ADO", $"Kihagyva: Nem kép típusú tartalom ({contentType}): {fileName}");
+                    return null;
+                }
 
                 var contentLength = resp.Content.Headers.ContentLength ?? 0;
+                _logService.LogInfo("ADO", $"Fájl mérete: {contentLength} byte. ({fileName})");
                 
-                // Ha 15MB-nál nagyobb, ne is próbálkozzunk a promptba tenni (biztonsági fék)
-                if (contentLength > 15 * 1024 * 1024) return null;
+                if (contentLength > 30 * 1024 * 1024) 
+                {
+                    _logService.LogWarning("ADO", $"Túl nagy fájl (>30MB), letöltés megszakítva: {fileName}");
+                    return null;
+                }
 
                 var bytes = await resp.Content.ReadAsByteArrayAsync();
+                _logService.LogInfo("ADO", $"Sikeresen letöltve: {bytes.Length} byte. ({fileName})");
                 
                 var ext = Path.GetExtension(fileName).TrimStart('.').ToLower();
                 if (string.IsNullOrEmpty(ext)) ext = "png";
@@ -245,15 +307,13 @@ namespace LlmContextCollector.Services
                 await File.WriteAllBytesAsync(localPath, bytes);
 
                 string base64Thumb;
-                // Csak akkor generálunk Base64-et, ha a kép < 5MB (WebView/Memory limit)
-                if (bytes.Length < 5 * 1024 * 1024)
+                if (bytes.Length < 10 * 1024 * 1024)
                 {
                     base64Thumb = $"data:{mime};base64,{Convert.ToBase64String(bytes)}";
                 }
                 else
                 {
-                    // Placeholder egy túl nagy képnek (hogy ne fagyassza le a Blazort)
-                    base64Thumb = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImdyYXkiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cmVjdCB4PSIzIiB5PSIzIiB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHJ4PSIyIiByeT0iMiI+PC9yZWN0PjxjaXJjbGUgY3g9IjguNSIgY3k9IjguNSIgcj0iMS41Ij48L2NpcmNsZT48cG9seWdvbiBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEgMjEgMjEiPjwvcG9seWdvbj48L3N2Zz4=";
+                    base64Thumb = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
                 }
 
                 return new AttachedImage
@@ -266,21 +326,35 @@ namespace LlmContextCollector.Services
             catch { return null; }
         }
 
+        private List<string> ExtractImageUrlsFromHtml(string html)
+        {
+            var urls = new List<string>();
+            if (string.IsNullOrWhiteSpace(html)) return urls;
+
+            var matches = Regex.Matches(html, @"<img[^>]+src=[""']([^""']+)[""'][^>]*>", RegexOptions.IgnoreCase);
+            foreach (Match m in matches)
+            {
+                var url = m.Groups[1].Value;
+                // Csak az ADO belső attachment URL-jeit keressük
+                if (url.Contains("/_apis/wit/attachments/", StringComparison.OrdinalIgnoreCase))
+                {
+                    urls.Add(HttpUtility.HtmlDecode(url));
+                }
+            }
+            return urls;
+        }
+
         private string ProcessHtmlWithImageMarkers(string html, Dictionary<string, string> attachmentMap)
         {
             if (string.IsNullOrWhiteSpace(html)) return string.Empty;
 
-            // Képek megjelölése GUID alapján az img src attribútumból
             var processedHtml = Regex.Replace(html, @"<img[^>]+src=[""']([^""']+)[""'][^>]*>", m =>
             {
                 var src = HttpUtility.UrlDecode(m.Groups[1].Value);
                 string? fileName = null;
 
-                // Megkeressük, melyik letöltött GUID szerepel az img src-ben
-                // A pasted képek src-je ADO-ban tipikusan: .../_apis/wit/attachments/{GUID}?fileName=...
                 foreach (var kvp in attachmentMap)
                 {
-                    // A GUID azonosítás a legbiztosabb
                     if (src.Contains(kvp.Key, StringComparison.OrdinalIgnoreCase))
                     {
                         fileName = kvp.Value;
@@ -306,13 +380,11 @@ namespace LlmContextCollector.Services
             if (string.IsNullOrWhiteSpace(project)) throw new ArgumentException("A projekt név megadása kötelező.");
             if (string.IsNullOrWhiteSpace(pat)) throw new ArgumentException("A PAT megadása kötelező.");
 
-            // Sanitization and Encoding Prep
             orgUrl = orgUrl.Trim().TrimEnd('/');
             project = project.Trim();
             pat = pat.Trim();
             iterationPath = iterationPath?.Trim() ?? string.Empty;
             
-            // Safe encoded project name for URL paths
             var encodedProject = Uri.EscapeDataString(project);
 
             var client = _httpClientFactory.CreateClient("AzureDevOps");
@@ -339,10 +411,7 @@ namespace LlmContextCollector.Services
                 {
                     Directory.Delete(targetDir, true);
                 }
-                catch (Exception ex)
-                {
-                     System.Diagnostics.Debug.WriteLine($"Could not delete old ADO directory: {ex.Message}");
-                }
+                catch { }
             }
             Directory.CreateDirectory(targetDir);
 
@@ -351,26 +420,17 @@ namespace LlmContextCollector.Services
             if (!string.IsNullOrWhiteSpace(repoId))
             {
                 var repoLinkedIds = await GetRepositoryLinkedWorkItemIdsAsync(client, orgUrl, project, repoId);
-                if (repoLinkedIds.Count == 0)
-                {
-                    return;
-                }
                 workItemIds = repoLinkedIds.ToList();
             }
             else
             {
-                // Safe project name for WIQL query (handle single quotes)
                 var safeProjectName = project.Replace("'", "''");
-
                 var queryBuilder = new StringBuilder();
                 queryBuilder.Append($"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{safeProjectName}'");
                 queryBuilder.Append(" AND [System.State] NOT IN ('New', 'To Do', 'Proposed', 'Backlog', 'Ötlet', 'New idea')");
                 queryBuilder.Append(" AND [System.WorkItemType] IN ('Task','User Story','Bug')");
 
-                if (onlyMine)
-                {
-                    queryBuilder.Append(" AND [System.AssignedTo] = @Me");
-                }
+                if (onlyMine) queryBuilder.Append(" AND [System.AssignedTo] = @Me");
 
                 if (!string.IsNullOrWhiteSpace(iterationPath))
                 {
@@ -384,13 +444,8 @@ namespace LlmContextCollector.Services
                     queryBuilder.Append($" AND [System.ChangedDate] > '{dateStr}'");
                 }
 
-                var wiqlQuery = new
-                {
-                    query = queryBuilder.ToString()
-                };
+                var wiqlQuery = new { query = queryBuilder.ToString() };
                 var wiqlContent = new StringContent(JsonSerializer.Serialize(wiqlQuery), Encoding.UTF8, "application/json");
-                
-                // Use encodedProject in URL
                 var wiqlResponse = await client.PostAsync($"{orgUrl}/{encodedProject}/_apis/wit/wiql?api-version=6.0", wiqlContent);
                 
                 if (!wiqlResponse.IsSuccessStatusCode)
@@ -400,10 +455,7 @@ namespace LlmContextCollector.Services
                 }
 
                 var wiqlResult = await JsonSerializer.DeserializeAsync<WiqlResponse>(await wiqlResponse.Content.ReadAsStreamAsync(), _jsonOptions);
-                if (wiqlResult == null || !wiqlResult.WorkItems.Any())
-                {
-                    return;
-                }
+                if (wiqlResult == null || !wiqlResult.WorkItems.Any()) return;
                 workItemIds = wiqlResult.WorkItems.Select(wi => wi.Id).ToList();
             }
 
@@ -413,7 +465,6 @@ namespace LlmContextCollector.Services
                 var batchIds = workItemIds.Skip(i).Take(batchSize);
                 var idsString = string.Join(",", batchIds);
                 
-                // Use encodedProject in URL
                 var detailsResponse = await client.GetAsync($"{orgUrl}/{encodedProject}/_apis/wit/workitems?ids={idsString}&$expand=all&api-version=6.0");
                 if (!detailsResponse.IsSuccessStatusCode) continue;
 
@@ -448,10 +499,7 @@ namespace LlmContextCollector.Services
                 if (list?.Value == null) continue;
                 foreach (var rr in list.Value)
                 {
-                    if (int.TryParse(rr.Id, out var id))
-                    {
-                        wiIds.Add(id);
-                    }
+                    if (int.TryParse(rr.Id, out var id)) wiIds.Add(id);
                 }
             }
             return wiIds;
@@ -488,21 +536,13 @@ namespace LlmContextCollector.Services
             var encodedProject = Uri.EscapeDataString(project);
             var response = await client.GetAsync($"{orgUrl}/{encodedProject}/_apis/git/repositories?api-version=6.0");
             
-            if (!response.IsSuccessStatusCode)
-            {
-                 var errorBody = await response.Content.ReadAsStringAsync();
-                 throw new HttpRequestException($"GetRepositoryIdAsync Failed ({response.StatusCode}): {errorBody}");
-            }
+            if (!response.IsSuccessStatusCode) throw new HttpRequestException($"GetRepositoryIdAsync Failed: {response.StatusCode}");
 
             var repoList = await JsonSerializer.DeserializeAsync<GitRepositoryListResponse>(
                 await response.Content.ReadAsStreamAsync(), _jsonOptions);
 
             var repository = repoList?.Value.FirstOrDefault(r => r.Name.Equals(repoName, StringComparison.OrdinalIgnoreCase));
-
-            if (repository == null)
-            {
-                throw new InvalidOperationException($"A(z) '{repoName}' repository nem található a(z) '{project}' projektben.");
-            }
+            if (repository == null) throw new InvalidOperationException($"A(z) '{repoName}' repository nem található.");
 
             return repository.Id;
         }
@@ -554,7 +594,6 @@ namespace LlmContextCollector.Services
         private string HtmlToPlainText(string html)
         {
             if (string.IsNullOrEmpty(html)) return string.Empty;
-
             var text = HttpUtility.HtmlDecode(html);
             text = Regex.Replace(text, "<style.*?</style>", "", RegexOptions.Singleline | RegexOptions.IgnoreCase);
             text = Regex.Replace(text, "<script.*?</script>", "", RegexOptions.Singleline | RegexOptions.IgnoreCase);
@@ -564,7 +603,6 @@ namespace LlmContextCollector.Services
             text = Regex.Replace(text, "</li>", "\n", RegexOptions.IgnoreCase);
             text = Regex.Replace(text, "<.*?>", " ");
             text = Regex.Replace(text, @"\s+", " ").Trim();
-
             return text;
         }
 

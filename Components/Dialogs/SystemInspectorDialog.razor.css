@@ -1,0 +1,83 @@
+.inspector-dialog {
+    width: 95vw;
+    height: 90vh;
+}
+.inspector-body {
+    display: flex;
+    gap: 0;
+    padding: 0;
+    min-height: 0;
+    border-top: 1px solid var(--border-color);
+}
+.log-list {
+    width: 350px;
+    border-right: 1px solid var(--border-color);
+    overflow-y: auto;
+    background-color: var(--panel-bg);
+}
+.log-item {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    font-size: var(--font-size-sm);
+    border-left: 4px solid transparent;
+}
+.log-item:hover { background-color: var(--hover-bg-color); }
+.log-item.selected { background-color: var(--selected-bg-color); color: var(--selected-text-color); }
+
+.log-ai { border-left-color: #2a9d8f; }
+.log-info { border-left-color: #0078d4; }
+.log-warning { border-left-color: #e9c46a; }
+.log-error { border-left-color: #e76f51; }
+
+.log-item-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 2px;
+}
+.log-time { font-weight: bold; opacity: 0.8; }
+.log-type-badge { font-size: 10px; text-transform: uppercase; font-weight: bold; }
+.log-source { font-size: 11px; color: var(--accent-color); font-weight: bold; }
+.log-item.selected .log-source { color: #fff; }
+.log-title { 
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis;
+    margin-top: 2px;
+}
+
+.log-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 15px;
+    gap: 10px;
+    min-height: 0;
+    background-color: var(--bg-color);
+}
+.detail-header {
+    margin-bottom: 5px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+}
+.detail-header h4 { margin: 0; }
+.meta-info { font-size: 11px; color: var(--text-color-light); margin-top: 4px; }
+
+.detail-section {
+    display: flex;
+    flex-direction: column;
+}
+.detail-section.flex-1 {
+    flex: 1;
+    min-height: 0;
+}
+.detail-section textarea {
+    flex: 1;
+    margin-top: 5px;
+    font-family: Consolas, monospace;
+    background-color: var(--input-bg-color);
+    resize: none;
+    padding: 8px;
+}

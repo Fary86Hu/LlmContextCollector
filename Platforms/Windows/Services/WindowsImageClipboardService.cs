@@ -32,16 +32,14 @@ namespace LlmContextCollector.WinUI.Services
                     dataPackage.RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
                     dataPackage.SetStorageItems(storageFiles);
 
-                    // Ha csak egy képet másolunk, Bitmapként is betesszük a vágólapra a jobb kompatibilitás érdekében
-                    if (storageFiles.Count == 1)
+                    var firstFile = (StorageFile)storageFiles.FirstOrDefault();
+                    if (firstFile != null)
                     {
-                        var file = (StorageFile)storageFiles[0];
-                        var streamRef = RandomAccessStreamReference.CreateFromFile(file);
+                        var streamRef = RandomAccessStreamReference.CreateFromFile(firstFile);
                         dataPackage.SetBitmap(streamRef);
                     }
 
                     Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dataPackage);
-                    Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
                 }
                 catch (Exception ex)
                 {

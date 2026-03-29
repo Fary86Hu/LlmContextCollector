@@ -10,13 +10,13 @@ namespace LlmContextCollector.Services
     {
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly AppState _appState;
-        private readonly AiLogService _aiLogService;
+        private readonly AppLogService _logService;
 
-        public OllamaService(IHttpClientFactory httpClientFactory, AppState appState, AiLogService aiLogService)
+        public OllamaService(IHttpClientFactory httpClientFactory, AppState appState, AppLogService logService)
         {
             _httpClientFactory = httpClientFactory;
             _appState = appState;
-            _aiLogService = aiLogService;
+            _logService = logService;
         }
 
         public async IAsyncEnumerable<string> GetChatResponseStreamAsync(IEnumerable<object> messages, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
@@ -101,7 +101,7 @@ namespace LlmContextCollector.Services
             }
 
             var finalResponse = sb.ToString();
-            _aiLogService.Log("Ollama (Service Call)", _appState.OllamaModel, prompt, finalResponse);
+            _logService.LogAi("Ollama (Service Call)", _appState.OllamaModel, prompt, finalResponse);
 
             return finalResponse;
         }

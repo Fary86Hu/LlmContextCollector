@@ -42,6 +42,9 @@ namespace LlmContextCollector.Models
 
         [JsonPropertyName("url")]
         public string Url { get; set; } = string.Empty;
+
+        [JsonPropertyName("attributes")]
+        public Dictionary<string, object> Attributes { get; set; } = new();
     }
 
     // Model for Git Repositories list
