@@ -107,8 +107,7 @@ namespace LlmContextCollector.Utils
             private static List<DiffChange> Compute(string[] textA, string[] textB)
             {
                 int n = textA.Length, m = textB.Length, max = n + m;
-                
-                // Fallback for extremely large files to avoid OutOfMemoryException
+
                 if (max > 10000)
                 {
                     var fallbackChanges = new List<DiffChange>();

@@ -28,8 +28,7 @@ namespace LlmContextCollector
             builder.Services.AddMauiBlazorWebView();
 
 #if WINDOWS
-                        Environment.SetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-                "--enable-features=OverlayScrollbar");
+            Environment.SetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--enable-features=OverlayScrollbar");
 #endif
 
 #if DEBUG
@@ -81,7 +80,10 @@ namespace LlmContextCollector
                 c.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             });
             
-            builder.Services.AddHttpClient("AzureDevOps");
+            builder.Services.AddHttpClient("AzureDevOps", c =>
+            {
+                c.Timeout = TimeSpan.FromSeconds(30);
+            });
 
             builder.Services.AddHttpClient("OllamaClient", (sp, c) =>
             {

@@ -96,6 +96,206 @@ namespace LlmContextCollector.Services
             _appState.AdoDocsExist = newExist;
         }
 
+        public async Task<(string Text, List<AttachedImage> Images)> GetFormattedWorkItemAsync(int workItemId)
+        {
+            if (string.IsNullOrWhiteSpace(_appState.AzureDevOpsOrganizationUrl) || string.IsNullOrWhiteSpace(_appState.AzureDevOpsPat))
+            {
+                throw new InvalidOperationException("Az Azure DevOps beállítások (URL, PAT) nincsenek megadva.");
+            }
+
+            var orgUrl = _appState.AzureDevOpsOrganizationUrl.Trim().TrimEnd('/');
+            var project = _appState.AzureDevOpsProject.Trim();
+            var pat = _appState.AzureDevOpsPat.Trim();
+            var encodedProject = Uri.EscapeDataString(project);
+
+            var client = _httpClientFactory.CreateClient("AzureDevOps");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                Convert.ToBase64String(Encoding.ASCII.GetBytes($":{pat}")));
+
+            var url = $"{orgUrl}/{encodedProject}/_apis/wit/workitems/{workItemId}?$expand=all&api-version=6.0";
+            var response = await client.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new HttpRequestException($"Nem sikerült lekérni a munkamintát ({workItemId}). Állapot: {response.StatusCode}");
+            }
+
+            var workItem = await JsonSerializer.DeserializeAsync<WorkItem>(await response.Content.ReadAsStreamAsync(), _jsonOptions);
+            if (workItem == null) return (string.Empty, new List<AttachedImage>());
+
+            var downloadedImages = new List<AttachedImage>();
+            var attachmentMap = new Dictionary<string, string>(); // GUID -> UniqueFileName
+            var downloadTasks = new List<(string Guid, Task<AttachedImage?> Task)>();
+
+            if (workItem.Relations != null && workItem.Relations.Any())
+            {
+                foreach (var rel in workItem.Relations)
+                {
+                    // ADO-ban a "AttachedFile" reláció jelöli a képeket és fájlokat
+                    if (rel.Rel != "AttachedFile") continue;
+
+                    // GUID kinyerése: a /attachments/ utáni rész, a ? előtt
+                    var guidMatch = Regex.Match(rel.Url, @"/attachments/([^/?#]+)");
+                    if (!guidMatch.Success) continue;
+
+                    var guid = guidMatch.Groups[1].Value;
+                    var nameMatch = Regex.Match(rel.Url, @"fileName=([^&]+)");
+                    var originalName = nameMatch.Success ? HttpUtility.UrlDecode(nameMatch.Groups[1].Value) : "image.png";
+                    
+                    // Biztosítjuk a kiterjesztést, ha hiányozna (pasted képeknél gyakori)
+                    if (!originalName.Contains('.')) originalName += ".png";
+
+                    var uniqueFileName = $"{workItemId}_{guid.Substring(0, Math.Min(guid.Length, 8))}_{originalName}";
+                    var ext = Path.GetExtension(uniqueFileName).ToLowerInvariant();
+
+                    if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif")
+                    {
+                        downloadTasks.Add((guid, DownloadAttachmentAsync(client, rel.Url, uniqueFileName, workItemId)));
+                    }
+                }
+            }
+
+            // Letöltések futtatása párhuzamosan
+            if (downloadTasks.Any())
+            {
+                await Task.WhenAll(downloadTasks.Select(t => t.Task));
+
+                foreach (var taskInfo in downloadTasks)
+                {
+                    var resultImg = await taskInfo.Task;
+                    if (resultImg != null)
+                    {
+                        downloadedImages.Add(resultImg);
+                        // A GUID-ot használjuk kulcsként a szövegben való azonosításhoz
+                        attachmentMap[taskInfo.Guid] = resultImg.FileName;
+                    }
+                }
+            }
+
+            var commentsUrl = $"{orgUrl}/{encodedProject}/_apis/wit/workitems/{workItemId}/comments?api-version=6.0-preview.3";
+            var commentsResponse = await client.GetAsync(commentsUrl);
+            var commentsText = new StringBuilder();
+            if (commentsResponse.IsSuccessStatusCode)
+            {
+                var commentsData = await JsonSerializer.DeserializeAsync<WorkItemCommentListResponse>(await commentsResponse.Content.ReadAsStreamAsync(), _jsonOptions);
+                if (commentsData?.Comments != null && commentsData.Comments.Any())
+                {
+                    commentsText.AppendLine("\nKözösségi megjegyzések / Kommentek:");
+                    foreach (var comment in commentsData.Comments.OrderByDescending(c => c.CreatedDate).Take(10))
+                    {
+                        commentsText.AppendLine($"[{comment.CreatedDate:yyyy-MM-dd HH:mm}] {comment.CreatedBy?.DisplayName}:");
+                        commentsText.AppendLine(ProcessHtmlWithImageMarkers(comment.Text, attachmentMap));
+                        commentsText.AppendLine("---");
+                    }
+                }
+            }
+
+            var sb = new StringBuilder();
+            var title = GetFieldAsString(workItem, "System.Title");
+            sb.AppendLine($"# ADO Work Item {workItemId}: {title}");
+            sb.AppendLine($"Típus: {GetFieldAsString(workItem, "System.WorkItemType")}");
+            sb.AppendLine($"Állapot: {GetFieldAsString(workItem, "System.State")}");
+            
+            sb.AppendLine("\nLeírás:");
+            sb.AppendLine(ProcessHtmlWithImageMarkers(GetFieldAsString(workItem, "System.Description"), attachmentMap));
+            
+            var reproSteps = GetFieldAsString(workItem, "Microsoft.VSTS.TCM.ReproSteps");
+            if (!string.IsNullOrWhiteSpace(reproSteps))
+            {
+                sb.AppendLine("\nRepro lépések:");
+                sb.AppendLine(ProcessHtmlWithImageMarkers(reproSteps, attachmentMap));
+            }
+
+            var ac = GetFieldAsString(workItem, "Microsoft.VSTS.Common.AcceptanceCriteria");
+            if (!string.IsNullOrWhiteSpace(ac))
+            {
+                sb.AppendLine("\nElfogadási kritériumok:");
+                sb.AppendLine(ProcessHtmlWithImageMarkers(ac, attachmentMap));
+            }
+
+            if (commentsText.Length > 0)
+            {
+                sb.AppendLine(commentsText.ToString());
+            }
+
+            return (sb.ToString(), downloadedImages);
+        }
+
+        private async Task<AttachedImage?> DownloadAttachmentAsync(HttpClient client, string url, string fileName, int workItemId)
+        {
+            try
+            {
+                // Először csak a headert kérjük le, hogy lássuk a méretet
+                using var resp = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+                if (!resp.IsSuccessStatusCode) return null;
+
+                var contentLength = resp.Content.Headers.ContentLength ?? 0;
+                
+                // Ha 15MB-nál nagyobb, ne is próbálkozzunk a promptba tenni (biztonsági fék)
+                if (contentLength > 15 * 1024 * 1024) return null;
+
+                var bytes = await resp.Content.ReadAsByteArrayAsync();
+                
+                var ext = Path.GetExtension(fileName).TrimStart('.').ToLower();
+                if (string.IsNullOrEmpty(ext)) ext = "png";
+                var mime = (ext == "png") ? "image/png" : "image/jpeg";
+
+                var cacheDir = Path.Combine(Microsoft.Maui.Storage.FileSystem.CacheDirectory, "ado_attachments", workItemId.ToString());
+                Directory.CreateDirectory(cacheDir);
+                var localPath = Path.Combine(cacheDir, fileName);
+                await File.WriteAllBytesAsync(localPath, bytes);
+
+                string base64Thumb;
+                // Csak akkor generálunk Base64-et, ha a kép < 5MB (WebView/Memory limit)
+                if (bytes.Length < 5 * 1024 * 1024)
+                {
+                    base64Thumb = $"data:{mime};base64,{Convert.ToBase64String(bytes)}";
+                }
+                else
+                {
+                    // Placeholder egy túl nagy képnek (hogy ne fagyassza le a Blazort)
+                    base64Thumb = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImdyYXkiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cmVjdCB4PSIzIiB5PSIzIiB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHJ4PSIyIiByeT0iMiI+PC9yZWN0PjxjaXJjbGUgY3g9IjguNSIgY3k9IjguNSIgcj0iMS41Ij48L2NpcmNsZT48cG9seWdvbiBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEgMjEgMjEiPjwvcG9seWdvbj48L3N2Zz4=";
+                }
+
+                return new AttachedImage
+                {
+                    FilePath = localPath,
+                    FileName = fileName,
+                    Base64Thumbnail = base64Thumb
+                };
+            }
+            catch { return null; }
+        }
+
+        private string ProcessHtmlWithImageMarkers(string html, Dictionary<string, string> attachmentMap)
+        {
+            if (string.IsNullOrWhiteSpace(html)) return string.Empty;
+
+            // Képek megjelölése GUID alapján az img src attribútumból
+            var processedHtml = Regex.Replace(html, @"<img[^>]+src=[""']([^""']+)[""'][^>]*>", m =>
+            {
+                var src = HttpUtility.UrlDecode(m.Groups[1].Value);
+                string? fileName = null;
+
+                // Megkeressük, melyik letöltött GUID szerepel az img src-ben
+                // A pasted képek src-je ADO-ban tipikusan: .../_apis/wit/attachments/{GUID}?fileName=...
+                foreach (var kvp in attachmentMap)
+                {
+                    // A GUID azonosítás a legbiztosabb
+                    if (src.Contains(kvp.Key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        fileName = kvp.Value;
+                        break;
+                    }
+                }
+
+                if (fileName == null) fileName = "beágyazott_kép";
+
+                return $" [KÉP: {fileName}] ";
+            }, RegexOptions.IgnoreCase);
+
+            return HtmlToPlainText(processedHtml);
+        }
+
         public async Task DownloadWorkItemsAsync(string orgUrl, string project, string pat, string repoName, string iterationPath, string projectRoot, bool isIncremental, bool onlyMine)
         {
             if (string.IsNullOrWhiteSpace(projectRoot) || !Directory.Exists(projectRoot))
@@ -180,8 +380,6 @@ namespace LlmContextCollector.Services
                 
                 if (isIncremental && _appState.AdoLastDownloadDate.HasValue)
                 {
-                    // WIQL dátum formátum fix: a nanoszekundumos pontosság (pl. 'o' formátum) hibát okozhat.
-                    // "yyyy-MM-ddTHH:mm:ssZ" formátumot használunk helyette.
                     var dateStr = _appState.AdoLastDownloadDate.Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
                     queryBuilder.Append($" AND [System.ChangedDate] > '{dateStr}'");
                 }

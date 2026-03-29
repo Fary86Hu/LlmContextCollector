@@ -21,7 +21,6 @@ namespace LlmContextCollector.AI.Embeddings.Chunking
                 yield break;
             }
 
-            // Ha a szöveg rövidebb, mint egy chunk, egyben visszaadjuk
             if (text.Length <= _chunkSize)
             {
                 yield return text;
@@ -37,8 +36,7 @@ namespace LlmContextCollector.AI.Embeddings.Chunking
                 yield return text.Substring(start, length);
 
                 start += step;
-                
-                // Biztonsági fék, ha az overlap rosszul lenne beállítva
+
                 if (length < _chunkSize) break;
             }
         }

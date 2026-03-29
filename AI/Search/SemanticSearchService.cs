@@ -15,10 +15,10 @@ namespace LlmContextCollector.AI.Search
         public int Rerank { get; set; } = 80;
         public int TopKPerFile { get; set; } = 3;
         public float WVec { get; set; } = 0.65f;
-        public float WName { get; set; } = 0.25f; // Megemelt fájlnév súly
+        public float WName { get; set; } = 0.25f;
         public float WKeyword { get; set; } = 0.10f;
         public float WRecency { get; set; } = 0.0f;
-        public float MmrLambda { get; set; } = 0.5f; // Kevésbé tolja el a relevanciát a diverzitás irányába
+        public float MmrLambda { get; set; } = 0.5f;
         public double MinScoreThreshold { get; set; } = 0.15;
     }
 
@@ -183,9 +183,7 @@ namespace LlmContextCollector.AI.Search
             var finalScores = chunksByFile
                 .Select(kvp => {
                     var topChunks = kvp.OrderByDescending(c => c.Score).Take(cfg.TopKPerFile).ToList();
-                    
-                    // A fájl pontszáma a legjobb találat (Max), plusz a többi találat töredéke (diminishing returns)
-                    // Ez megakadályozza, hogy a hosszú fájlok sok gyenge találattal nyerjenek.
+
                     double bestScore = topChunks[0].Score;
                     double supportingBonus = topChunks.Skip(1).Sum(c => c.Score * 0.1); 
                     

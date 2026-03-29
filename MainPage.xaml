@@ -6,24 +6,20 @@
              BackgroundColor="{DynamicResource PageBackgroundColor}">
 
     <Grid>
-        <!-- Eredeti Blazor App -->
         <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
             <BlazorWebView.RootComponents>
                 <RootComponent Selector="#app" ComponentType="{x:Type local:Components.Routes}" />
             </BlazorWebView.RootComponents>
         </BlazorWebView>
 
-        <!-- Natív Böngésző Overlay -->
         <Grid x:Name="BrowserOverlay" IsVisible="False" BackgroundColor="#F0F0F0" ZIndex="1000">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!-- Böngésző -->
             <WebView x:Name="InternalBrowser" Grid.Row="0" BackgroundColor="White" />
 
-            <!-- Custom Dropdown List for Documents (Floating UPWARDS from toolbar) -->
             <Frame x:Name="DocsDropdown" Grid.Row="0" IsVisible="False" Padding="0" Margin="350,0,0,5" 
                    BackgroundColor="White" BorderColor="#0078d4" HasShadow="True" ZIndex="2000" 
                    VerticalOptions="End" HorizontalOptions="Start" 
@@ -40,7 +36,6 @@
                 </CollectionView>
             </Frame>
 
-            <!-- Custom Dropdown List for Templates (Floating UPWARDS from toolbar) -->
             <Frame x:Name="PickerDropdown" Grid.Row="0" IsVisible="False" Padding="0" Margin="515,0,0,5" 
                    BackgroundColor="White" BorderColor="#0078d4" HasShadow="True" ZIndex="2000" 
                    VerticalOptions="End" HorizontalOptions="Start" 
@@ -60,7 +55,6 @@
                 </CollectionView>
             </Frame>
 
-            <!-- Vezérlő Sáv -->
             <Grid Grid.Row="1" BackgroundColor="#E0E0E0" Padding="10" RowSpacing="8">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -68,9 +62,7 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Prompt Config Row -->
                 <HorizontalStackLayout Grid.Row="0" Spacing="8" VerticalOptions="Center" HorizontalOptions="Start">
-                    <!-- Prompt Checkbox -->
                     <Grid ColumnDefinitions="30,Auto" VerticalOptions="Center">
                         <CheckBox x:Name="PromptCheckBox" Grid.Column="0" IsChecked="True" Color="#0078d4" WidthRequest="30" VerticalOptions="Center" />
                         <Label Grid.Column="1" Text="Prompt" VerticalOptions="Center" TextColor="#333" FontSize="12">
@@ -80,7 +72,6 @@
                         </Label>
                     </Grid>
                     
-                    <!-- System Checkbox -->
                     <Grid ColumnDefinitions="30,Auto" VerticalOptions="Center">
                         <CheckBox x:Name="SystemPromptCheckBox" Grid.Column="0" IsChecked="True" Color="#0078d4" WidthRequest="30" VerticalOptions="Center" />
                         <Label Grid.Column="1" Text="System" VerticalOptions="Center" TextColor="#333" FontSize="12">
@@ -90,7 +81,6 @@
                         </Label>
                     </Grid>
 
-                    <!-- Files Checkbox -->
                     <Grid ColumnDefinitions="30,Auto" VerticalOptions="Center">
                         <CheckBox x:Name="FileContextCheckBox" Grid.Column="0" IsChecked="True" Color="#0078d4" WidthRequest="30" VerticalOptions="Center" />
                         <Label Grid.Column="1" Text="Fájlok" VerticalOptions="Center" TextColor="#333" FontSize="12">
@@ -100,7 +90,6 @@
                         </Label>
                     </Grid>
 
-                    <!-- Tree Checkbox -->
                     <Grid ColumnDefinitions="30,Auto" VerticalOptions="Center">
                         <CheckBox x:Name="TreeContextCheckBox" Grid.Column="0" IsChecked="False" Color="#0078d4" WidthRequest="30" VerticalOptions="Center" />
                         <Label Grid.Column="1" Text="Struktúra" VerticalOptions="Center" TextColor="#333" FontSize="12">
@@ -128,7 +117,6 @@
 
                     <Label Text="Sablon:" VerticalOptions="Center" TextColor="#333" FontSize="12" FontAttributes="Bold" />
                     
-                    <!-- Custom Dropdown Trigger for Templates -->
                     <Grid VerticalOptions="Center" WidthRequest="200" Margin="0,0,5,0">
                         <Frame Padding="8,4" HeightRequest="32" BackgroundColor="#EEE" BorderColor="#CCC" HasShadow="False" CornerRadius="4">
                             <Frame.GestureRecognizers>
@@ -147,10 +135,8 @@
                     <Button x:Name="CopyImagesButton" Text="Képek (0) 📋" Clicked="CopyImagesButton_Clicked" BackgroundColor="#17a2b8" TextColor="White" HeightRequest="34" Padding="10,0" FontSize="12" FontAttributes="Bold" VerticalOptions="Center" Margin="5,0,0,0" IsVisible="False" />
                 </HorizontalStackLayout>
 
-                <!-- Prompt Editor Row -->
                 <Editor x:Name="PromptEditor" Grid.Row="1" HeightRequest="60" MaximumHeightRequest="120" BackgroundColor="White" TextColor="Black" FontSize="12" AutoSize="TextChanges" Placeholder="Prompt szövege..." />
 
-                <!-- Action Buttons Row -->
                 <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Padding="0,5,0,0">
                     <Button Grid.Column="0" Text="Bezárás" Clicked="CloseBrowser_Clicked" BackgroundColor="#666" TextColor="White" HeightRequest="36" FontSize="12" WidthRequest="80" />
                     <Label Grid.Column="1" Text="Illeszd be a vágólap tartalmát az AI-nak, majd a válasz után kattints a Feldolgozásra." 

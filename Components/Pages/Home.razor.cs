@@ -611,18 +611,34 @@ namespace LlmContextCollector.Components.Pages
             AppState.LocalizationResourcePath = path;
             _isLocPathDialogVisible = false;
             
-            // Mentjük a beállítást a projekthez
             await AzureDevOpsService.SaveSettingsForCurrentProjectAsync();
 
             if (_pendingLocDiffArgs != null)
             {
-                // Újraindítjuk a lokalizáció mentését
-                int added = await LocalizationService.UpdateResourceFileAsync(path, _pendingLocDiffArgs.LocalizationData);
+                var locChanges = _pendingLocDiffArgs.DiffResults.Where(r => r.Path.StartsWith("[LOC]")).ToList();
+                int added = 0;
+                
+                if (locChanges.Any())
+                {
+                    var sb = new StringBuilder();
+                    foreach (var loc in locChanges)
+                    {
+                        var key = loc.Path.Substring(6);
+                        sb.AppendLine($"  <data name=\"{key}\" xml:space=\"preserve\"><value>{loc.NewContent}</value></data>");
+                    }
+                    added = await LocalizationService.UpdateResourceFileAsync(path, sb.ToString());
+                }
+                else if (!string.IsNullOrEmpty(_pendingLocDiffArgs.LocalizationData))
+                {
+                    added = await LocalizationService.UpdateResourceFileAsync(path, _pendingLocDiffArgs.LocalizationData);
+                }
+
                 AppState.StatusText = $"Lokalizáció mentve ({added} kulcs).";
                 
-                if (_pendingLocDiffArgs.DiffResults.Any())
+                var remainingFiles = _pendingLocDiffArgs.DiffResults.Where(r => !r.Path.StartsWith("[LOC]")).ToList();
+                if (remainingFiles.Any())
                 {
-                    ShowDiffDialog(_pendingLocDiffArgs);
+                    ShowDiffDialog(new DiffResultArgs(_pendingLocDiffArgs.GlobalExplanation, remainingFiles, _pendingLocDiffArgs.FullLlmResponse));
                 }
                 _pendingLocDiffArgs = null;
             }
@@ -736,6 +752,31 @@ namespace LlmContextCollector.Components.Pages
 
         private async Task HandleAcceptChanges(List<DiffResult> acceptedResults)
         {
+            var locChanges = acceptedResults.Where(r => r.Path.StartsWith("[LOC]")).ToList();
+            var fileChanges = acceptedResults.Where(r => !r.Path.StartsWith("[LOC]")).ToList();
+
+            int locAddedCount = 0;
+            if (locChanges.Any())
+            {
+                if (string.IsNullOrEmpty(AppState.LocalizationResourcePath))
+                {
+                    _pendingLocDiffArgs = new DiffResultArgs(AppState.DiffGlobalExplanation, locChanges, AppState.DiffFullLlmResponse);
+                    _isLocPathDialogVisible = true;
+                }
+                else
+                {
+                    var sb = new StringBuilder();
+                    foreach (var loc in locChanges)
+                    {
+                        var key = loc.Path.Substring(6);
+                        sb.AppendLine($"  <data name=\"{key}\" xml:space=\"preserve\"><value>{loc.NewContent}</value></data>");
+                    }
+                    locAddedCount = await LocalizationService.UpdateResourceFileAsync(AppState.LocalizationResourcePath, sb.ToString());
+                }
+            }
+
+            var (acceptedCount, errorCount) = await GitWorkflowService.AcceptChangesAsync(fileChanges);
+            
             var historyFiles = acceptedResults.Select(r => new DiffResult 
             { 
                 Path = r.Path, 
@@ -745,14 +786,12 @@ namespace LlmContextCollector.Components.Pages
                 Explanation = r.Explanation 
             }).ToList();
 
-            var (acceptedCount, errorCount) = await GitWorkflowService.AcceptChangesAsync(acceptedResults);
-            
-            if (acceptedCount > 0 && !string.IsNullOrEmpty(AppState.ProjectRoot))
+            if ((acceptedCount > 0 || locAddedCount > 0) && !string.IsNullOrEmpty(AppState.ProjectRoot))
             {
                 await AcceptedResponseHistoryService.AddEntryAsync(AppState.ProjectRoot, AppState.DiffGlobalExplanation, historyFiles);
             }
 
-            AppState.StatusText = $"Változások elfogadása befejezve. Elfogadva: {acceptedCount}, Hiba: {errorCount}.";
+            AppState.StatusText = $"Változások elfogadása befejezve. Fájlok: {acceptedCount}, Lokalizáció: {locAddedCount}, Hiba: {errorCount}.";
             StateHasChanged();
         }
 

@@ -40,7 +40,6 @@ namespace LlmContextCollector.AI
 
             var client = _httpClientFactory.CreateClient("OllamaEmbed");
 
-            // Az Ollama /api/embed végpontja elfogad egy tömböt az 'input' mezőben
             var request = new
             {
                 model = _appState.OllamaEmbeddingModel,

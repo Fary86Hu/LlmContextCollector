@@ -91,4 +91,28 @@ namespace LlmContextCollector.Models
         [JsonPropertyName("url")]
         public string Url { get; set; } = string.Empty;
     }
+
+    public class WorkItemCommentListResponse
+    {
+        [JsonPropertyName("comments")]
+        public List<WorkItemComment> Comments { get; set; } = new();
+    }
+
+    public class WorkItemComment
+    {
+        [JsonPropertyName("text")]
+        public string Text { get; set; } = string.Empty;
+
+        [JsonPropertyName("createdBy")]
+        public WorkItemUser? CreatedBy { get; set; }
+
+        [JsonPropertyName("createdDate")]
+        public DateTime CreatedDate { get; set; }
+    }
+
+    public class WorkItemUser
+    {
+        [JsonPropertyName("displayName")]
+        public string DisplayName { get; set; } = string.Empty;
+    }
 }

@@ -364,7 +364,6 @@ namespace LlmContextCollector.Components.Dialogs
                 {
                     if (!finalReverts.ContainsKey(file.Path))
                     {
-                        // Első alkalommal látjuk a fájlt a láncban (ez a legkorábbi állapota)
                         finalReverts[file.Path] = file;
                     }
                 }

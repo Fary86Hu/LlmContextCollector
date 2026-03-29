@@ -102,6 +102,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private string _currentSortKey = "path";
         private bool _isSortAscending = true;
         private string? _lastInteractionPath;
+        private int? _adoWorkItemIdToLoad;
         
         private const string AdoFilePrefix = "[ADO]";
         private Dictionary<string, double> _semanticScores = new();
@@ -756,6 +757,63 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             HomeRef?.ShowAttachableDocDialog(null);
         }
 
+        private async Task HandleAdoKeyup(KeyboardEventArgs e)
+        {
+            if (e.Key == "Enter" && _adoWorkItemIdToLoad.HasValue)
+            {
+                await LoadAdoWorkItemAsync();
+            }
+        }
+
+        private async Task LoadAdoWorkItemAsync()
+        {
+            if (!_adoWorkItemIdToLoad.HasValue) return;
+
+            AppState.ShowLoading($"ADO Work Item {_adoWorkItemIdToLoad} lekérése...");
+            try
+            {
+                var result = await SettingsStore.GetFormattedWorkItemAsync(_adoWorkItemIdToLoad.Value);
+                if (!string.IsNullOrWhiteSpace(result.Text))
+                {
+                    // Szöveg betöltése
+                    if (!string.IsNullOrWhiteSpace(AppState.PromptText))
+                    {
+                        AppState.PromptText = result.Text + "\n\n---\n\n" + AppState.PromptText;
+                    }
+                    else
+                    {
+                        AppState.PromptText = result.Text;
+                    }
+
+                    // Képek csatolása a UI szálon
+                    foreach (var img in result.Images)
+                    {
+                        await InvokeAsync(() =>
+                        {
+                            // Most már az egyedi FilePath alapján nézzük az egyezőséget
+                            if (!AppState.AttachedImages.Any(x => x.FilePath == img.FilePath))
+                            {
+                                AppState.AttachedImages.Add(img);
+                                StateHasChanged();
+                            }
+                        });
+                    }
+
+                    AppState.StatusText = $"Work Item {_adoWorkItemIdToLoad} betöltve ({result.Images.Count} képpel).";
+                    _adoWorkItemIdToLoad = null;
+                }
+            }
+            catch (Exception ex)
+            {
+                AppState.StatusText = "Hiba az ADO elem betöltésekor.";
+                await JSRuntime.InvokeVoidAsync("alert", $"Nem sikerült az ADO adatokat lekérni: {ex.Message}");
+            }
+            finally
+            {
+                AppState.HideLoading();
+            }
+        }
+
         private async Task CopyTemplateById(Guid id)
         {
             var prompt = AppState.PromptTemplates.FirstOrDefault(p => p.Id == id);
@@ -891,31 +949,28 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
                 if (!string.IsNullOrEmpty(diffArgs.LocalizationData))
                 {
-                    if (string.IsNullOrEmpty(AppState.LocalizationResourcePath))
+                    var matches = Regex.Matches(diffArgs.LocalizationData, @"<data name=""([^""]+)""[^>]*>\s*<value>([\s\S]*?)<\/value>\s*<\/data>", RegexOptions.IgnoreCase);
+                    foreach (Match m in matches)
                     {
-                        AppState.StatusText = "Lokalizáció észlelve, but hiányzik a resource fájl útvonala.";
-                        await OnRequestLocalizationPath.InvokeAsync(diffArgs);
-                        return;
-                    }
-
-                    try
-                    {
-                        int added = await LocalizationService.UpdateResourceFileAsync(AppState.LocalizationResourcePath, diffArgs.LocalizationData);
-                        AppState.StatusText += $" {added} lokalizációs kulcs frissítve.";
-                    }
-                    catch (Exception ex)
-                    {
-                        await JSRuntime.InvokeVoidAsync("alert", $"Lokalizáció mentési hiba: {ex.Message}");
+                        diffArgs.DiffResults.Add(new DiffResult
+                        {
+                            Path = $"[LOC] {m.Groups[1].Value}",
+                            NewContent = m.Groups[2].Value,
+                            OldContent = "",
+                            Status = DiffStatus.Modified,
+                            Explanation = "Lokalizációs kulcs a válaszból.",
+                            IsSelectedForAccept = true
+                        });
                     }
                 }
 
-                if (!diffArgs.DiffResults.Any() && string.IsNullOrEmpty(diffArgs.LocalizationData))
+                if (!diffArgs.DiffResults.Any())
                 {
                     await JSRuntime.InvokeVoidAsync("alert", "A válasz nem tartalmazott feldolgozható kódot, lokalizációt vagy kérdéseket sem.");
                 }
-                else if (diffArgs.DiffResults.Any())
+                else
                 {
-                    AppState.StatusText = $"{diffArgs.DiffResults.Count} fájl feldolgozva. Változások ablak megnyitva.";
+                    AppState.StatusText = $"{diffArgs.DiffResults.Count} elem feldolgozva. Változások ablak megnyitva.";
                     await OnShowDiffDialog.InvokeAsync(diffArgs);
                 }
             }

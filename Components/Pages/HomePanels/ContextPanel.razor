@@ -24,6 +24,12 @@
                 }
             </div>
             <button @onclick="OnShowPromptManager">Szerkesztés...</button>
+            
+            <div class="ado-quick-load" style="display: flex; align-items: center; margin-left: 10px; gap: 2px;">
+                <input type="number" placeholder="ADO ID..." @bind="_adoWorkItemIdToLoad" style="width: 80px; height: 30px;" @onkeyup="HandleAdoKeyup" />
+                <button @onclick="LoadAdoWorkItemAsync" title="ADO Work Item betöltése a promptba" style="height: 30px; padding: 0 8px;">Betölt</button>
+            </div>
+
             <button @onclick="() => AppState.IsAiInspectorVisible = true" title="AI Inspector" style="margin: 0 5px;">📜</button>
             <button @onclick="OnShowSettingsDialog" title="Beállítások" style="margin: 0 0 0 5px;">⚙️</button>
         </div>
