@@ -1,0 +1,93 @@
+@using LlmContextCollector.Models
+@inject AppState AppState
+@inject LlmContextCollector.Services.ProjectSettingsService ProjectSettingsService
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>@(IsNew ? "Új Csatolható Dokumentum" : "Dokumentum Szerkesztése")</h3>
+                <button class="close-btn" @onclick="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group" style="margin-bottom: 10px;">
+                    <label>Cím:</label>
+                    <input type="text" @bind="_editingDoc.Title" style="width: 100%;" />
+                </div>
+                <div class="form-group" style="display: flex; flex-direction: column; flex-grow: 1; min-height: 300px;">
+                    <label>Tartalom:</label>
+                    <textarea @bind="_editingDoc.Content" style="width: 100%; flex-grow: 1; resize: none; font-family: Consolas, monospace;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content: space-between;">
+                @if (!IsNew)
+                {
+                    <button class="secondary" style="background-color: #dc3545; color: white; border: none;" @onclick="Delete">Törlés</button>
+                }
+                else
+                {
+                    <span></span>
+                }
+                <div style="display: flex; gap: 10px;">
+                    <button @onclick="Close">Mégsem</button>
+                    <button class="primary" @onclick="Save" disabled="@(string.IsNullOrWhiteSpace(_editingDoc.Title))">Mentés</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public AttachableDocument? Document { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private AttachableDocument _editingDoc = new();
+    private bool IsNew => Document == null;
+
+    protected override void OnParametersSet()
+    {
+        if (IsVisible)
+        {
+            if (Document != null)
+            {
+                _editingDoc = Document.Clone();
+            }
+            else
+            {
+                _editingDoc = new AttachableDocument { Title = "Új Dokumentum" };
+            }
+        }
+    }
+
+    private async Task Save()
+    {
+        if (Document == null)
+        {
+            AppState.AttachableDocuments.Add(_editingDoc);
+        }
+        else
+        {
+            var index = AppState.AttachableDocuments.IndexOf(Document);
+            if (index != -1)
+            {
+                AppState.AttachableDocuments[index] = _editingDoc;
+            }
+        }
+        await ProjectSettingsService.SaveSettingsForProjectAsync(AppState.ProjectRoot);
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task Delete()
+    {
+        if (Document != null)
+        {
+            AppState.AttachableDocuments.Remove(Document);
+            await ProjectSettingsService.SaveSettingsForProjectAsync(AppState.ProjectRoot);
+        }
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task Close() => await OnClose.InvokeAsync();
+}

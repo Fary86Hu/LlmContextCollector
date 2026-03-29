@@ -158,7 +158,31 @@
                     <label title="Kiválasztott fájlok tartalmának hozzáadása"><input type="checkbox" @bind="AppState.IncludeFilesInCopy" />Fájlok</label>
                     <label title="A projekt teljes látható fájllistájának hozzáadása"><input type="checkbox" @bind="AppState.IncludeProjectTreeInCopy" />Struktúra</label>
                 </div>
-                <div class="custom-dropdown-container inline-dropdown" style="margin: 0 8px; flex-grow: 1; max-width: 250px;">
+                
+                <div class="custom-dropdown-container inline-dropdown" style="margin: 0 8px; width: 150px;">
+                    <div class="custom-dropdown-trigger" @onclick="ToggleDocsDropdown" @onclick:stopPropagation="true" style="width: 100%;">
+                        <span>Dokumentumok (@AppState.AttachableDocuments.Count(d => d.IsSelected))</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </div>
+                    @if (_isDocsDropdownOpen)
+                    {
+                        <div class="custom-dropdown-list bottom-dropdown">
+                            @foreach (var doc in AppState.AttachableDocuments)
+                            {
+                                <div class="custom-dropdown-item" @onclick="() => ToggleDocumentSelection(doc)" @onclick:stopPropagation="true">
+                                    <input type="checkbox" checked="@doc.IsSelected" style="margin-right: 8px;" @onclick:stopPropagation="true" @onchange="e => { doc.IsSelected = (bool)(e.Value ?? false); _ = SaveProjectSettingsAsync(); }" />
+                                    <span class="item-text">@doc.Title</span>
+                                    <button class="icon-btn-small" @onclick="() => EditDocument(doc)" @onclick:stopPropagation="true" title="Szerkesztés">✏️</button>
+                                </div>
+                            }
+                            <div class="custom-dropdown-item" style="justify-content: center; border-top: 1px solid var(--border-color); color: var(--accent-color); font-weight: bold;" @onclick="AddNewDocument" @onclick:stopPropagation="true">
+                                + Új dokumentum
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div class="custom-dropdown-container inline-dropdown" style="margin: 0 8px 0 0; flex-grow: 1; max-width: 250px;">
                     <div class="custom-dropdown-trigger" @onclick="ToggleBottomDropdown" @onclick:stopPropagation="true" style="width: 160px;">
                         <span>@(AppState.PromptTemplates.FirstOrDefault(p => p.Id == AppState.ActiveGlobalPromptId)?.Title ?? "Válassz...")</span>
                         <span class="dropdown-arrow">▼</span>

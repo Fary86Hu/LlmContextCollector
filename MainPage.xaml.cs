@@ -62,6 +62,10 @@ namespace LlmContextCollector
             {
                 MainThread.BeginInvokeOnMainThread(UpdatePromptPicker);
             }
+            else if (e.PropertyName == nameof(AppState.AttachableDocuments))
+            {
+                MainThread.BeginInvokeOnMainThread(UpdateDocsPicker);
+            }
             else if (e.PropertyName == nameof(AppState.IncludePromptInCopy))
             {
                 MainThread.BeginInvokeOnMainThread(() => PromptCheckBox.IsChecked = _appState!.IncludePromptInCopy);
@@ -78,6 +82,37 @@ namespace LlmContextCollector
             {
                 MainThread.BeginInvokeOnMainThread(() => TreeContextCheckBox.IsChecked = _appState!.IncludeProjectTreeInCopy);
             }
+        }
+
+        private void UpdateDocsPicker()
+        {
+            if (_appState == null) return;
+            DocsListView.ItemsSource = null;
+            DocsListView.ItemsSource = _appState.AttachableDocuments;
+            SelectedDocsLabel.Text = $"Dokumentumok ({_appState.AttachableDocuments.Count(d => d.IsSelected)})";
+        }
+
+        private async void DocCheckBox_CheckedChanged(object sender, CheckedChangedEventArgs e)
+        {
+            if (sender is CheckBox cb && cb.BindingContext is AttachableDocument doc && _appState != null)
+            {
+                doc.IsSelected = e.Value;
+                SelectedDocsLabel.Text = $"Dokumentumok ({_appState.AttachableDocuments.Count(d => d.IsSelected)})";
+                
+                // Save settings using the service
+                var services = this.Handler?.MauiContext?.Services;
+                var projectSettingsService = services?.GetService<LlmContextCollector.Services.ProjectSettingsService>();
+                if (projectSettingsService != null && !string.IsNullOrEmpty(_appState.ProjectRoot))
+                {
+                    await projectSettingsService.SaveSettingsForProjectAsync(_appState.ProjectRoot);
+                }
+            }
+        }
+
+        private void ToggleDocsPicker_Tapped(object? sender, EventArgs e)
+        {
+            DocsDropdown.IsVisible = !DocsDropdown.IsVisible;
+            if (DocsDropdown.IsVisible) PickerDropdown.IsVisible = false;
         }
 
         private void UpdatePromptPicker()
@@ -106,6 +141,7 @@ namespace LlmContextCollector
         private void TogglePicker_Tapped(object? sender, EventArgs e)
         {
             PickerDropdown.IsVisible = !PickerDropdown.IsVisible;
+            if (PickerDropdown.IsVisible) DocsDropdown.IsVisible = false;
         }
 
         private void TemplatesListView_SelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -149,10 +185,12 @@ namespace LlmContextCollector
                 if (_appState != null)
                 {
                     PromptEditor.Text = _appState.PromptText;
+                    UpdateDocsPicker();
                 }
 
                 BrowserOverlay.IsVisible = true;
                 PickerDropdown.IsVisible = false;
+                DocsDropdown.IsVisible = false;
             });
         }
 
@@ -162,6 +200,7 @@ namespace LlmContextCollector
             {
                 BrowserOverlay.IsVisible = false;
                 PickerDropdown.IsVisible = false;
+                DocsDropdown.IsVisible = false;
             });
         }
 

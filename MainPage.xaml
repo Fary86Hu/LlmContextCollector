@@ -24,7 +24,24 @@
             <WebView x:Name="InternalBrowser" Grid.Row="0" BackgroundColor="White" />
 
             <!-- Custom Dropdown List (Floating UPWARDS from toolbar) -->
-            <Frame x:Name="PickerDropdown" Grid.Row="0" IsVisible="False" Padding="0" Margin="235,0,0,5" 
+            <Frame x:Name="DocsDropdown" Grid.Row="0" IsVisible="False" Padding="0" Margin="350,0,0,5" 
+                   BackgroundColor="White" BorderColor="#0078d4" HasShadow="True" ZIndex="2000" 
+                   VerticalOptions="End" HorizontalOptions="Start" 
+                   MaximumHeightRequest="350" WidthRequest="200">
+                <CollectionView x:Name="DocsListView" SelectionMode="None">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ColumnDefinitions="Auto, *" Padding="8,8">
+                                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" Color="#0078d4" WidthRequest="30" CheckedChanged="DocCheckBox_CheckedChanged" BindingContext="{Binding}" />
+                                <Label Grid.Column="1" Text="{Binding Title}" FontSize="12" TextColor="Black" VerticalOptions="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </Frame>
+
+            <!-- Custom Dropdown List (Floating UPWARDS from toolbar) -->
+            <Frame x:Name="PickerDropdown" Grid.Row="0" IsVisible="False" Padding="0" Margin="515,0,0,5" 
                    BackgroundColor="White" BorderColor="#0078d4" HasShadow="True" ZIndex="2000" 
                    VerticalOptions="End" HorizontalOptions="Start" 
                    MaximumHeightRequest="350" WidthRequest="280">
@@ -91,6 +108,20 @@
                                 <TapGestureRecognizer Tapped="TreeLabel_Tapped" />
                             </Label.GestureRecognizers>
                         </Label>
+                    </Grid>
+
+                    <BoxView WidthRequest="1" HeightRequest="20" BackgroundColor="#CCC" VerticalOptions="Center" Margin="5,0" />
+
+                    <Grid VerticalOptions="Center" WidthRequest="150" Margin="0,0,5,0">
+                        <Frame Padding="8,4" HeightRequest="32" BackgroundColor="#EEE" BorderColor="#CCC" HasShadow="False" CornerRadius="4">
+                            <Frame.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="ToggleDocsPicker_Tapped" />
+                            </Frame.GestureRecognizers>
+                            <Grid ColumnDefinitions="*, Auto">
+                                <Label x:Name="SelectedDocsLabel" Text="Dokumentumok (0)" FontSize="12" TextColor="Black" VerticalOptions="Center" LineBreakMode="NoWrap" />
+                                <Label Grid.Column="1" Text="▼" FontSize="8" TextColor="#666" VerticalOptions="Center" Margin="5,0,0,0" />
+                            </Grid>
+                        </Frame>
                     </Grid>
 
                     <BoxView WidthRequest="1" HeightRequest="20" BackgroundColor="#CCC" VerticalOptions="Center" Margin="5,0" />

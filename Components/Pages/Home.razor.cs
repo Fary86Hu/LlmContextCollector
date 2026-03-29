@@ -65,6 +65,9 @@ namespace LlmContextCollector.Components.Pages
         private bool _isExclusionsDialogVisible = false;
         private bool _isLocPathDialogVisible = false;
         private DiffResultArgs? _pendingLocDiffArgs;
+
+        private bool _isAttachableDocDialogVisible = false;
+        private AttachableDocument? _editingAttachableDoc;
         private string _localAiPrompt = string.Empty;
         private string _localAiSystem = string.Empty;
         private string _localAiFiles = string.Empty;
@@ -635,6 +638,20 @@ namespace LlmContextCollector.Components.Pages
         private void OnExclusionsDialogClose()
         {
             _isExclusionsDialogVisible = false;
+            StateHasChanged();
+        }
+
+        public void ShowAttachableDocDialog(AttachableDocument? doc = null)
+        {
+            _editingAttachableDoc = doc;
+            _isAttachableDocDialogVisible = true;
+            StateHasChanged();
+        }
+
+        private void OnAttachableDocDialogClose()
+        {
+            _isAttachableDocDialogVisible = false;
+            _editingAttachableDoc = null;
             StateHasChanged();
         }
 

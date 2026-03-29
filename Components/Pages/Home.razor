@@ -96,3 +96,7 @@
 <ExclusionsDialog IsVisible="_isExclusionsDialogVisible" 
                   OnClose="OnExclusionsDialogClose" 
                   OnApply="() => ApplyFiltersAndReload(true)" />
+
+<AttachableDocumentDialog IsVisible="_isAttachableDocDialogVisible"
+                          Document="_editingAttachableDoc"
+                          OnClose="OnAttachableDocDialogClose" />

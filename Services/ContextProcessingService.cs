@@ -54,6 +54,18 @@ namespace LlmContextCollector.Services
                 sb.AppendLine("--- END PROJECT STRUCTURE ---\n");
             }
 
+            var selectedDocs = _appState.AttachableDocuments.Where(d => d.IsSelected).ToList();
+            if (selectedDocs.Any())
+            {
+                sb.AppendLine("\n--- ATTACHED DOCUMENTS ---");
+                foreach (var doc in selectedDocs)
+                {
+                    sb.AppendLine($"\n// --- Document: {doc.Title} ---");
+                    sb.AppendLine(doc.Content);
+                }
+                sb.AppendLine("\n--- END ATTACHED DOCUMENTS ---\n");
+            }
+
             if (includeFiles && _appState.SelectedFilesForContext.Any())
             {
                 if (sb.Length > 0) sb.AppendLine("\n\n// --- Kód Kontextus alább --- \n");

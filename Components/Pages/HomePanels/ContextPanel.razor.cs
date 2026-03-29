@@ -96,6 +96,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private string _copyButtonText = "Másolás";
         private bool _isTopDropdownOpen = false;
         private bool _isBottomDropdownOpen = false;
+        private bool _isDocsDropdownOpen = false;
 
         private List<ContextListItem> _sortedFiles = new();
         private string _currentSortKey = "path";
@@ -612,19 +613,51 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             StateHasChanged();
         }
 
-        private void ToggleTopDropdown() { _isTopDropdownOpen = !_isTopDropdownOpen; _isBottomDropdownOpen = false; }
-        private void ToggleBottomDropdown() { _isBottomDropdownOpen = !_isBottomDropdownOpen; _isTopDropdownOpen = false; }
+        [Inject]
+        private ProjectSettingsService ProjectSettingsService { get; set; } = null!;
+
+        [CascadingParameter]
+        public LlmContextCollector.Components.Pages.Home? HomeRef { get; set; }
+
+        private void ToggleTopDropdown() { _isTopDropdownOpen = !_isTopDropdownOpen; _isBottomDropdownOpen = false; _isDocsDropdownOpen = false; }
+        private void ToggleBottomDropdown() { _isBottomDropdownOpen = !_isBottomDropdownOpen; _isTopDropdownOpen = false; _isDocsDropdownOpen = false; }
+        private void ToggleDocsDropdown() { _isDocsDropdownOpen = !_isDocsDropdownOpen; _isTopDropdownOpen = false; _isBottomDropdownOpen = false; }
         private void SelectTopPrompt(Guid id) { AppState.ActiveGlobalPromptId = id; _isTopDropdownOpen = false; }
         private void SelectBottomPrompt(Guid id) { AppState.ActiveGlobalPromptId = id; _isBottomDropdownOpen = false; }
 
         public void CloseCustomDropdowns()
         {
-            if (_isTopDropdownOpen || _isBottomDropdownOpen)
+            if (_isTopDropdownOpen || _isBottomDropdownOpen || _isDocsDropdownOpen)
             {
                 _isTopDropdownOpen = false;
                 _isBottomDropdownOpen = false;
+                _isDocsDropdownOpen = false;
                 StateHasChanged();
             }
+        }
+
+        private async Task SaveProjectSettingsAsync()
+        {
+            await ProjectSettingsService.SaveSettingsForProjectAsync(AppState.ProjectRoot);
+        }
+
+        private void ToggleDocumentSelection(AttachableDocument doc)
+        {
+            doc.IsSelected = !doc.IsSelected;
+            _ = SaveProjectSettingsAsync();
+            StateHasChanged();
+        }
+
+        private void EditDocument(AttachableDocument doc)
+        {
+            _isDocsDropdownOpen = false;
+            HomeRef?.ShowAttachableDocDialog(doc);
+        }
+
+        private void AddNewDocument()
+        {
+            _isDocsDropdownOpen = false;
+            HomeRef?.ShowAttachableDocDialog(null);
         }
 
         private async Task CopyTemplateById(Guid id)

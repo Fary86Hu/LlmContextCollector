@@ -77,6 +77,7 @@ namespace LlmContextCollector.Services
         }
 
         public ObservableCollection<ExclusionRule> Exclusions { get; } = new();
+        public ObservableCollection<AttachableDocument> AttachableDocuments { get; } = new();
 
         private void SyncExclusionsFromRaw()
         {

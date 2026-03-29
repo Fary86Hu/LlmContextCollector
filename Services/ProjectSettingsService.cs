@@ -45,8 +45,24 @@ namespace LlmContextCollector.Services
                 {
                     _appState.ExtensionFilters[kvp.Key] = kvp.Value;
                 }
+                
+                _appState.AttachableDocuments.Clear();
+                if (settings.AttachableDocuments != null)
+                {
+                    foreach (var doc in settings.AttachableDocuments)
+                    {
+                        _appState.AttachableDocuments.Add(doc);
+                    }
+                }
+
                 _appState.NotifyStateChanged(nameof(AppState.ExtensionFilters));
                 _appState.NotifyStateChanged(nameof(AppState.IgnorePatternsRaw));
+                _appState.NotifyStateChanged(nameof(AppState.AttachableDocuments));
+            }
+            else 
+            {
+                _appState.AttachableDocuments.Clear();
+                _appState.NotifyStateChanged(nameof(AppState.AttachableDocuments));
             }
         }
 
@@ -59,7 +75,8 @@ namespace LlmContextCollector.Services
             var settings = new ProjectFilterSettings
             {
                 IgnorePatterns = _appState.IgnorePatternsRaw,
-                ExtensionFilters = new Dictionary<string, bool>(_appState.ExtensionFilters)
+                ExtensionFilters = new Dictionary<string, bool>(_appState.ExtensionFilters),
+                AttachableDocuments = _appState.AttachableDocuments.ToList()
             };
 
             _allProjectSettings![projectPath] = settings;
