@@ -29,13 +29,29 @@
         </div>
         <div class="prompt-container">
             <textarea class="prompt-editor" placeholder="Írja ide a promptot..." @bind="AppState.PromptText" @bind:event="oninput"></textarea>
-            @if (!string.IsNullOrWhiteSpace(AppState.PromptText))
-            {
-                <div class="prompt-editor-button-group">
-                    <button class="prompt-editor-btn" @onclick="ClearPrompt" title="Prompt törlése">&times;</button>
-                </div>
-            }
+            <div class="prompt-editor-button-group">
+                <button class="prompt-editor-btn" @onclick="PickImagesAsync" title="Képek csatolása">🖼️</button>
+                @if (!string.IsNullOrWhiteSpace(AppState.PromptText) || AppState.AttachedImages.Any())
+                {
+                    <button class="prompt-editor-btn" @onclick="ClearPrompt" title="Prompt és képek törlése">&times;</button>
+                }
+            </div>
         </div>
+        @if (AppState.AttachedImages.Any())
+        {
+            <div class="attached-images-strip">
+                <div class="attached-images-info">
+                    <button class="icon-btn-small" @onclick="CopyImagesAsync" title="Képek vágólapra másolása (Ctrl+B)">📋 (Ctrl+B)</button>
+                </div>
+                @foreach (var img in AppState.AttachedImages)
+                {
+                    <div class="image-thumbnail" title="@img.FileName">
+                        <img src="@img.Base64Thumbnail" />
+                        <button class="remove-img-btn" @onclick="() => AppState.AttachedImages.Remove(img)">&times;</button>
+                    </div>
+                }
+            </div>
+        }
     </div>
 
     <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightTop"))'></div>
@@ -146,6 +162,27 @@
                     }
                 });
             }
+
+            window.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key.toLowerCase() === 'b') {
+                    e.preventDefault();
+                    dotNetObj.invokeMethodAsync('OnCtrlB_Pressed');
+                }
+            });
+
+            window.addEventListener('paste', (e) => {
+                const items = (e.clipboardData || window.clipboardData).items;
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                        const file = items[i].getAsFile();
+                        const reader = new FileReader();
+                        reader.onload = function(event) {
+                            dotNetObj.invokeMethodAsync('OnImagePastedAsync', event.target.result);
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                }
+            });
         };
     </script>
 

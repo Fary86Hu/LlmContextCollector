@@ -558,6 +558,57 @@ html[data-theme="dark"] ::deep .highlight.current {
     margin-bottom: 15px;
 }
 
-.browser-placeholder-info button {
-    margin-top: 10px;
+    .browser-placeholder-info button {
+        margin-top: 10px;
+    }
+
+/* --- Attached Images --- */
+.attached-images-strip {
+    display: flex;
+    gap: 10px;
+    padding: 5px;
+    background-color: var(--input-bg-color);
+    border: 1px solid var(--border-color);
+    border-top: none;
+    overflow-x: auto;
+    align-items: center;
+}
+.attached-images-info {
+    display: flex;
+    flex-direction: column;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+.image-thumbnail {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: #fff;
+    flex-shrink: 0;
+}
+.image-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 4px;
+}
+.remove-img-btn {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background-color: red;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }

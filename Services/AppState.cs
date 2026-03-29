@@ -146,6 +146,8 @@ namespace LlmContextCollector.Services
             set => SetField(ref _promptText, value);
         }
 
+        public ObservableCollection<AttachedImage> AttachedImages { get; } = new();
+
         private string _theme = "System";
         public string Theme
         {

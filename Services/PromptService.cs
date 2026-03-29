@@ -76,28 +76,23 @@ namespace LlmContextCollector.Services
 
             if (Directory.Exists(promptsDir))
             {
-                // Ha létezik a mappa, onnan vesszük a fájlneveket (kiterjesztéssel együtt)
                 promptFiles = Directory.GetFiles(promptsDir, "*.txt")
                                        .Select(Path.GetFileName)
                                        .Where(f => !string.IsNullOrEmpty(f))!;
             }
             else
             {
-                // Fallback: Ha valamiért nem érhető el a mappa (bár Windows-on kellene lennie),
-                // egy minimális hard-coded listát használunk a biztonság kedvéért.
-                promptFiles = new[] { "Developer.txt", "TaskReviewer.txt", "Planner.txt", "CodeReviewer.txt" };
+                promptFiles = new List<string>();
             }
 
             foreach (var fileName in promptFiles)
             {
                 string targetPath = Path.Combine(_promptsFolder, fileName);
 
-                // Csak akkor másoljuk ki, ha még nem létezik a célmappában
                 if (!File.Exists(targetPath))
                 {
                     try
                     {
-                        // A MauiAsset logikai útvonala a csproj alapján: Prompts/Fajlnev.txt
                         using var stream = await FileSystem.OpenAppPackageFileAsync($"Prompts/{fileName}");
                         using var reader = new StreamReader(stream);
                         string content = await reader.ReadToEndAsync();

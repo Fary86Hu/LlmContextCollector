@@ -71,6 +71,7 @@ namespace LlmContextCollector
 
 #if WINDOWS
             builder.Services.AddSingleton<IFolderPickerService, FolderPickerService>();
+            builder.Services.AddSingleton<IImageClipboardService, WindowsImageClipboardService>();
 #endif
             builder.Services.AddSingleton(Clipboard.Default);
 

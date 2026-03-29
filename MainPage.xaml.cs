@@ -2,6 +2,7 @@ using LlmContextCollector.Models;
 using LlmContextCollector.Services;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
 using System.Text.Json;
+using System.Linq;
 
 namespace LlmContextCollector
 {
@@ -11,6 +12,7 @@ namespace LlmContextCollector
         private AppState? _appState;
         private ContextProcessingService? _contextProcessingService;
         private IClipboard? _clipboard;
+        private IImageClipboardService? _imageClipboardService;
 
         private string? _lastLoadedUrl;
 
@@ -29,6 +31,7 @@ namespace LlmContextCollector
                 _appState = services.GetService<AppState>();
                 _contextProcessingService = services.GetService<ContextProcessingService>();
                 _clipboard = services.GetService<IClipboard>();
+                _imageClipboardService = services.GetService<IImageClipboardService>();
 
                 if (_browserService != null)
                 {
@@ -40,6 +43,7 @@ namespace LlmContextCollector
                 if (_appState != null)
                 {
                     _appState.PropertyChanged += AppState_PropertyChanged;
+                    _appState.AttachedImages.CollectionChanged += AttachedImages_CollectionChanged;
                     
                     PromptCheckBox.IsChecked = _appState.IncludePromptInCopy;
                     SystemPromptCheckBox.IsChecked = _appState.IncludeSystemPromptInCopy;
@@ -52,7 +56,41 @@ namespace LlmContextCollector
                     TreeContextCheckBox.CheckedChanged += (s, args) => _appState.IncludeProjectTreeInCopy = args.Value;
 
                     UpdatePromptPicker();
+                    UpdateDocsPicker();
+                    UpdateImagesButton();
                 }
+            }
+        }
+
+        private void AttachedImages_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            MainThread.BeginInvokeOnMainThread(UpdateImagesButton);
+        }
+
+        private void UpdateImagesButton()
+        {
+            if (_appState == null) return;
+            var count = _appState.AttachedImages.Count;
+            CopyImagesButton.IsVisible = count > 0;
+            CopyImagesButton.Text = $"Képek ({count}) 📋";
+        }
+
+        private async void CopyImagesButton_Clicked(object sender, EventArgs e)
+        {
+            if (_appState == null || _imageClipboardService == null) return;
+            var paths = _appState.AttachedImages.Select(x => x.FilePath).ToList();
+            if (paths.Any())
+            {
+                await _imageClipboardService.CopyImagesToClipboardAsync(paths);
+                
+                var originalText = CopyImagesButton.Text;
+                CopyImagesButton.Text = "Másolva! ✓";
+                CopyImagesButton.BackgroundColor = Microsoft.Maui.Graphics.Colors.Green;
+                
+                await Task.Delay(2000);
+                
+                CopyImagesButton.Text = originalText;
+                CopyImagesButton.BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#17a2b8");
             }
         }
 
@@ -211,7 +249,7 @@ namespace LlmContextCollector
                 string script = @"
             (function() {
                 try {
-                    var all = [];
+                    var all =[];
                     function w(r) {
                         var n = r.querySelectorAll('*');
                         for (var i = 0; i < n.length; i++) {

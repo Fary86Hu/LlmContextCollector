@@ -610,11 +610,107 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private void ClearPrompt()
         {
             AppState.PromptText = string.Empty;
+            AppState.AttachedImages.Clear();
             StateHasChanged();
+        }
+
+                [JSInvokable]
+        public async Task OnCtrlB_Pressed()
+        {
+            await CopyImagesAsync();
+        }
+
+        [JSInvokable]
+        public async Task OnImagePastedAsync(string base64DataUrl)
+        {
+            try
+            {
+                var commaIndex = base64DataUrl.IndexOf(',');
+                if (commaIndex == -1) return;
+
+                var base64 = base64DataUrl.Substring(commaIndex + 1);
+                var header = base64DataUrl.Substring(0, commaIndex);
+                
+                string extension = "png";
+                if (header.Contains("jpeg") || header.Contains("jpg")) extension = "jpg";
+
+                var bytes = Convert.FromBase64String(base64);
+                
+                var tempFileName = $"Kivagas_{DateTime.Now:yyyyMMdd_HHmmss}.{extension}";
+                var tempFilePath = Path.Combine(Microsoft.Maui.Storage.FileSystem.CacheDirectory, tempFileName);
+                
+                await File.WriteAllBytesAsync(tempFilePath, bytes);
+
+                AppState.AttachedImages.Add(new AttachedImage
+                {
+                    FilePath = tempFilePath,
+                    FileName = tempFileName,
+                    Base64Thumbnail = base64DataUrl
+                });
+
+                AppState.StatusText = "Kép beillesztve a vágólapról.";
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                AppState.StatusText = $"Hiba a beillesztett kép feldolgozásakor: {ex.Message}";
+                StateHasChanged();
+            }
+        }
+
+        private async Task CopyImagesAsync()
+        {
+            if (!AppState.AttachedImages.Any()) return;
+            var paths = AppState.AttachedImages.Select(x => x.FilePath).ToList();
+            await ImageClipboardService.CopyImagesToClipboardAsync(paths);
+            AppState.StatusText = $"{paths.Count} kép a vágólapra másolva (Ctrl+B).";
+            StateHasChanged();
+        }
+
+        private async Task PickImagesAsync()
+        {
+            try
+            {
+                var results = await Microsoft.Maui.Storage.FilePicker.Default.PickMultipleAsync(new Microsoft.Maui.Storage.PickOptions
+                {
+                    PickerTitle = "Válassz képeket",
+                    FileTypes = Microsoft.Maui.Storage.FilePickerFileType.Images
+                });
+
+                if (results != null)
+                {
+                    foreach (var result in results)
+                    {
+                        if (AppState.AttachedImages.Any(x => x.FilePath == result.FullPath)) continue;
+
+                        using var stream = await result.OpenReadAsync();
+                        using var ms = new MemoryStream();
+                        await stream.CopyToAsync(ms);
+                        var bytes = ms.ToArray();
+                        var base64 = Convert.ToBase64String(bytes);
+                        var ext = Path.GetExtension(result.FileName).TrimStart('.');
+                        var mime = ext.ToLower() == "png" ? "image/png" : "image/jpeg";
+
+                        AppState.AttachedImages.Add(new AttachedImage
+                        {
+                            FilePath = result.FullPath,
+                            FileName = result.FileName,
+                            Base64Thumbnail = $"data:{mime};base64,{base64}"
+                        });
+                    }
+                    StateHasChanged();
+                }
+            }
+            catch (Exception ex)
+            {
+                AppState.StatusText = $"Hiba a kép kiválasztásakor: {ex.Message}";
+            }
         }
 
         [Inject]
         private ProjectSettingsService ProjectSettingsService { get; set; } = null!;
+        [Inject]
+        private IImageClipboardService ImageClipboardService { get; set; } = null!;
 
         [CascadingParameter]
         public LlmContextCollector.Components.Pages.Home? HomeRef { get; set; }
