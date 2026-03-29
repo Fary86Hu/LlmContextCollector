@@ -41,6 +41,30 @@
                         <input id="ollama-model" type="text" @bind="AppState.OllamaModel" placeholder="qwen3:4b-instruct" />
                     </div>
                 </div>
+
+                <h4>Azure DevOps Beállítások</h4>
+                <div class="form-section">
+                    <div class="form-group">
+                        <label for="ado-org">Szervezet URL:</label>
+                        <input id="ado-org" type="text" placeholder="https://dev.azure.com/your-organization" @bind="AppState.AzureDevOpsOrganizationUrl" />
+                    </div>
+                    <div class="form-group">
+                        <label for="ado-project">Projekt Név:</label>
+                        <input id="ado-project" type="text" placeholder="YourProject" @bind="AppState.AzureDevOpsProject" />
+                    </div>
+                    <div class="form-group">
+                        <label for="ado-iteration">Iteration Path (opcionális):</label>
+                        <input id="ado-iteration" type="text" placeholder="pl. DmsSolutions\ePostaláda\2025\13" @bind="AppState.AzureDevOpsIterationPath" />
+                    </div>
+                    <div class="form-group">
+                        <label for="ado-pat">Personal Access Token (PAT):</label>
+                        <input id="ado-pat" type="password" @bind="AppState.AzureDevOpsPat" />
+                    </div>
+                    <div class="form-group" style="display: flex; flex-direction: row; align-items: center; gap: 10px;">
+                        <input id="ado-mine" type="checkbox" @bind="AppState.AdoDownloadOnlyMine" style="width: auto;" />
+                        <label for="ado-mine" style="margin-bottom: 0; cursor: pointer;">Csak a hozzám rendelt elemek letöltése</label>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button @onclick="Close">Mégsem</button>
@@ -68,7 +92,12 @@
             OllamaApiUrl = AppState.OllamaApiUrl,
             OllamaModel = AppState.OllamaModel,
             UseOllamaEmbeddings = AppState.UseOllamaEmbeddings,
-            OllamaEmbeddingModel = AppState.OllamaEmbeddingModel
+            OllamaEmbeddingModel = AppState.OllamaEmbeddingModel,
+            AzureDevOpsOrganizationUrl = AppState.AzureDevOpsOrganizationUrl,
+            AzureDevOpsProject = AppState.AzureDevOpsProject,
+            AzureDevOpsIterationPath = AppState.AzureDevOpsIterationPath,
+            AzureDevOpsPat = AppState.AzureDevOpsPat,
+            AdoDownloadOnlyMine = AppState.AdoDownloadOnlyMine
         };
         await SettingsService.SaveSettingsAsync(settings);
         AppState.StatusText = "Beállítások mentve.";

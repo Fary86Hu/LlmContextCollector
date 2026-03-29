@@ -547,6 +547,11 @@ namespace LlmContextCollector.Components.Pages
             AppState.OllamaModel = settings.OllamaModel;
             AppState.UseOllamaEmbeddings = settings.UseOllamaEmbeddings;
             AppState.OllamaEmbeddingModel = settings.OllamaEmbeddingModel;
+            AppState.AzureDevOpsOrganizationUrl = settings.AzureDevOpsOrganizationUrl;
+            AppState.AzureDevOpsProject = settings.AzureDevOpsProject;
+            AppState.AzureDevOpsIterationPath = settings.AzureDevOpsIterationPath;
+            AppState.AzureDevOpsPat = settings.AzureDevOpsPat;
+            AppState.AdoDownloadOnlyMine = settings.AdoDownloadOnlyMine;
         }
 
         private async Task OnPromptManagerClose()

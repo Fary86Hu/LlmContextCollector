@@ -47,12 +47,7 @@ namespace LlmContextCollector.Services
             }
             settings ??= new AdoProjectSettings();
 
-            _appState.AzureDevOpsOrganizationUrl = settings.OrganizationUrl;
-            _appState.AzureDevOpsProject = settings.Project;
-            _appState.AzureDevOpsRepository = settings.Repository;
-            _appState.AzureDevOpsIterationPath = settings.IterationPath;
-            _appState.AzureDevOpsPat = settings.Pat;
-            _appState.AdoDownloadOnlyMine = settings.DownloadOnlyMine;
+            // A kapcsolódási adatokat már globálisan tároljuk, csak a projekt-specifikus infókat töltjük be innen
             _appState.AdoLastDownloadDate = settings.LastFullDownloadUtc;
             _appState.LocalizationResourcePath = settings.LocalizationResourcePath;
         }
@@ -64,12 +59,7 @@ namespace LlmContextCollector.Services
 
             var settings = new AdoProjectSettings
             {
-                OrganizationUrl = _appState.AzureDevOpsOrganizationUrl,
-                Project = _appState.AzureDevOpsProject,
-                Repository = _appState.AzureDevOpsRepository,
-                IterationPath = _appState.AzureDevOpsIterationPath,
-                Pat = _appState.AzureDevOpsPat,
-                DownloadOnlyMine = _appState.AdoDownloadOnlyMine,
+                // A kapcsolódási adatok a globális settings-be kerültek, ide csak a státusz infók
                 LastFullDownloadUtc = newDownloadTimestamp ?? _appState.AdoLastDownloadDate,
                 LocalizationResourcePath = _appState.LocalizationResourcePath
             };

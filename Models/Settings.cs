@@ -13,5 +13,12 @@ namespace LlmContextCollector.Models
         // --- Embedding Beállítások ---
         public bool UseOllamaEmbeddings { get; set; } = false;
         public string OllamaEmbeddingModel { get; set; } = "nomic-embed-text";
+
+        // --- Azure DevOps Beállítások ---
+        public string AzureDevOpsOrganizationUrl { get; set; } = string.Empty;
+        public string AzureDevOpsProject { get; set; } = string.Empty;
+        public string AzureDevOpsIterationPath { get; set; } = string.Empty;
+        public string AzureDevOpsPat { get; set; } = string.Empty;
+        public bool AdoDownloadOnlyMine { get; set; } = false;
     }
 }
