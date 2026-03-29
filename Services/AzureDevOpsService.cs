@@ -116,25 +116,47 @@ namespace LlmContextCollector.Services
             }
 
             var workItem = await JsonSerializer.DeserializeAsync<WorkItem>(await response.Content.ReadAsStreamAsync(), _jsonOptions);
-            if (workItem == null) 
+            if (workItem == null)
             {
                 _logService.LogWarning("ADO", $"Work Item {workItemId} nem található vagy üres.");
                 return (string.Empty, new List<AttachedImage>());
             }
 
-            // 1. Kommentek lekérése előre, hogy lássuk az inline képeket is
+            // 1. Kommentek lekérése
             var commentsUrl = $"{orgUrl}/{encodedProject}/_apis/wit/workitems/{workItemId}/comments?api-version=6.0-preview.3";
             var commentsResponse = await client.GetAsync(commentsUrl);
-            var commentsData = commentsResponse.IsSuccessStatusCode 
+            var commentsData = commentsResponse.IsSuccessStatusCode
                 ? await JsonSerializer.DeserializeAsync<WorkItemCommentListResponse>(await commentsResponse.Content.ReadAsStreamAsync(), _jsonOptions)
                 : null;
 
-            // 2. Képek összegyűjtése (relations + inline)
-            var attachmentMap = new Dictionary<string, string>(); 
-            var downloadTasks = new List<(string UrlKey, Task<AttachedImage?> Task)>();
-            var processedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // 2. SZIGORÚ SORREND MEGHATÁROZÁSA
+            // Összegyűjtjük az összes kép URL-t abban a sorrendben, ahogy a szövegben megjelennének
+            var orderedImageUrls = new List<string>();
+            var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            // A: Relations listából
+            void AddUrlsFromHtml(string? html)
+            {
+                if (string.IsNullOrWhiteSpace(html)) return;
+                var found = ExtractImageUrlsFromHtml(html);
+                foreach (var u in found)
+                {
+                    if (seenUrls.Add(u)) orderedImageUrls.Add(u);
+                }
+            }
+
+            AddUrlsFromHtml(GetFieldAsString(workItem, "System.Description"));
+            AddUrlsFromHtml(GetFieldAsString(workItem, "Microsoft.VSTS.TCM.ReproSteps"));
+            AddUrlsFromHtml(GetFieldAsString(workItem, "Microsoft.VSTS.Common.AcceptanceCriteria"));
+
+            if (commentsData?.Comments != null)
+            {
+                foreach (var c in commentsData.Comments.OrderBy(c => c.CreatedDate))
+                {
+                    AddUrlsFromHtml(c.Text);
+                }
+            }
+
+            // Csatolmányok (amik esetleg nem voltak inline beágyazva)
             var relations = workItem.Relations?.Where(r => r.Rel == "AttachedFile").ToList() ?? new();
             foreach (var rel in relations)
             {
@@ -151,75 +173,46 @@ namespace LlmContextCollector.Services
                 var ext = Path.GetExtension(originalName).ToLowerInvariant();
                 if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" || ext == ".webp" || string.IsNullOrEmpty(ext))
                 {
-                    if (processedUrls.Add(rel.Url))
-                    {
-                        var urlId = Regex.Match(rel.Url, @"/attachments/([^/?#]+)").Groups[1].Value;
-                        if (string.IsNullOrEmpty(urlId)) urlId = Guid.NewGuid().ToString("N").Substring(0, 8);
-                        
-                        var uniqueFileName = $"{workItemId}_{urlId}_{originalName}";
-                        if (string.IsNullOrEmpty(ext)) uniqueFileName += ".png";
-
-                        _logService.LogInfo("ADO", $"Csatolmány kép észlelve: {originalName}");
-                        downloadTasks.Add((rel.Url, DownloadAttachmentAsync(client, rel.Url, uniqueFileName, workItemId)));
-                    }
-                }
-                else
-                {
-                    _logService.LogInfo("ADO", $"Csatolmány kihagyva (típusa alapján nem kép): {originalName}");
+                    if (seenUrls.Add(rel.Url)) orderedImageUrls.Add(rel.Url);
                 }
             }
 
-            // B: Inline képek keresése a szöveges mezőkben és kommentekben
-            var allHtml = new StringBuilder();
-            allHtml.Append(GetFieldAsString(workItem, "System.Description"));
-            allHtml.Append(GetFieldAsString(workItem, "Microsoft.VSTS.TCM.ReproSteps"));
-            allHtml.Append(GetFieldAsString(workItem, "Microsoft.VSTS.Common.AcceptanceCriteria"));
-            if (commentsData?.Comments != null)
-                foreach (var c in commentsData.Comments) allHtml.Append(c.Text);
+            // 3. LETÖLTÉS A MEGHATÁROZOTT SORRENDBEN
+            var urlToAttachedImageMap = new Dictionary<string, AttachedImage>();
+            var urlToIndexMap = new Dictionary<string, int>();
+            var finalImagesToReturn = new List<AttachedImage>();
 
-            var inlineUrls = ExtractImageUrlsFromHtml(allHtml.ToString());
-            foreach (var imurl in inlineUrls)
+            for (int i = 0; i < orderedImageUrls.Count; i++)
             {
-                if (processedUrls.Add(imurl))
-                {
-                    var fileNameMatch = Regex.Match(imurl, @"fileName=([^&]+)");
-                    var originalName = fileNameMatch.Success ? HttpUtility.UrlDecode(fileNameMatch.Groups[1].Value) : "inline_image.png";
-                    var urlId = Regex.Match(imurl, @"/attachments/([^/?#]+)").Groups[1].Value;
-                    if (string.IsNullOrEmpty(urlId)) urlId = Guid.NewGuid().ToString("N").Substring(0, 8);
+                var currentUrl = orderedImageUrls[i];
+                var index = i + 1;
+                urlToIndexMap[currentUrl] = index;
 
-                    var uniqueFileName = $"{workItemId}_{urlId}_{originalName}";
-                    _logService.LogInfo("ADO", $"Inline kép észlelve a szövegben: {originalName}");
-                    downloadTasks.Add((imurl, DownloadAttachmentAsync(client, imurl, uniqueFileName, workItemId)));
+                var fileNameMatch = Regex.Match(currentUrl, @"fileName=([^&]+)");
+                var originalName = fileNameMatch.Success ? HttpUtility.UrlDecode(fileNameMatch.Groups[1].Value) : $"image_{index}.png";
+                var urlId = Regex.Match(currentUrl, @"/attachments/([^/?#]+)").Groups[1].Value;
+                if (string.IsNullOrEmpty(urlId)) urlId = Guid.NewGuid().ToString("N").Substring(0, 8);
+
+                var uniqueFileNameForStorage = $"{workItemId}_{urlId}_{originalName}";
+                
+                var downloaded = await DownloadAttachmentAsync(client, currentUrl, uniqueFileNameForStorage, workItemId);
+                if (downloaded != null)
+                {
+                    // A FileName a UI-ban maradjon meg, de a sorrend a lényeg
+                    urlToAttachedImageMap[currentUrl] = downloaded;
+                    finalImagesToReturn.Add(downloaded);
                 }
             }
 
-            // 3. Letöltések végrehajtása
-            var downloadedImages = new List<AttachedImage>();
-            if (downloadTasks.Any())
-            {
-                await Task.WhenAll(downloadTasks.Select(t => t.Task));
-                foreach (var taskInfo in downloadTasks)
-                {
-                    var resultImg = await taskInfo.Task;
-                    if (resultImg != null)
-                    {
-                        downloadedImages.Add(resultImg);
-                        attachmentMap[taskInfo.UrlKey] = resultImg.FileName;
-                        var guidMatch = Regex.Match(taskInfo.UrlKey, @"/attachments/([^/?#]+)");
-                        if (guidMatch.Success) attachmentMap[guidMatch.Groups[1].Value] = resultImg.FileName;
-                    }
-                }
-            }
-
-            // 4. Kommentek formázása a már letöltött képekkel
+            // 4. SZÖVEG ÖSSZEÁLLÍTÁSA AZ INDEXEKKEL
             var commentsText = new StringBuilder();
             if (commentsData?.Comments != null && commentsData.Comments.Any())
             {
                 commentsText.AppendLine("\nKözösségi megjegyzések / Kommentek:");
-                foreach (var comment in commentsData.Comments.OrderByDescending(c => c.CreatedDate).Take(10))
+                foreach (var comment in commentsData.Comments.OrderBy(c => c.CreatedDate))
                 {
                     commentsText.AppendLine($"[{comment.CreatedDate:yyyy-MM-dd HH:mm}] {comment.CreatedBy?.DisplayName}:");
-                    commentsText.AppendLine(ProcessHtmlWithImageMarkers(comment.Text, attachmentMap));
+                    commentsText.AppendLine(ProcessHtmlWithImageMarkers(comment.Text, urlToIndexMap));
                     commentsText.AppendLine("---");
                 }
             }
@@ -229,22 +222,22 @@ namespace LlmContextCollector.Services
             sb.AppendLine($"# ADO Work Item {workItemId}: {title}");
             sb.AppendLine($"Típus: {GetFieldAsString(workItem, "System.WorkItemType")}");
             sb.AppendLine($"Állapot: {GetFieldAsString(workItem, "System.State")}");
-            
+
             sb.AppendLine("\nLeírás:");
-            sb.AppendLine(ProcessHtmlWithImageMarkers(GetFieldAsString(workItem, "System.Description"), attachmentMap));
-            
+            sb.AppendLine(ProcessHtmlWithImageMarkers(GetFieldAsString(workItem, "System.Description"), urlToIndexMap));
+
             var reproSteps = GetFieldAsString(workItem, "Microsoft.VSTS.TCM.ReproSteps");
             if (!string.IsNullOrWhiteSpace(reproSteps))
             {
                 sb.AppendLine("\nRepro lépések:");
-                sb.AppendLine(ProcessHtmlWithImageMarkers(reproSteps, attachmentMap));
+                sb.AppendLine(ProcessHtmlWithImageMarkers(reproSteps, urlToIndexMap));
             }
 
             var ac = GetFieldAsString(workItem, "Microsoft.VSTS.Common.AcceptanceCriteria");
             if (!string.IsNullOrWhiteSpace(ac))
             {
                 sb.AppendLine("\nElfogadási kritériumok:");
-                sb.AppendLine(ProcessHtmlWithImageMarkers(ac, attachmentMap));
+                sb.AppendLine(ProcessHtmlWithImageMarkers(ac, urlToIndexMap));
             }
 
             if (commentsText.Length > 0)
@@ -252,7 +245,7 @@ namespace LlmContextCollector.Services
                 sb.AppendLine(commentsText.ToString());
             }
 
-            return (sb.ToString(), downloadedImages);
+            return (sb.ToString(), finalImagesToReturn);
         }
 
         private async Task<AttachedImage?> DownloadAttachmentAsync(HttpClient client, string url, string fileName, int workItemId)
@@ -334,27 +327,27 @@ namespace LlmContextCollector.Services
             return urls;
         }
 
-        private string ProcessHtmlWithImageMarkers(string html, Dictionary<string, string> attachmentMap)
+        private string ProcessHtmlWithImageMarkers(string html, Dictionary<string, int> urlToIndexMap)
         {
             if (string.IsNullOrWhiteSpace(html)) return string.Empty;
 
             var processedHtml = Regex.Replace(html, @"<img[^>]+src=[""']([^""']+)[""'][^>]*>", m =>
             {
                 var src = HttpUtility.UrlDecode(m.Groups[1].Value);
-                string? fileName = null;
+                int index = -1;
 
-                foreach (var kvp in attachmentMap)
+                foreach (var kvp in urlToIndexMap)
                 {
                     if (src.Contains(kvp.Key, StringComparison.OrdinalIgnoreCase))
                     {
-                        fileName = kvp.Value;
+                        index = kvp.Value;
                         break;
                     }
                 }
 
-                if (fileName == null) fileName = "beágyazott_kép";
+                if (index == -1) return " [KÉP: ismeretlen] ";
 
-                return $" [KÉP: {fileName}] ";
+                return $" [KÉP: {index}] ";
             }, RegexOptions.IgnoreCase);
 
             return HtmlToPlainText(processedHtml);
