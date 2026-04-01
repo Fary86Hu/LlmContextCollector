@@ -20,11 +20,11 @@ namespace LlmContextCollector.Services
             _appState = appState;
         }
 
-        public async Task<DiffResultArgs> PrepareGitDiffForReviewAsync()
+        public async Task<DiffResultArgs> PrepareGitDiffForReviewAsync(string originalPrompt = "")
         {
             var diffResults = await GetDiffsAsync(DiffMode.Uncommitted);
             _appState.StatusText = $"{diffResults.Count} változott fájl betöltve a Git-ből.";
-            return new DiffResultArgs(string.Empty, diffResults, string.Empty);
+            return new DiffResultArgs(string.Empty, diffResults, string.Empty, originalPrompt);
         }
 
         public async Task<List<string>> GetBranchesAsync()

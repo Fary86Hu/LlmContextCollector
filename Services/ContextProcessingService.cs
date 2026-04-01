@@ -202,7 +202,7 @@ namespace LlmContextCollector.Services
                     FailedPatchContent = failedPatchContent
                 });
             }
-            return new DiffResultArgs(explanation, diffResults, clipboardText, localizationFragment);
+            return new DiffResultArgs(explanation, diffResults, clipboardText, originalPrompt: "", localizationData: localizationFragment);
         }
 
         private string ApplyPatches(string originalContent, string patchContent)

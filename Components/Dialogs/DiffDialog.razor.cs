@@ -261,7 +261,7 @@ namespace LlmContextCollector.Components.Dialogs
             try 
             { 
                 // A dialógus megnyitásakor kapott eredeti promptot (ha van) beküldjük a javaslathoz
-                var promptToUse = _isGitDiffMode ? "" : (OriginalPrompt ?? AppState.DiffOriginalPrompt);
+                var promptToUse = !string.IsNullOrWhiteSpace(OriginalPrompt) ? OriginalPrompt : AppState.DiffOriginalPrompt;
                 var (b, c) = await GitSuggestionService.GetSuggestionsAsync(_localDiffResults, _globalExplanationText, promptToUse); 
                 _suggestedBranch = b ?? ""; 
                 _suggestedCommit = c ?? ""; 

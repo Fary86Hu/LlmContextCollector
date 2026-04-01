@@ -996,7 +996,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
             try
             {
-                var diffArgs = await GitWorkflowService.PrepareGitDiffForReviewAsync();
+                var diffArgs = await GitWorkflowService.PrepareGitDiffForReviewAsync(AppState.PromptText);
                 await OnShowDiffDialog.InvokeAsync(diffArgs);
             }
             catch (Exception ex)
