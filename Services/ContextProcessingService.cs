@@ -48,7 +48,7 @@ namespace LlmContextCollector.Services
 
             if (_appState.IncludeProjectTreeInCopy && !string.IsNullOrEmpty(_appState.ProjectRoot))
             {
-                sb.AppendLine("\n--- PROJECT STRUCTURE (VISIBLE FILES) ---");
+                sb.AppendLine("\n--- PROJECT STRUCTURE ---");
                 sb.AppendLine("// Note: [*] indicates files already included in the full context below.");
                 AppendCompactTreeRecursive(_appState.FileTree, sb, 0);
                 sb.AppendLine("--- END PROJECT STRUCTURE ---\n");
@@ -144,12 +144,11 @@ namespace LlmContextCollector.Services
 
         private void AppendCompactTreeRecursive(IEnumerable<FileNode> nodes, StringBuilder sb, int indent)
         {
-            var visibleNodes = nodes.Where(n => n.IsVisible).ToList();
-            if (!visibleNodes.Any()) return;
+            if (nodes == null || !nodes.Any()) return;
 
             var indentation = new string(' ', indent * 2);
 
-            foreach (var node in visibleNodes)
+            foreach (var node in nodes)
             {
                 if (node.IsDirectory)
                 {
