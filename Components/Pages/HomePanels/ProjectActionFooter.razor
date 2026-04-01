@@ -10,9 +10,20 @@
             <button class="btn-small" @onclick="() => BuildManager.RunBuildAsync()" disabled="@(AppState.CurrentBuildStatus == BuildStatus.Running)">
                 🔨 Build
             </button>
-            <button class="btn-small" @onclick="() => BuildManager.RunProjectAsync()" disabled="@(AppState.CurrentBuildStatus == BuildStatus.Running)">
-                ▶ Run
-            </button>
+            <div style="display: flex; gap: 2px; align-items: center;">
+                <button class="btn-small" @onclick="() => BuildManager.RunProjectAsync()" disabled="@(AppState.CurrentBuildStatus == BuildStatus.Running)">
+                    ▶ Run
+                </button>
+                <label class="hot-reload-toggle" title="Futtatás 'dotnet watch' módban (automatikus frissítés kódmódosításkor)">
+                    <input type="checkbox" @bind="AppState.UseHotReload" /> 🔥 Watch
+                </label>
+                @if (AppState.CurrentBuildStatus == BuildStatus.Running)
+                {
+                    <button class="btn-small stop-btn" @onclick="() => BuildManager.CancelBuild()" title="Leállítás">
+                        ⏹ Stop
+                    </button>
+                }
+            </div>
         </div>
         <div class="footer-right-actions">
             <button class="icon-btn-footer" @onclick="() => OnReload.InvokeAsync()" title="Alkalmaz és Újratölt">🔄</button>
@@ -32,6 +43,19 @@
                     <span class="label">Futtatási parancs:</span>
                     <input type="text" @bind="AppState.DefaultRunCommand" class="path-edit-input" />
                 </div>
+                @if (AppState.LaunchProfiles.Any())
+                {
+                    <div class="command-row">
+                        <span class="label">Launch Profile:</span>
+                        <select @key="AppState.ProjectRoot" @bind="AppState.SelectedLaunchProfile" class="path-edit-input" style="background: var(--input-bg-color);">
+                            <option value="">(Nincs profil)</option>
+                            @foreach (var profile in AppState.LaunchProfiles)
+                            {
+                                <option value="@profile">@profile</option>
+                            }
+                        </select>
+                    </div>
+                }
             </div>
 
             <div class="footer-filters">
@@ -115,7 +139,10 @@
             e.PropertyName == nameof(AppState.DefaultRunCommand) ||
             e.PropertyName == nameof(AppState.ExtensionFilters) ||
             e.PropertyName == nameof(AppState.ExtensionCounts) ||
-            e.PropertyName == nameof(AppState.Exclusions))
+            e.PropertyName == nameof(AppState.Exclusions) ||
+            e.PropertyName == nameof(AppState.LaunchProfiles) ||
+            e.PropertyName == nameof(AppState.SelectedLaunchProfile) ||
+            e.PropertyName == nameof(AppState.CurrentBuildStatus))
         {
             await InvokeAsync(StateHasChanged);
         }

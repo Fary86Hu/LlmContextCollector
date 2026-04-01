@@ -25,6 +25,32 @@
     font-size: 11px;
 }
 
+.stop-btn {
+    background-color: #fcece8;
+    color: #e76f51;
+    border-color: #e76f51;
+}
+
+.stop-btn:hover {
+    background-color: #e76f51 !important;
+    color: white !important;
+}
+
+.hot-reload-toggle {
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 5px;
+    cursor: pointer;
+    color: var(--text-color-light);
+    white-space: nowrap;
+}
+
+.hot-reload-toggle input {
+    margin: 0;
+}
+
 .footer-right-actions {
     display: flex;
     gap: 4px;

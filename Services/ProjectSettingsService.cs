@@ -61,6 +61,8 @@ namespace LlmContextCollector.Services
                 {
                     _appState.DefaultRunCommand = settings.RunCommand;
                 }
+                
+                _appState.SelectedLaunchProfile = settings.SelectedLaunchProfile ?? string.Empty;
 
                 _appState.NotifyStateChanged(nameof(AppState.ExtensionFilters));
                 _appState.NotifyStateChanged(nameof(AppState.IgnorePatternsRaw));
@@ -89,7 +91,8 @@ namespace LlmContextCollector.Services
                 ExtensionFilters = new Dictionary<string, bool>(_appState.ExtensionFilters),
                 AttachableDocuments = _appState.AttachableDocuments.ToList(),
                 BuildCommand = _appState.DefaultBuildCommand,
-                RunCommand = _appState.DefaultRunCommand
+                RunCommand = _appState.DefaultRunCommand,
+                SelectedLaunchProfile = _appState.SelectedLaunchProfile
             };
 
             _allProjectSettings![projectPath] = settings;

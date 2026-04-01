@@ -1,7 +1,7 @@
 <div class="panel panel-left">
     <div class="toolbar">
-        <button @onclick="SelectProjectFolder">Projekt Mappa...</button>
-        <input type="text" class="path-display" placeholder="Nincs mappa kiválasztva" @bind="AppState.ProjectRoot" @bind:event="oninput" />
+        <button @onclick="SelectProjectFolder" disabled="@(AppState.CurrentBuildStatus == BuildStatus.Running)" title="@(AppState.CurrentBuildStatus == BuildStatus.Running ? "Futtatás alatt nem váltható projekt" : "")">Projekt Mappa...</button>
+        <input type="text" class="path-display" placeholder="Nincs mappa kiválasztva" @bind="AppState.ProjectRoot" @bind:event="oninput" readonly="@(AppState.CurrentBuildStatus == BuildStatus.Running)" />
     </div>
     <div class="toolbar">
         <button @onclick="OnAzureDevOpsAttach" title="Azure DevOps Work Item-ek letöltése/kezelése">ADO Letöltés</button>
@@ -20,7 +20,7 @@
     </div>
     <div class="toolbar">
         <label for="history-select" style="white-space: nowrap; margin-right: 5px;">Előzmények:</label>
-        <select id="history-select" @onchange="LoadSelectedHistory" style="flex-grow: 1;">
+        <select id="history-select" @onchange="LoadSelectedHistory" style="flex-grow: 1;" disabled="@(AppState.CurrentBuildStatus == BuildStatus.Running)">
             <option value="-1" selected>Válassz egy előzményt...</option>
             @foreach (var (entry, index) in AppState.HistoryEntries.Select((entry, index) => (entry, index)))
             {

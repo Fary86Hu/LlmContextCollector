@@ -9,5 +9,6 @@ namespace LlmContextCollector.Models
         public List<AttachableDocument> AttachableDocuments { get; set; } = new();
         public string BuildCommand { get; set; } = string.Empty;
         public string RunCommand { get; set; } = string.Empty;
+        public string SelectedLaunchProfile { get; set; } = string.Empty;
     }
 }

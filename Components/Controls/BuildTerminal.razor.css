@@ -24,12 +24,16 @@
     flex: 1;
     overflow-y: auto;
     padding: 8px;
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .log-output pre {
     margin: 0;
     white-space: pre-wrap;
     word-break: break-all;
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .status-running {

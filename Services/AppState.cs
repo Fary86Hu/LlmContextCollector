@@ -309,6 +309,33 @@ namespace LlmContextCollector.Services
         private string _defaultRunCommand = "dotnet run";
         public string DefaultRunCommand { get => _defaultRunCommand; set => SetField(ref _defaultRunCommand, value); }
 
+        private List<string> _launchProfiles = new();
+        public List<string> LaunchProfiles 
+        { 
+            get => _launchProfiles; 
+            set 
+            {
+                if (SetField(ref _launchProfiles, value))
+                {
+                    NotifyStateChanged(nameof(LaunchProfiles));
+                }
+            }
+        }
+
+        private string _selectedLaunchProfile = string.Empty;
+        public string SelectedLaunchProfile 
+        { 
+            get => _selectedLaunchProfile; 
+            set => SetField(ref _selectedLaunchProfile, value); 
+        }
+
+        private bool _useHotReload = false;
+        public bool UseHotReload 
+        { 
+            get => _useHotReload; 
+            set => SetField(ref _useHotReload, value); 
+        }
+
         public string LastLlmGlobalExplanation { get; set; } = string.Empty;
 
         private bool _isDiffDialogVisible = false;
