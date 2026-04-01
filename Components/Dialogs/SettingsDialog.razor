@@ -97,7 +97,9 @@
             AzureDevOpsProject = AppState.AzureDevOpsProject,
             AzureDevOpsIterationPath = AppState.AzureDevOpsIterationPath,
             AzureDevOpsPat = AppState.AzureDevOpsPat,
-            AdoDownloadOnlyMine = AppState.AdoDownloadOnlyMine
+            AdoDownloadOnlyMine = AppState.AdoDownloadOnlyMine,
+            BuildCommand = AppState.DefaultBuildCommand,
+            RunCommand = AppState.DefaultRunCommand
         };
         await SettingsService.SaveSettingsAsync(settings);
         AppState.StatusText = "Beállítások mentve.";

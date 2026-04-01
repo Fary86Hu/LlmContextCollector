@@ -115,6 +115,33 @@ namespace LlmContextCollector.Services
             return sb.ToString().Trim();
         }
 
+        public string BuildContextForBuildErrors(IEnumerable<BuildError> errors)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("A legutóbbi build során az alábbi hibák keletkeztek. Kérlek, elemezd őket és javítsd a kódot!");
+            sb.AppendLine();
+
+            foreach (var error in errors)
+            {
+                sb.AppendLine($"- Hiba: {error.ErrorCode}");
+                sb.AppendLine($"  Fájl: {error.FilePath}");
+                sb.AppendLine($"  Hely: {error.Line}. sor, {error.Column}. oszlop");
+                sb.AppendLine($"  Üzenet: {error.Message}");
+                sb.AppendLine();
+
+                // Automatikus hozzáadás a kontextushoz, ha még nincs benne
+                if (!_appState.SelectedFilesForContext.Contains(error.FilePath))
+                {
+                    _appState.SelectedFilesForContext.Add(error.FilePath);
+                }
+            }
+            
+            _appState.SaveContextListState();
+
+            sb.AppendLine("A fenti hibák javításához szükséges fájlokat hozzáadtam a kontextushoz. Kérlek, fókuszálj a hibaüzenetekben megjelölt sorokra.");
+            return sb.ToString();
+        }
+
         private void AppendCompactTreeRecursive(IEnumerable<FileNode> nodes, StringBuilder sb, int indent)
         {
             var visibleNodes = nodes.Where(n => n.IsVisible).ToList();

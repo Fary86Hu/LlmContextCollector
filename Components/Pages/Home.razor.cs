@@ -74,6 +74,7 @@ namespace LlmContextCollector.Components.Pages
 
         private bool _showTreeContextMenu = false;
         private bool _showListContextMenu = false;
+        private FileNode? _selectedNodeForMenu;
         private double _contextMenuX;
         private double _contextMenuY;
 
@@ -115,7 +116,6 @@ namespace LlmContextCollector.Components.Pages
 
             try
             {
-                // Beállítások mentése az újratöltés előtt
                 if (!string.IsNullOrEmpty(AppState.ProjectRoot))
                 {
                     await ProjectSettingsService.SaveSettingsForProjectAsync(AppState.ProjectRoot);
@@ -140,14 +140,13 @@ namespace LlmContextCollector.Components.Pages
 
 
 
-        private async Task HandleNodeClick((FileNode Node, MouseEventArgs Args) payload)
+        public async Task HandleNodeClick((FileNode Node, MouseEventArgs Args) payload)
         {
             var node = payload.Node;
             var e = payload.Args;
 
             if (e != null)
             {
-                // Range Selection: Shift OR (Ctrl + Alt)
                 bool isRangeSelect = e.ShiftKey || (e.CtrlKey && e.AltKey);
                 bool isMultiSelect = e.CtrlKey && !e.AltKey && !e.ShiftKey;
 
@@ -164,8 +163,6 @@ namespace LlmContextCollector.Components.Pages
                         var low = Math.Min(start, end);
                         var high = Math.Max(start, end);
 
-                        // Ha nincs lenyomva a Ctrl (csak Shift), akkor töröljük a többit.
-                        // Ha Ctrl is le van nyomva (pl Ctrl+Alt), akkor hozzáadunk a meglévőhöz.
                         if (!e.CtrlKey)
                         {
                             Utils.FileTreeHelper.DeselectAllNodes(AppState.FileTree);
@@ -191,7 +188,6 @@ namespace LlmContextCollector.Components.Pages
             }
             else
             {
-                // Programmatic selection (e.g. search navigation)
                 Utils.FileTreeHelper.DeselectAllNodes(AppState.FileTree);
                 node.IsSelectedInTree = true;
                 _lastInteractionNode = node;
@@ -288,28 +284,6 @@ namespace LlmContextCollector.Components.Pages
                 await _contextPanelRef.UpdatePreview(pathToPreview);
             }
 
-            if (_selectedInContextList.Count == 1)
-            {
-                var relPath = _selectedInContextList.First();
-                if (relPath.StartsWith("[ADO]"))
-                {
-                    AppState.StatusText = $"Dokumentum kiválasztva: {relPath.Substring(5)}";
-                }
-                else
-                {
-                    var fullPath = Path.Combine(AppState.ProjectRoot, relPath.Replace('/', Path.DirectorySeparatorChar));
-                    var node = AppState.FindNodeByPath(fullPath);
-                    if (node != null)
-                    {
-                        AppState.StatusText = $"Fájl kiválasztva: {relPath}";
-                    }
-                    else
-                    {
-                        AppState.StatusText = $"Fájl nem látható (szűrés aktív?): {relPath}";
-                    }
-                }
-            }
-
             await InvokeAsync(StateHasChanged);
         }
 
@@ -334,6 +308,7 @@ namespace LlmContextCollector.Components.Pages
             Utils.FileTreeHelper.FindSelectedNodes(AppState.FileTree, selectedNodes);
             if (selectedNodes.Any())
             {
+                _selectedNodeForMenu = selectedNodes.LastOrDefault();
                 _showTreeContextMenu = true;
                 _showListContextMenu = false;
                 _contextMenuX = e.ClientX;
@@ -360,9 +335,23 @@ namespace LlmContextCollector.Components.Pages
             {
                 _showTreeContextMenu = false;
                 _showListContextMenu = false;
+                _selectedNodeForMenu = null;
                 StateHasChanged();
             }
             _contextPanelRef?.CloseCustomDropdowns();
+        }
+
+        private async Task SetAsBuildTarget()
+        {
+            if (_selectedNodeForMenu == null) return;
+
+            var relPath = GetRelativeNodePath(_selectedNodeForMenu);
+            AppState.DefaultBuildCommand = $"dotnet build {relPath}";
+            AppState.DefaultRunCommand = $"dotnet run --project {relPath}";
+
+            await ProjectSettingsService.SaveSettingsForProjectAsync(AppState.ProjectRoot);
+            AppState.StatusText = $"Build célpont beállítva: {_selectedNodeForMenu.Name}";
+            HideContextMenus();
         }
 
         private async Task ExcludeSelectedFromTree()
@@ -389,10 +378,6 @@ namespace LlmContextCollector.Components.Pages
                 AppState.StatusText = $"{newUniqueIgnores.Count} új kizárás hozzáadva. Újratöltés...";
                 await ApplyFiltersAndReload(true);
             }
-            else
-            {
-                AppState.StatusText = "A kijelölt elemek már a kizárási listán vannak.";
-            }
         }
 
         private async Task CopySelectedNodeName()
@@ -405,10 +390,6 @@ namespace LlmContextCollector.Components.Pages
             {
                 await Clipboard.SetTextAsync(selectedNodes.First().Name);
                 AppState.StatusText = $"Név másolva: {selectedNodes.First().Name}";
-            }
-            else
-            {
-                AppState.StatusText = "A név másolásához pontosan egy elemet kell kiválasztani.";
             }
         }
 
@@ -425,10 +406,6 @@ namespace LlmContextCollector.Components.Pages
                 await Clipboard.SetTextAsync(relativePath);
                 AppState.StatusText = $"Útvonal másolva: {relativePath}";
             }
-            else
-            {
-                AppState.StatusText = "Az elérési út másolásához pontosan egy elemet kell kiválasztani.";
-            }
         }
 
         private async Task CopySelectedFilesContentFromTree()
@@ -439,17 +416,8 @@ namespace LlmContextCollector.Components.Pages
 
             var items = selectedNodes
                 .Where(n => !n.IsDirectory)
-                .Select(n => (
-                    FullPath: n.FullPath, 
-                    DisplayPath: GetRelativeNodePath(n)
-                ))
+                .Select(n => (FullPath: n.FullPath, DisplayPath: GetRelativeNodePath(n)))
                 .ToList();
-
-            if (!items.Any())
-            {
-                AppState.StatusText = "Nincs fájl kiválasztva.";
-                return;
-            }
 
             await CopyFilesContentToClipboard(items);
         }
@@ -475,10 +443,7 @@ namespace LlmContextCollector.Components.Pages
                     fullPath = Path.Combine(AppState.ProjectRoot, relPath.Replace('/', Path.DirectorySeparatorChar));
                 }
 
-                if (fullPath != null)
-                {
-                    items.Add((fullPath, relPath));
-                }
+                if (fullPath != null) items.Add((fullPath, relPath));
             }
 
             await CopyFilesContentToClipboard(items);
@@ -505,10 +470,6 @@ namespace LlmContextCollector.Components.Pages
                 {
                     await Clipboard.SetTextAsync(sb.ToString().Trim());
                     AppState.StatusText = $"{items.Count} fájl tartalma másolva a vágólapra.";
-                }
-                else
-                {
-                    AppState.StatusText = "Nem sikerült tartalmat olvasni a kijelölt fájlokból.";
                 }
             }
             catch (Exception ex)
@@ -552,6 +513,10 @@ namespace LlmContextCollector.Components.Pages
             AppState.AzureDevOpsIterationPath = settings.AzureDevOpsIterationPath;
             AppState.AzureDevOpsPat = settings.AzureDevOpsPat;
             AppState.AdoDownloadOnlyMine = settings.AdoDownloadOnlyMine;
+            
+            // Ezek a globális alapértelmezések. Ha nincs projekt-specifikus override, ezeket használjuk.
+            AppState.DefaultBuildCommand = settings.BuildCommand ?? "dotnet build";
+            AppState.DefaultRunCommand = settings.RunCommand ?? "dotnet run";
         }
 
         private async Task OnPromptManagerClose()
@@ -598,9 +563,6 @@ namespace LlmContextCollector.Components.Pages
         private void OnLocalAiChatClose()
         {
             _isLocalAiChatVisible = false;
-            _localAiPrompt = string.Empty;
-            _localAiSystem = string.Empty;
-            _localAiFiles = string.Empty;
             StateHasChanged();
         }
 
@@ -615,14 +577,13 @@ namespace LlmContextCollector.Components.Pages
         {
             AppState.LocalizationResourcePath = path;
             _isLocPathDialogVisible = false;
-            
             await AzureDevOpsService.SaveSettingsForCurrentProjectAsync();
 
             if (_pendingLocDiffArgs != null)
             {
                 var locChanges = _pendingLocDiffArgs.DiffResults.Where(r => r.Path.StartsWith("[LOC]")).ToList();
                 int added = 0;
-                
+
                 if (locChanges.Any())
                 {
                     var sb = new StringBuilder();
@@ -633,13 +594,8 @@ namespace LlmContextCollector.Components.Pages
                     }
                     added = await LocalizationService.UpdateResourceFileAsync(path, sb.ToString());
                 }
-                else if (!string.IsNullOrEmpty(_pendingLocDiffArgs.LocalizationData))
-                {
-                    added = await LocalizationService.UpdateResourceFileAsync(path, _pendingLocDiffArgs.LocalizationData);
-                }
 
                 AppState.StatusText = $"Lokalizáció mentve ({added} kulcs).";
-                
                 var remainingFiles = _pendingLocDiffArgs.DiffResults.Where(r => !r.Path.StartsWith("[LOC]")).ToList();
                 if (remainingFiles.Any())
                 {
@@ -672,7 +628,6 @@ namespace LlmContextCollector.Components.Pages
         private void OnAttachableDocDialogClose()
         {
             _isAttachableDocDialogVisible = false;
-            _editingAttachableDoc = null;
             StateHasChanged();
         }
 
@@ -685,36 +640,25 @@ namespace LlmContextCollector.Components.Pages
         private async Task HandleDownloadWorkItemsAsync(bool isIncremental)
         {
             _isAzureDevOpsDialogVisible = false;
-            if (string.IsNullOrWhiteSpace(AppState.ProjectRoot))
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "A work item-ek letöltése előtt válasszon ki egy projekt mappát.");
-                return;
-            }
+            if (string.IsNullOrWhiteSpace(AppState.ProjectRoot)) return;
 
             AppState.ShowLoading("Azure DevOps work item-ek letöltése...");
             try
             {
                 await AzureDevOpsService.SaveSettingsForCurrentProjectAsync();
-
                 await AzureDevOpsService.DownloadWorkItemsAsync(
-                    AppState.AzureDevOpsOrganizationUrl,
-                    AppState.AzureDevOpsProject,
-                    AppState.AzureDevOpsPat,
-                    AppState.AzureDevOpsRepository,
-                    AppState.AzureDevOpsIterationPath,
-                    AppState.ProjectRoot,
-                    isIncremental,
-                    AppState.AdoDownloadOnlyMine);
+                    AppState.AzureDevOpsOrganizationUrl, AppState.AzureDevOpsProject,
+                    AppState.AzureDevOpsPat, AppState.AzureDevOpsRepository,
+                    AppState.AzureDevOpsIterationPath, AppState.ProjectRoot,
+                    isIncremental, AppState.AdoDownloadOnlyMine);
 
                 await AzureDevOpsService.SaveSettingsForCurrentProjectAsync(DateTime.UtcNow);
                 AzureDevOpsService.UpdateAdoPaths(AppState.ProjectRoot);
-
                 AppState.StatusText = "Azure DevOps work item-ek sikeresen letöltve.";
             }
             catch (Exception ex)
             {
-                AppState.StatusText = $"Hiba a work item-ek letöltése közben.";
-                await JSRuntime.InvokeVoidAsync("alert", $"Hiba a work item-ek letöltése közben: {ex.Message}");
+                await JSRuntime.InvokeVoidAsync("alert", $"Hiba a letöltéskor: {ex.Message}");
             }
             finally
             {
@@ -727,16 +671,12 @@ namespace LlmContextCollector.Components.Pages
             var currentFiles = AppState.SelectedFilesForContext.ToHashSet();
             var initialCount = currentFiles.Count;
             currentFiles.UnionWith(filesToAdd);
-            var addedCount = currentFiles.Count - initialCount;
 
             AppState.SelectedFilesForContext.Clear();
-            foreach (var file in currentFiles.OrderBy(f => f))
-            {
-                AppState.SelectedFilesForContext.Add(file);
-            }
+            foreach (var file in currentFiles.OrderBy(f => f)) AppState.SelectedFilesForContext.Add(file);
             AppState.SaveContextListState();
 
-            AppState.StatusText = $"{addedCount} új releváns fájl hozzáadva a listához.";
+            AppState.StatusText = $"{currentFiles.Count - initialCount} új releváns fájl hozzáadva.";
             OnDocumentSearchDialogClose();
         }
 
@@ -762,128 +702,54 @@ namespace LlmContextCollector.Components.Pages
             var fileChanges = acceptedResults.Where(r => !r.Path.StartsWith("[LOC]")).ToList();
 
             int locAddedCount = 0;
-            if (locChanges.Any())
+            if (locChanges.Any() && !string.IsNullOrEmpty(AppState.LocalizationResourcePath))
             {
-                if (string.IsNullOrEmpty(AppState.LocalizationResourcePath))
+                var sb = new StringBuilder();
+                foreach (var loc in locChanges)
                 {
-                    _pendingLocDiffArgs = new DiffResultArgs(AppState.DiffGlobalExplanation, locChanges, AppState.DiffFullLlmResponse);
-                    _isLocPathDialogVisible = true;
+                    var key = loc.Path.Substring(6);
+                    sb.AppendLine($"  <data name=\"{key}\" xml:space=\"preserve\"><value>{loc.NewContent}</value></data>");
                 }
-                else
-                {
-                    var sb = new StringBuilder();
-                    foreach (var loc in locChanges)
-                    {
-                        var key = loc.Path.Substring(6);
-                        sb.AppendLine($"  <data name=\"{key}\" xml:space=\"preserve\"><value>{loc.NewContent}</value></data>");
-                    }
-                    locAddedCount = await LocalizationService.UpdateResourceFileAsync(AppState.LocalizationResourcePath, sb.ToString());
-                }
+                locAddedCount = await LocalizationService.UpdateResourceFileAsync(AppState.LocalizationResourcePath, sb.ToString());
             }
 
             var (acceptedCount, errorCount) = await GitWorkflowService.AcceptChangesAsync(fileChanges);
-            
-            var historyFiles = acceptedResults.Select(r => new DiffResult 
-            { 
-                Path = r.Path, 
-                OldContent = r.OldContent, 
-                NewContent = r.NewContent, 
-                Status = r.Status, 
-                Explanation = r.Explanation 
-            }).ToList();
 
             if ((acceptedCount > 0 || locAddedCount > 0) && !string.IsNullOrEmpty(AppState.ProjectRoot))
             {
-                await AcceptedResponseHistoryService.AddEntryAsync(AppState.ProjectRoot, AppState.DiffGlobalExplanation, historyFiles);
+                await AcceptedResponseHistoryService.AddEntryAsync(AppState.ProjectRoot, AppState.DiffGlobalExplanation, acceptedResults);
             }
 
-            AppState.StatusText = $"Változások elfogadása befejezve. Fájlok: {acceptedCount}, Lokalizáció: {locAddedCount}, Hiba: {errorCount}.";
+            AppState.StatusText = $"Változások elfogadva. Fájlok: {acceptedCount}, Lokalizáció: {locAddedCount}.";
             StateHasChanged();
         }
 
         private async Task HandleCreateBranchAsync(string branchName)
         {
-            if (string.IsNullOrWhiteSpace(branchName))
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "A branch név nem lehet üres.");
-                return;
-            }
-
             AppState.ShowLoading($"'{branchName}' branch létrehozása...");
-            try
-            {
-                await GitWorkflowService.CreateAndCheckoutBranchAsync(branchName);
-            }
-            catch (Exception ex)
-            {
-                AppState.StatusText = "Hiba a branch létrehozásakor.";
-                await JSRuntime.InvokeVoidAsync("alert", $"Hiba a branch létrehozásakor:\n\n{ex.Message}");
-            }
-            finally
-            {
-                AppState.HideLoading();
-            }
+            try { await GitWorkflowService.CreateAndCheckoutBranchAsync(branchName); }
+            finally { AppState.HideLoading(); }
         }
 
         private async Task HandleCommitAsync(CommitAndPushArgs args)
         {
-            if (string.IsNullOrWhiteSpace(args.CommitMessage) || !args.AcceptedFiles.Any())
-            {
-                AppState.StatusText = "Hiba: Hiányzó commit üzenet vagy nincsenek elfogadandó fájlok.";
-                return;
-            }
-
-            string loadingMessage = $"Változások commitolása a(z) '{args.BranchName}' branch-re...";
-            AppState.ShowLoading(loadingMessage);
-            try
-            {
-                await GitWorkflowService.CommitChangesAsync(args);
-            }
-            catch (Exception ex)
-            {
-                AppState.StatusText = $"Git hiba: {ex.Message}";
-                await JSRuntime.InvokeVoidAsync("alert", $"Git commit sikertelen:\n\n{ex.Message}");
-            }
-            finally
-            {
-                AppState.HideLoading();
-            }
+            AppState.ShowLoading("Változások commitolása...");
+            try { await GitWorkflowService.CommitChangesAsync(args); }
+            finally { AppState.HideLoading(); }
         }
 
         private async Task HandlePushAsync(CommitAndPushArgs args)
         {
-            if (AppState.CurrentGitBranch != args.BranchName)
-            {
-                await JSRuntime.InvokeVoidAsync("alert", $"Nem a megfelelő branch-en vagy ('{AppState.CurrentGitBranch}'). Válts a '{args.BranchName}' branch-re a push előtt.");
-                return;
-            }
-
-            AppState.ShowLoading($"Változások pusholása a(z) '{args.BranchName}' branch-re...");
-            try
-            {
-                await GitWorkflowService.PushChangesAsync(args.BranchName);
-                await OnDiffDialogClose();
-            }
-            catch (Exception ex)
-            {
-                AppState.StatusText = $"Git hiba: {ex.Message}";
-                await JSRuntime.InvokeVoidAsync("alert", $"Git push sikertelen:\n\n{ex.Message}");
-            }
-            finally
-            {
-                AppState.HideLoading();
-            }
+            AppState.ShowLoading("Változások pusholása...");
+            try { await GitWorkflowService.PushChangesAsync(args.BranchName); await OnDiffDialogClose(); }
+            finally { AppState.HideLoading(); }
         }
 
         #endregion
 
         private async Task StartManualIndexing()
         {
-            if (EmbeddingProvider is NullEmbeddingProvider)
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "Az AI modell nem található vagy nem sikerült betölteni. Az indexelési funkció nem érhető el.");
-                return;
-            }
+            if (EmbeddingProvider is NullEmbeddingProvider) return;
             var allFileNodes = new List<FileNode>();
             Utils.FileTreeHelper.GetAllFileNodes(AppState.FileTree, allFileNodes);
             EmbeddingIndexService.StartBuildingIndex(allFileNodes);
@@ -891,23 +757,15 @@ namespace LlmContextCollector.Components.Pages
 
         private async Task StartIndexingAdo()
         {
-            if (EmbeddingProvider is NullEmbeddingProvider)
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "Az AI modell nem található vagy nem sikerült betölteni. Az indexelési funkció nem érhető el.");
-                return;
-            }
+            if (EmbeddingProvider is NullEmbeddingProvider) return;
             EmbeddingIndexService.StartBuildingAdoIndex();
         }
 
         #region Panel Resizing
         private string _activeSplitter = "None";
         private bool _isResizing = false;
-        private double _startX, _startY;
-        private double _startLeftFlex, _startMiddleFlex, _startRightFlex;
-        private double _startTopFlex, _startMidFlex, _startBotFlex;
-
-        private double _containerWidth = 1000;
-        private double _containerHeight = 800;
+        private double _startX, _startY, _startLeftFlex, _startMiddleFlex, _startRightFlex, _startTopFlex, _startMidFlex, _startBotFlex;
+        private double _containerWidth = 1000, _containerHeight = 800;
 
         private async Task StartResize(MouseEventArgs e, string splitter)
         {
@@ -915,65 +773,45 @@ namespace LlmContextCollector.Components.Pages
             _activeSplitter = splitter;
             _startX = e.ClientX;
             _startY = e.ClientY;
-
-            // Lekérjük az aktuális ablakméreteket a pontos flex számításhoz
             try
             {
                 _containerWidth = await JSRuntime.InvokeAsync<double>("eval", "window.innerWidth");
                 _containerHeight = await JSRuntime.InvokeAsync<double>("eval", "window.innerHeight");
             }
-            catch { /* Fallback az alapértelmezett értékekre */ }
-
-            _startLeftFlex = AppState.LeftPanelFlex;
-            _startMiddleFlex = AppState.MiddlePanelFlex;
-            _startRightFlex = AppState.RightPanelFlex;
-
-            _startTopFlex = AppState.RightTopPanelFlex;
-            _startMidFlex = AppState.RightMiddlePanelFlex;
-            _startBotFlex = AppState.RightBottomPanelFlex;
+            catch { }
+            _startLeftFlex = AppState.LeftPanelFlex; _startMiddleFlex = AppState.MiddlePanelFlex; _startRightFlex = AppState.RightPanelFlex;
+            _startTopFlex = AppState.RightTopPanelFlex; _startMidFlex = AppState.RightMiddlePanelFlex; _startBotFlex = AppState.RightBottomPanelFlex;
         }
 
-        private void StopResize()
-        {
-            _isResizing = false;
-            _activeSplitter = "None";
-        }
+        private void StopResize() { _isResizing = false; _activeSplitter = "None"; }
 
         private void OnMouseMove(MouseEventArgs e)
         {
             if (!_isResizing) return;
-
-            var deltaX = e.ClientX - _startX;
-            var deltaY = e.ClientY - _startY;
-
-            // A flexFactor az ablakméret és a teljes flex súly (100) aránya a folyamatos mozgáshoz
             double flexFactorX = 100.0 / Math.Max(1, _containerWidth);
             double flexFactorY = 100.0 / Math.Max(1, _containerHeight);
 
             switch (_activeSplitter)
             {
                 case "LeftMiddle":
-                    var flexDeltaX1 = deltaX * flexFactorX;
-                    AppState.LeftPanelFlex = Math.Clamp(_startLeftFlex + flexDeltaX1, 10, 80);
-                    AppState.MiddlePanelFlex = Math.Clamp(_startMiddleFlex - flexDeltaX1, 10, 80);
+                    var delta1 = (e.ClientX - _startX) * flexFactorX;
+                    AppState.LeftPanelFlex = Math.Clamp(_startLeftFlex + delta1, 10, 80);
+                    AppState.MiddlePanelFlex = Math.Clamp(_startMiddleFlex - delta1, 10, 80);
                     break;
-
                 case "MiddleRight":
-                    var flexDeltaX2 = deltaX * flexFactorX;
-                    AppState.MiddlePanelFlex = Math.Clamp(_startMiddleFlex + flexDeltaX2, 10, 80);
-                    AppState.RightPanelFlex = Math.Clamp(_startRightFlex - flexDeltaX2, 10, 80);
+                    var delta2 = (e.ClientX - _startX) * flexFactorX;
+                    AppState.MiddlePanelFlex = Math.Clamp(_startMiddleFlex + delta2, 10, 80);
+                    AppState.RightPanelFlex = Math.Clamp(_startRightFlex - delta2, 10, 80);
                     break;
-
                 case "RightTop":
-                    var flexDeltaY1 = deltaY * flexFactorY;
-                    AppState.RightTopPanelFlex = Math.Clamp(_startTopFlex + flexDeltaY1, 10, 80);
-                    AppState.RightMiddlePanelFlex = Math.Clamp(_startMidFlex - flexDeltaY1, 10, 80);
+                    var deltaY1 = (e.ClientY - _startY) * flexFactorY;
+                    AppState.RightTopPanelFlex = Math.Clamp(_startTopFlex + deltaY1, 10, 80);
+                    AppState.RightMiddlePanelFlex = Math.Clamp(_startMidFlex - deltaY1, 10, 80);
                     break;
-
                 case "RightMiddle":
-                    var flexDeltaY2 = deltaY * flexFactorY;
-                    AppState.RightMiddlePanelFlex = Math.Clamp(_startMidFlex + flexDeltaY2, 10, 80);
-                    AppState.RightBottomPanelFlex = Math.Clamp(_startBotFlex - flexDeltaY2, 10, 80);
+                    var deltaY2 = (e.ClientY - _startY) * flexFactorY;
+                    AppState.RightMiddlePanelFlex = Math.Clamp(_startMidFlex + deltaY2, 10, 80);
+                    AppState.RightBottomPanelFlex = Math.Clamp(_startBotFlex - deltaY2, 10, 80);
                     break;
             }
         }

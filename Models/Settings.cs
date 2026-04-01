@@ -20,5 +20,9 @@ namespace LlmContextCollector.Models
         public string AzureDevOpsIterationPath { get; set; } = string.Empty;
         public string AzureDevOpsPat { get; set; } = string.Empty;
         public bool AdoDownloadOnlyMine { get; set; } = false;
+
+        // --- Build & Debug Beállítások ---
+        public string BuildCommand { get; set; } = "dotnet build";
+        public string RunCommand { get; set; } = "dotnet run";
     }
 }

@@ -47,6 +47,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private LocalizationService LocalizationService { get; set; } = null!;
         [Inject]
         private AzureDevOpsService SettingsStore { get; set; } = null!;
+        [Inject]
+        private BuildManagerService BuildManagerService { get; set; } = null!;
 
 
         [Parameter]
@@ -745,6 +747,37 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             StateHasChanged();
         }
 
+        private void HandleBuildFixRequested()
+        {
+            if (!AppState.CurrentBuildErrors.Any()) return;
+
+            var fixPrompt = ContextProcessingService.BuildContextForBuildErrors(AppState.CurrentBuildErrors);
+            AppState.PromptText = fixPrompt;
+            AppState.StatusText = "Build hibák beillesztve a promptba javításra.";
+        }
+
+        private async Task HandleErrorLocationClicked(BuildError error)
+        {
+            if (string.IsNullOrEmpty(error.FilePath)) return;
+
+            string fullPath = error.FilePath;
+            if (!Path.IsPathRooted(fullPath))
+            {
+                fullPath = Path.GetFullPath(Path.Combine(AppState.ProjectRoot, error.FilePath));
+            }
+
+            var node = AppState.FindNodeByPath(fullPath);
+            if (node != null)
+            {
+                await HomeRef!.HandleNodeClick((node, null));
+                AppState.StatusText = $"Navigálás: {node.Name} ({error.Line}. sor)";
+            }
+            else
+            {
+                AppState.StatusText = $"A fájl nem található a projekt fában: {error.FilePath}";
+            }
+        }
+
         private void EditDocument(AttachableDocument doc)
         {
             _isDocsDropdownOpen = false;
@@ -775,7 +808,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 var result = await SettingsStore.GetFormattedWorkItemAsync(_adoWorkItemIdToLoad.Value);
                 if (!string.IsNullOrWhiteSpace(result.Text))
                 {
-                    // Szöveg betöltése
                     if (!string.IsNullOrWhiteSpace(AppState.PromptText))
                     {
                         AppState.PromptText = result.Text + "\n\n---\n\n" + AppState.PromptText;
@@ -785,12 +817,10 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                         AppState.PromptText = result.Text;
                     }
 
-                    // Képek csatolása a UI szálon
                     foreach (var img in result.Images)
                     {
                         await InvokeAsync(() =>
                         {
-                            // Most már az egyedi FilePath alapján nézzük az egyezőséget
                             if (!AppState.AttachedImages.Any(x => x.FilePath == img.FilePath))
                             {
                                 AppState.AttachedImages.Add(img);

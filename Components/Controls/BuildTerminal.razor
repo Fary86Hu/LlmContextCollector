@@ -1,0 +1,74 @@
+@using LlmContextCollector.Services
+@using LlmContextCollector.Models
+@inject AppState AppState
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<div class="build-terminal-container">
+    <div class="terminal-header">
+        <strong>Build Log</strong>
+        <div class="header-actions">
+            @if (AppState.CurrentBuildStatus == BuildStatus.Running)
+            {
+                <span class="status-running">● FUTÁS...</span>
+            }
+            <button class="icon-btn-small" @onclick="ClearLogs" title="Log törlése">🗑️</button>
+        </div>
+    </div>
+    
+    <div id="build-log-output" class="log-output">
+        <pre>@AppState.BuildOutput</pre>
+    </div>
+
+    @if (AppState.CurrentBuildErrors.Any())
+    {
+        <div class="error-list-overlay">
+            <div class="error-header">
+                <strong>Hibák (@AppState.CurrentBuildErrors.Count)</strong>
+                <button class="primary fix-all-btn" @onclick="OnFixRequested">AI Hibajavítás Indítása</button>
+            </div>
+            <div class="error-items">
+                @foreach (var error in AppState.CurrentBuildErrors)
+                {
+                    <div class="error-item clickable" title="Navigálás: @error.FilePath" @onclick="() => OnLocationClicked.InvokeAsync(error)">
+                        <span class="error-loc">@System.IO.Path.GetFileName(error.FilePath):@error.Line</span>
+                        <span class="error-msg">@error.Message</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public EventCallback OnFixRequested { get; set; }
+    [Parameter] public EventCallback<BuildError> OnLocationClicked { get; set; }
+
+    protected override void OnInitialized()
+    {
+        AppState.PropertyChanged += OnAppStateChanged;
+    }
+
+    private async void OnAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppState.BuildOutput))
+        {
+            await InvokeAsync(async () => {
+                StateHasChanged();
+                await JSRuntime.InvokeVoidAsync("scrollToBottom", "build-log-output");
+            });
+        }
+    }
+
+    private void ClearLogs()
+    {
+        AppState.BuildOutput = string.Empty;
+        AppState.CurrentBuildErrors.Clear();
+        AppState.CurrentBuildStatus = BuildStatus.Idle;
+    }
+
+    public void Dispose()
+    {
+        AppState.PropertyChanged -= OnAppStateChanged;
+    }
+}

@@ -1,0 +1,74 @@
+@using LlmContextCollector.Services
+@using LlmContextCollector.Models
+@inject AppState AppState
+@inject BuildManagerService BuildManagerService
+@inject ProjectSettingsService ProjectSettingsService
+
+<div class="project-footer">
+    <div class="action-bar">
+        <div class="build-group">
+            <button class="action-btn build-btn @(AppState.CurrentBuildStatus == BuildStatus.Failed ? "failed" : "")" 
+                    @onclick="BuildProjectAsync" 
+                    disabled="@(AppState.CurrentBuildStatus == BuildStatus.Running)" 
+                    title="Build: @AppState.DefaultBuildCommand">
+                @if (AppState.CurrentBuildStatus == BuildStatus.Running)
+                {
+                    <span class="spinner-tiny"></span>
+                }
+                else
+                {
+                    <span>🛠️ Build</span>
+                }
+            </button>
+            <button class="action-btn run-btn" 
+                    @onclick="RunProjectAsync" 
+                    disabled="@(AppState.CurrentBuildStatus == BuildStatus.Running)" 
+                    title="Run: @AppState.DefaultRunCommand">
+                <span>▶ Run</span>
+            </button>
+            @if (AppState.CurrentBuildStatus == BuildStatus.Running)
+            {
+                <button class="action-btn stop-btn" @onclick="() => BuildManagerService.CancelBuild()" title="Leállítás">⏹</button>
+            }
+        </div>
+        <button class="icon-btn-gear @(_isSettingsOpen ? "active" : "")" @onclick="ToggleSettings" title="Projekt specifikus parancsok">⚙️</button>
+    </div>
+
+    @if (_isSettingsOpen)
+    {
+        <div class="settings-panel">
+            <div class="form-group">
+                <label>Build parancs:</label>
+                <input type="text" @bind="AppState.DefaultBuildCommand" 
+                       @onblur="SaveSettings" 
+                       @onkeyup="@(e => { if (e.Key == "Enter") SaveSettings(); })"
+                       placeholder="pl. dotnet build" />
+            </div>
+            <div class="form-group">
+                <label>Futtatási parancs:</label>
+                <input type="text" @bind="AppState.DefaultRunCommand" 
+                       @onblur="SaveSettings" 
+                       @onkeyup="@(e => { if (e.Key == "Enter") SaveSettings(); })"
+                       placeholder="pl. dotnet run" />
+            </div>
+            <div class="settings-hint">A beállítások a projekthez kapcsolódnak.</div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _isSettingsOpen = false;
+
+    private async Task BuildProjectAsync() => await BuildManagerService.RunBuildAsync();
+    private async Task RunProjectAsync() => await BuildManagerService.RunProjectAsync();
+
+    private void ToggleSettings() => _isSettingsOpen = !_isSettingsOpen;
+
+    private async Task SaveSettings()
+    {
+        if (!string.IsNullOrEmpty(AppState.ProjectRoot))
+        {
+            await ProjectSettingsService.SaveSettingsForProjectAsync(AppState.ProjectRoot);
+        }
+    }
+}

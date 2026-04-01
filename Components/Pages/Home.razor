@@ -56,6 +56,11 @@
         <div class="context-menu-item" @onclick="CopySelectedFilesContentFromTree">Tartalom másolása</div>
         <div class="context-menu-item" @onclick="CopySelectedNodeName">Név másolása</div>
         <div class="context-menu-item" @onclick="CopySelectedNodePath">Elérési út másolása</div>
+        @if (_selectedNodeForMenu != null && (_selectedNodeForMenu.Name.EndsWith(".csproj") || _selectedNodeForMenu.Name.EndsWith(".sln")))
+        {
+            <div class="context-menu-divider" style="height: 1px; background: var(--border-color); margin: 5px 0;"></div>
+            <div class="context-menu-item" style="font-weight: bold; color: var(--accent-color);" @onclick="SetAsBuildTarget">Beállítás Build célpontként</div>
+        }
     </div>
 }
 

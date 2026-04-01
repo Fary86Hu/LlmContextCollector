@@ -38,9 +38,6 @@ namespace LlmContextCollector.Services
             {
                 _appState.IgnorePatternsRaw = settings.IgnorePatterns;
                 
-                // Merge extension filters: 
-                // Megtartjuk a jelenlegieket is (ha esetleg van olyan, ami a mentésben nincs),
-                // de felülírjuk a mentett értékekkel.
                 foreach (var kvp in settings.ExtensionFilters)
                 {
                     _appState.ExtensionFilters[kvp.Key] = kvp.Value;
@@ -55,12 +52,26 @@ namespace LlmContextCollector.Services
                     }
                 }
 
+                // Projekt-specifikus parancsok betöltése
+                if (!string.IsNullOrWhiteSpace(settings.BuildCommand))
+                {
+                    _appState.DefaultBuildCommand = settings.BuildCommand;
+                }
+                if (!string.IsNullOrWhiteSpace(settings.RunCommand))
+                {
+                    _appState.DefaultRunCommand = settings.RunCommand;
+                }
+
                 _appState.NotifyStateChanged(nameof(AppState.ExtensionFilters));
                 _appState.NotifyStateChanged(nameof(AppState.IgnorePatternsRaw));
                 _appState.NotifyStateChanged(nameof(AppState.AttachableDocuments));
+                _appState.NotifyStateChanged(nameof(AppState.DefaultBuildCommand));
+                _appState.NotifyStateChanged(nameof(AppState.DefaultRunCommand));
             }
             else 
             {
+                // Ha nincs projekt-specifikus beállítás, ürítjük a dokumentumokat, 
+                // de a Build/Run parancsok maradnak a globális alapértelmezésen (amit a SettingsService töltött be).
                 _appState.AttachableDocuments.Clear();
                 _appState.NotifyStateChanged(nameof(AppState.AttachableDocuments));
             }
@@ -76,7 +87,9 @@ namespace LlmContextCollector.Services
             {
                 IgnorePatterns = _appState.IgnorePatternsRaw,
                 ExtensionFilters = new Dictionary<string, bool>(_appState.ExtensionFilters),
-                AttachableDocuments = _appState.AttachableDocuments.ToList()
+                AttachableDocuments = _appState.AttachableDocuments.ToList(),
+                BuildCommand = _appState.DefaultBuildCommand,
+                RunCommand = _appState.DefaultRunCommand
             };
 
             _allProjectSettings![projectPath] = settings;

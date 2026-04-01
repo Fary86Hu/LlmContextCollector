@@ -295,6 +295,20 @@ namespace LlmContextCollector.Services
         private bool _adoDownloadOnlyMine = false;
         public bool AdoDownloadOnlyMine { get => _adoDownloadOnlyMine; set => SetField(ref _adoDownloadOnlyMine, value); }
 
+        private BuildStatus _currentBuildStatus = BuildStatus.Idle;
+        public BuildStatus CurrentBuildStatus { get => _currentBuildStatus; set => SetField(ref _currentBuildStatus, value); }
+
+        public ObservableCollection<BuildError> CurrentBuildErrors { get; } = new();
+
+        private string _buildOutput = string.Empty;
+        public string BuildOutput { get => _buildOutput; set => SetField(ref _buildOutput, value); }
+
+        private string _defaultBuildCommand = "dotnet build";
+        public string DefaultBuildCommand { get => _defaultBuildCommand; set => SetField(ref _defaultBuildCommand, value); }
+
+        private string _defaultRunCommand = "dotnet run";
+        public string DefaultRunCommand { get => _defaultRunCommand; set => SetField(ref _defaultRunCommand, value); }
+
         public string LastLlmGlobalExplanation { get; set; } = string.Empty;
 
         private bool _isDiffDialogVisible = false;

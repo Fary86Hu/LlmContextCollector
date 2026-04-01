@@ -33,7 +33,7 @@
             <button @onclick="() => AppState.IsAiInspectorVisible = true" title="Rendszernapló és AI Inspector" style="margin: 0 5px;">📜</button>
             <button @onclick="OnShowSettingsDialog" title="Beállítások" style="margin: 0 0 0 5px;">⚙️</button>
         </div>
-        <div class="prompt-container">
+        <div class="prompt-container" style="flex: 1;">
             <textarea class="prompt-editor" placeholder="Írja ide a promptot..." @bind="AppState.PromptText" @bind:event="oninput"></textarea>
             <div class="prompt-editor-button-group">
                 <button class="prompt-editor-btn" @onclick="PickImagesAsync" title="Képek csatolása">🖼️</button>
@@ -127,6 +127,11 @@
     <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightMiddle"))'></div>
 
     <div class="right-bottom-section">
+        @if (AppState.BuildOutput != string.Empty || AppState.CurrentBuildStatus != BuildStatus.Idle)
+        {
+            <BuildTerminal OnFixRequested="HandleBuildFixRequested" OnLocationClicked="HandleErrorLocationClicked" />
+            <div class="horizontal-splitter" style="height: 3px; cursor: default;"></div>
+        }
         <div class="preview-header">
             <h4>Fájl Előnézet</h4>
             <div class="preview-search-controls">
