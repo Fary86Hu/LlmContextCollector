@@ -281,20 +281,30 @@ namespace LlmContextCollector.Services
             _appState.StatusText = $"Sikeres push a(z) '{branchName}' branch-re!";
         }
 
-        public async Task DiscardFileChangesAsync(DiffResult diffResult)
+        public async Task DiscardFileChangesAsync(DiffResult diffResult, string source = "HEAD")
         {
             var fullPath = Path.Combine(_appState.ProjectRoot, diffResult.Path.Replace('/', Path.DirectorySeparatorChar));
 
-            if (diffResult.Status == DiffStatus.New)
+            // Ha konkrét forráságat (pl develop) adtunk meg, ellenőrizzük, hogy ott létezik-e a fájl
+            bool existsInSource = await _gitService.FileExistsInRefAsync(source, diffResult.Path);
+
+            if (!existsInSource)
             {
+                // Ha nem létezik a forrásban, akkor a "visszaállítás" a fájl törlését jelenti
                 if (File.Exists(fullPath))
                 {
-                    File.Delete(fullPath);
+                    // Megpróbáljuk git-tel törölni, ha követett fájl, különben sima törlés
+                    var (success, _, _) = await _gitService.RunGitCommandAsync(new[] { "rm", "-f", diffResult.Path });
+                    if (!success && File.Exists(fullPath))
+                    {
+                        File.Delete(fullPath);
+                    }
                 }
             }
             else
             {
-                await _gitService.DiscardChangesAsync(diffResult.Path);
+                // Ha létezik, akkor a git restore-ral visszaállítjuk az adott állapotra
+                await _gitService.DiscardChangesAsync(diffResult.Path, source);
             }
         }
 

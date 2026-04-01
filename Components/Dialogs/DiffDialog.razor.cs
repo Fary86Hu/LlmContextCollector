@@ -380,24 +380,42 @@ namespace LlmContextCollector.Components.Dialogs
 
         private async Task RevertFile(DiffResult r) 
         { 
+            bool confirm = await JSRuntime.InvokeAsync<bool>("confirm", $"Biztosan visszaállítja a fájlt és eldobja a változtatásokat? ({r.Path})");
+            if (!confirm) return;
+
             if (_isGitDiffMode) 
             {
                 if (_selectedViewMode == ViewMode.LlmHistory)
                 {
                     await GitWorkflowService.RevertLlmHistoryChangesAsync(new List<DiffResult> { r });
-                    AppState.StatusText = $"Fájl módosítás visszavonva: {r.Path}";
+                    AppState.StatusText = $"Fájl módosítás visszavonva az előzmények alapján: {r.Path}";
                     r.IsSelectedForAccept = false;
+                    // Itt nem töltünk újra, mert az előzmény lista statikus, csak megjelöljük
                 }
                 else
                 {
-                    await GitWorkflowService.DiscardFileChangesAsync(r); 
+                    // Meghatározzuk a bázist, amire vissza kell állni
+                    string sourceRef = "HEAD";
+                    if (_selectedViewMode == ViewMode.SinceBranchCreation)
+                    {
+                        sourceRef = await GitWorkflowService.GetDevelopmentBranchNameAsync();
+                    }
+                    else if (_selectedViewMode == ViewMode.AgainstBranch && !string.IsNullOrEmpty(_selectedTargetBranch))
+                    {
+                        sourceRef = _selectedTargetBranch;
+                    }
+
+                    await GitWorkflowService.DiscardFileChangesAsync(r, sourceRef); 
                     await LoadSelectedDiffsAsync(); 
+                    AppState.StatusText = $"Fájl visszaállítva ({sourceRef}): {r.Path}";
                 }
             }
             else 
             {
+                // Clipboard módban a visszaállítás csak a javaslat elvetését jelenti (mivel még nincs a lemezen)
                 _localDiffResults.Remove(r); 
                 await SelectResult(_localDiffResults.FirstOrDefault());
+                AppState.StatusText = $"Javasolt módosítás elvetve: {r.Path}";
             }
         }
         private async Task StartPaneResize(MouseEventArgs e) { _isResizingPane = true; _windowWidth = await JSRuntime.InvokeAsync<double>("eval", "window.innerWidth"); }

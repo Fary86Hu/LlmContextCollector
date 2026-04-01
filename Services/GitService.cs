@@ -102,6 +102,12 @@ namespace LlmContextCollector.Services
             await RunGitCommandAsync(new[] { "push", "--set-upstream", "origin", branchName }, throwOnError: true);
         }
 
+        public async Task<bool> FileExistsInRefAsync(string gitRef, string filePath)
+        {
+            var (success, _, _) = await RunGitCommandAsync(new[] { "cat-file", "-e", $"{gitRef}:{filePath}" });
+            return success;
+        }
+
         public async Task<string> GetFileContentAtBranchAsync(string branch, string filePath)
         {
             var (success, output, error) = await RunGitCommandAsync(new[] { "show", $"{branch}:{filePath}" });
@@ -109,12 +115,9 @@ namespace LlmContextCollector.Services
             return output;
         }
 
-        public async Task DiscardChangesAsync(string filePath)
+        public async Task DiscardChangesAsync(string filePath, string source = "HEAD")
         {
-            // Unstage and discard changes in working directory
-            // --source=HEAD ensures we revert to the last commit state
-            // --staged --worktree handles both staged and unstaged changes
-            await RunGitCommandAsync(new[] { "restore", "--source=HEAD", "--staged", "--worktree", filePath }, throwOnError: true);
+            await RunGitCommandAsync(new[] { "restore", $"--source={source}", "--staged", "--worktree", filePath }, throwOnError: true);
         }
     }
 }
