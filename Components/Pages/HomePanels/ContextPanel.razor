@@ -1,78 +1,71 @@
 <div class="panel panel-right" style="--right-top-flex:@(AppState.RightTopPanelFlex.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)); --right-middle-flex:@(AppState.RightMiddlePanelFlex.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)); --right-bottom-flex:@(AppState.RightBottomPanelFlex.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));">
     
-    <div class="actions-toolbar-row">
-        <div class="action-group">
-            <button class="primary" @onclick="OnAddSelectedToContext">>> Hozzáadás</button>
-            <button @onclick="OnExcludeSelectedFromTree">Kizárás</button>
-            <button @onclick="OnRequestRemoveSelected">Eltávolítás</button>
-        </div>
-        <div class="ref-settings-group">
-            <label>Ref. mélység:</label>
-            <input type="number" min="0" max="5" @bind="AppState.ReferenceSearchDepth" style="width: 45px;" />
-            <label class="checkbox-label">
-                <input type="checkbox" @bind="AppState.IncludeReferencingFiles" /> Hivatkozók
-            </label>
-        </div>
-    </div>
-
     <div class="right-top-section">
-        <div class="toolbar" style="align-items: center;">
-            <label style="margin-right: 5px;">Globális Prompt:</label>
-            <div class="custom-dropdown-container" style="flex-grow: 1;">
-                <div class="custom-dropdown-trigger" @onclick="ToggleTopDropdown" @onclick:stopPropagation="true">
-                    <span>@(AppState.PromptTemplates.FirstOrDefault(p => p.Id == AppState.ActiveGlobalPromptId)?.Title ?? "Válassz...")</span>
-                    <span class="dropdown-arrow">▼</span>
+        <div class="prompt-layout-horizontal">
+            <div class="prompt-sidebar">
+                <div class="sidebar-group">
+                    <button class="primary sidebar-btn" @onclick="OnAddSelectedToContext">>> Hozzáadás</button>
+                    <button class="sidebar-btn" @onclick="OnExcludeSelectedFromTree">Kizárás</button>
+                    <button class="sidebar-btn" @onclick="OnRequestRemoveSelected">Eltávolítás</button>
                 </div>
-                @if (_isTopDropdownOpen)
-                {
-                    <div class="custom-dropdown-list">
-                        @foreach (var prompt in AppState.PromptTemplates)
+                
+                <div class="sidebar-group">
+                    <div class="ref-row">
+                        <div class="ref-input-col">
+                            <label>Ref. mélység:</label>
+                            <input type="number" min="0" max="5" @bind="AppState.ReferenceSearchDepth" />
+                        </div>
+                        <label class="checkbox-label ref-check-col">
+                            <input type="checkbox" @bind="AppState.IncludeReferencingFiles" /> Hivatkozók
+                        </label>
+                    </div>
+                </div>
+
+                <div class="sidebar-group ado-sidebar-group">
+                    <label>ADO ID:</label>
+                    <div class="ado-input-row">
+                        <input type="number" placeholder="ID..." @bind="_adoWorkItemIdToLoad" @onkeyup="HandleAdoKeyup" />
+                        <button @onclick="LoadAdoWorkItemAsync" title="Work Item betöltése">⏎</button>
+                    </div>
+                </div>
+
+                <div class="sidebar-group system-controls-group">
+                    <button class="sidebar-btn" @onclick="OnShowPromptManager">Sablonok szerkesztése</button>
+                    <div class="icon-actions-row">
+                        <button class="sidebar-btn" @onclick="() => AppState.IsAiInspectorVisible = true" title="Rendszernapló és AI Inspector">📜 Napló</button>
+                        <button class="sidebar-btn" @onclick="OnShowSettingsDialog" title="Beállítások">⚙️</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="prompt-main-area">
+                <div class="prompt-container">
+                    <textarea class="prompt-editor" placeholder="Írja ide a promptot..." @bind="AppState.PromptText" @bind:event="oninput"></textarea>
+                    <div class="prompt-editor-button-group">
+                        <button class="prompt-editor-btn" @onclick="PickImagesAsync" title="Képek csatolása">🖼️</button>
+                        @if (!string.IsNullOrWhiteSpace(AppState.PromptText) || AppState.AttachedImages.Any())
                         {
-                            <div class="custom-dropdown-item @(prompt.Id == AppState.ActiveGlobalPromptId ? "active" : "")" @onclick="() => SelectTopPrompt(prompt.Id)">
-                                <span class="item-text">@prompt.Title</span>
-                                <button class="copy-item-btn" @onclick:stopPropagation="true" @onclick="() => CopyTemplateById(prompt.Id)" title="Csak a sablon tartalmának másolása">
-                                    📋
-                                </button>
+                            <button class="prompt-editor-btn" @onclick="ClearPrompt" title="Prompt és képek törlése">&times;</button>
+                        }
+                    </div>
+                </div>
+                @if (AppState.AttachedImages.Any())
+                {
+                    <div class="attached-images-strip">
+                        <div class="attached-images-info">
+                            <button class="icon-btn-small" @onclick="CopyImagesAsync" title="Képek vágólapra másolása (Ctrl+B)">📋 (Ctrl+B)</button>
+                        </div>
+                        @foreach (var img in AppState.AttachedImages)
+                        {
+                            <div class="image-thumbnail" title="@img.FileName">
+                                <img src="@img.Base64Thumbnail" />
+                                <button class="remove-img-btn" @onclick="() => AppState.AttachedImages.Remove(img)">&times;</button>
                             </div>
                         }
                     </div>
                 }
             </div>
-            <button @onclick="OnShowPromptManager">Szerkesztés...</button>
-            
-            <div class="ado-quick-load" style="display: flex; align-items: center; margin-left: 10px; gap: 2px;">
-                <input type="number" placeholder="ADO ID..." @bind="_adoWorkItemIdToLoad" style="width: 80px; height: 30px;" @onkeyup="HandleAdoKeyup" />
-                <button @onclick="LoadAdoWorkItemAsync" title="ADO Work Item betöltése a promptba" style="height: 30px; padding: 0 8px;">Betölt</button>
-            </div>
-
-            <button @onclick="() => AppState.IsAiInspectorVisible = true" title="Rendszernapló és AI Inspector" style="margin: 0 5px;">📜</button>
-            <button @onclick="OnShowSettingsDialog" title="Beállítások" style="margin: 0 0 0 5px;">⚙️</button>
         </div>
-        <div class="prompt-container" style="flex: 1;">
-            <textarea class="prompt-editor" placeholder="Írja ide a promptot..." @bind="AppState.PromptText" @bind:event="oninput"></textarea>
-            <div class="prompt-editor-button-group">
-                <button class="prompt-editor-btn" @onclick="PickImagesAsync" title="Képek csatolása">🖼️</button>
-                @if (!string.IsNullOrWhiteSpace(AppState.PromptText) || AppState.AttachedImages.Any())
-                {
-                    <button class="prompt-editor-btn" @onclick="ClearPrompt" title="Prompt és képek törlése">&times;</button>
-                }
-            </div>
-        </div>
-        @if (AppState.AttachedImages.Any())
-        {
-            <div class="attached-images-strip">
-                <div class="attached-images-info">
-                    <button class="icon-btn-small" @onclick="CopyImagesAsync" title="Képek vágólapra másolása (Ctrl+B)">📋 (Ctrl+B)</button>
-                </div>
-                @foreach (var img in AppState.AttachedImages)
-                {
-                    <div class="image-thumbnail" title="@img.FileName">
-                        <img src="@img.Base64Thumbnail" />
-                        <button class="remove-img-btn" @onclick="() => AppState.AttachedImages.Remove(img)">&times;</button>
-                    </div>
-                }
-            </div>
-        }
     </div>
 
     <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightTop"))'></div>

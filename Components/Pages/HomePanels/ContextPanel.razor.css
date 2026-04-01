@@ -3,32 +3,65 @@
     gap: 0;
 }
 
-.actions-toolbar-row {
+.prompt-layout-horizontal {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    gap: 10px;
+    flex-grow: 1;
+    min-height: 0;
+}
+
+.prompt-sidebar {
+    width: 180px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 10px;
     background-color: var(--toolbar-bg);
     border: 1px solid var(--border-color);
-    padding: 6px 10px;
-    margin-bottom: 8px;
     border-radius: 4px;
-    flex-shrink: 0;
+    overflow-y: auto;
 }
 
-.action-group {
+.sidebar-group {
     display: flex;
-    gap: 6px;
+    flex-direction: column;
+    gap: 5px;
 }
 
-.ref-settings-group {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: var(--font-size-sm);
-}
-
-.ref-settings-group label {
+.sidebar-group label {
+    font-size: 11px;
     font-weight: bold;
+    color: var(--text-color-light);
+}
+
+.sidebar-btn {
+    width: 100%;
+    padding: 6px 10px;
+    font-size: 12px;
+    text-align: center;
+}
+
+.ref-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.ref-input-col {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+}
+
+.ref-input-col input {
+    width: 100%;
+}
+
+.ref-check-col {
+    margin-bottom: 5px;
+    white-space: nowrap;
 }
 
 .checkbox-label {
@@ -36,6 +69,48 @@
     align-items: center;
     gap: 4px;
     cursor: pointer;
+    font-size: 11px;
+}
+
+.ado-sidebar-group {
+    padding-top: 5px;
+}
+
+.ado-input-row {
+    display: flex;
+    gap: 2px;
+}
+
+.ado-input-row input {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.ado-input-row button {
+    padding: 0 8px;
+    flex-shrink: 0;
+}
+
+.system-controls-group {
+    margin-top: auto;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+}
+
+.icon-actions-row {
+    display: flex;
+    gap: 4px;
+}
+
+.icon-actions-row .sidebar-btn {
+    flex: 1;
+}
+
+.prompt-main-area {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    min-width: 0;
 }
 
 .right-top-section, .right-middle-section, .right-bottom-section, .bottom-actions {
@@ -45,7 +120,9 @@
 
 .right-top-section {
     flex: var(--right-top-flex);
-    min-height: 50px;
+    min-height: 100px;
+    display: flex;
+    flex-direction: column;
 }
 
 .right-middle-section {
@@ -604,7 +681,6 @@ html[data-theme="dark"] ::deep .highlight.current {
     padding: 5px;
     background-color: var(--input-bg-color);
     border: 1px solid var(--border-color);
-    border-top: none;
     overflow-x: auto;
     align-items: center;
 }
