@@ -946,8 +946,15 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             else
             {
                 var diffArgs = await ContextProcessingService.ProcessChangesFromClipboardAsync(responseContent);
+                
+                var finalArgs = new DiffResultArgs(
+                    diffArgs.GlobalExplanation, 
+                    diffArgs.DiffResults, 
+                    diffArgs.FullLlmResponse, 
+                    AppState.PromptText, 
+                    diffArgs.LocalizationData);
 
-                if (!string.IsNullOrEmpty(diffArgs.LocalizationData))
+                if (!string.IsNullOrEmpty(finalArgs.LocalizationData))
                 {
                     var matches = Regex.Matches(diffArgs.LocalizationData, @"<data name=""([^""]+)""[^>]*>\s*<value>([\s\S]*?)<\/value>\s*<\/data>", RegexOptions.IgnoreCase);
                     foreach (Match m in matches)
@@ -964,14 +971,14 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                     }
                 }
 
-                if (!diffArgs.DiffResults.Any())
+                if (!finalArgs.DiffResults.Any())
                 {
                     await JSRuntime.InvokeVoidAsync("alert", "A válasz nem tartalmazott feldolgozható kódot, lokalizációt vagy kérdéseket sem.");
                 }
                 else
                 {
-                    AppState.StatusText = $"{diffArgs.DiffResults.Count} elem feldolgozva. Változások ablak megnyitva.";
-                    await OnShowDiffDialog.InvokeAsync(diffArgs);
+                    AppState.StatusText = $"{finalArgs.DiffResults.Count} elem feldolgozva. Változások ablak megnyitva.";
+                    await OnShowDiffDialog.InvokeAsync(finalArgs);
                 }
             }
         }
@@ -1367,11 +1374,14 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         public List<DiffResult> DiffResults { get; }
         public string FullLlmResponse { get; }
         public string LocalizationData { get; }
-        public DiffResultArgs(string globalExplanation, List<DiffResult> diffResults, string fullLlmResponse, string localizationData = "")
+        public string OriginalPrompt { get; }
+
+        public DiffResultArgs(string globalExplanation, List<DiffResult> diffResults, string fullLlmResponse, string originalPrompt = "", string localizationData = "")
         {
             GlobalExplanation = globalExplanation;
             DiffResults = diffResults;
             FullLlmResponse = fullLlmResponse;
+            OriginalPrompt = originalPrompt;
             LocalizationData = localizationData;
         }
     }

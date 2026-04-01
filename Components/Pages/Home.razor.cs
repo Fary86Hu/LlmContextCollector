@@ -745,6 +745,7 @@ namespace LlmContextCollector.Components.Pages
             AppState.DiffGlobalExplanation = args.GlobalExplanation;
             AppState.DiffResults = args.DiffResults;
             AppState.DiffFullLlmResponse = args.FullLlmResponse;
+            AppState.DiffOriginalPrompt = args.OriginalPrompt;
             AppState.IsDiffDialogVisible = true;
             StateHasChanged();
         }

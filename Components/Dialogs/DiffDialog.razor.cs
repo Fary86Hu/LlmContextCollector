@@ -15,6 +15,7 @@ namespace LlmContextCollector.Components.Dialogs
         [Parameter] public bool IsVisible { get; set; }
         [Parameter] public string GlobalExplanation { get; set; } = string.Empty;
         [Parameter] public string FullLlmResponse { get; set; } = string.Empty;
+        [Parameter] public string OriginalPrompt { get; set; } = string.Empty;
         [Parameter] public List<DiffResult>? DiffResults { get; set; }
         [Parameter] public EventCallback<List<DiffResult>> OnAccept { get; set; }
         [Parameter] public EventCallback OnClose { get; set; }
@@ -254,7 +255,23 @@ namespace LlmContextCollector.Components.Dialogs
             } 
         }
 
-        private async Task RefreshSuggestionsAsync() { _isRefreshingSuggestions = true; try { var (b, c) = await GitSuggestionService.GetSuggestionsAsync(_localDiffResults, _globalExplanationText); _suggestedBranch = b ?? ""; _suggestedCommit = c ?? ""; _hasSuggestions = b != null; } finally { _isRefreshingSuggestions = false; } }
+        private async Task RefreshSuggestionsAsync() 
+        { 
+            _isRefreshingSuggestions = true; 
+            try 
+            { 
+                // A dialógus megnyitásakor kapott eredeti promptot (ha van) beküldjük a javaslathoz
+                var promptToUse = _isGitDiffMode ? "" : (OriginalPrompt ?? AppState.DiffOriginalPrompt);
+                var (b, c) = await GitSuggestionService.GetSuggestionsAsync(_localDiffResults, _globalExplanationText, promptToUse); 
+                _suggestedBranch = b ?? ""; 
+                _suggestedCommit = c ?? ""; 
+                _hasSuggestions = b != null; 
+            } 
+            finally 
+            { 
+                _isRefreshingSuggestions = false; 
+            } 
+        }
         private void ParseGlobalExplanation()
         {
             if (string.IsNullOrEmpty(GlobalExplanation)) return;

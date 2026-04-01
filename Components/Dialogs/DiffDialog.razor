@@ -19,7 +19,7 @@
          @onmouseleave="StopPaneResize">
         <div class="modal-dialog diff-dialog">
             <div class="modal-header">
-                <h3>Változások Elemzése és Elfogadása</h3>
+                <h3>@(_isGitDiffMode ? "Git Változások Áttekintése" : "AI Válasz Alkalmazása")</h3>
                 <div class="header-controls">
                     @if (!string.IsNullOrEmpty(FullLlmResponse))
                     {
@@ -59,7 +59,10 @@
                     @if (_isGitDiffMode)
                     {
                         <div class="diff-selector-box">
-                            <strong>Különbségek forrása:</strong>
+                            <div style="display:flex; justify-content: space-between; align-items: center;">
+                                <strong>Különbségek forrása:</strong>
+                                <span class="badge-mode">GIT MÓD</span>
+                            </div>
                             <div class="diff-options">
                                 <label><input type="radio" name="diff-mode" @onchange="() => ChangeViewMode(ViewMode.Uncommitted)" checked="@(_selectedViewMode == ViewMode.Uncommitted)" /> Jelenlegi változások</label>
                                 <label><input type="radio" name="diff-mode" @onchange="() => ChangeViewMode(ViewMode.SinceBranchCreation)" checked="@(_selectedViewMode == ViewMode.SinceBranchCreation)" /> Branch nyitása óta</label>
@@ -106,19 +109,16 @@
                     <div class="suggestion-box">
                         <div class="suggestion-header">
                             <strong>@(_hasSuggestions ? "Javaslatok:" : "Git Műveletek")</strong>
-                            @if (_isGitDiffMode)
-                            {
-                                <button class="refresh-btn" @onclick="RefreshSuggestionsAsync" title="Javaslatok frissítése" disabled="@_isRefreshingSuggestions">
-                                    @if (_isRefreshingSuggestions)
-                                    {
-                                        <span class="spinner-small"></span>
-                                    }
-                                    else
-                                    {
-                                        <span>🔄</span>
-                                    }
-                                </button>
-                            }
+                            <button class="refresh-btn" @onclick="RefreshSuggestionsAsync" title="Javaslatok újragenerálása" disabled="@_isRefreshingSuggestions">
+                                @if (_isRefreshingSuggestions)
+                                {
+                                    <span class="spinner-small"></span>
+                                }
+                                else
+                                {
+                                    <span>🔄</span>
+                                }
+                            </button>
                         </div>
                         <div class="suggestion-item">
                             <label>Branch:</label>
@@ -252,7 +252,15 @@
                 }
                 else
                 {
-                    <button class="primary" @onclick="AcceptSelectedChanges" disabled="@(!_localDiffResults.Any(r => r.IsSelectedForAccept))">Kijelöltek elfogadása</button>
+                    @if (!_isGitDiffMode)
+                    {
+                        <button class="primary" @onclick="AcceptSelectedChanges" disabled="@(!_localDiffResults.Any(r => r.IsSelectedForAccept))">Változások Alkalmazása</button>
+                    }
+                    else
+                    {
+                        <button class="primary" @onclick="AcceptSelectedChanges" disabled="@(!_localDiffResults.Any(r => r.IsSelectedForAccept))">Kijelöltek Elfogadása</button>
+                    }
+
                     <button class="primary" @onclick="CreateBranch" disabled="@(string.IsNullOrWhiteSpace(_suggestedBranch))">Branch Létrehozása</button>
                     <button class="primary" @onclick="Commit" disabled="@(string.IsNullOrWhiteSpace(_suggestedCommit) || !_localDiffResults.Any(r => r.IsSelectedForAccept))">Commit</button>
                     <button class="primary commit-btn" @onclick="Push">Push</button>

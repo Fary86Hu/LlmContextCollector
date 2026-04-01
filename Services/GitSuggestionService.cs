@@ -19,14 +19,14 @@ namespace LlmContextCollector.Services
             _appState = appState;
         }
 
-        public async Task<(string? branch, string? commit)> GetSuggestionsAsync(List<DiffResult> diffs, string? globalExplanation = null, CancellationToken ct = default)
+        public async Task<(string? branch, string? commit)> GetSuggestionsAsync(List<DiffResult> diffs, string? globalExplanation = null, string? originalPrompt = null, CancellationToken ct = default)
         {
             if (!diffs.Any())
             {
                 return ("", "");
             }
 
-            var prompt = BuildPrompt(diffs, globalExplanation);
+            var prompt = BuildPrompt(diffs, globalExplanation, originalPrompt);
             try
             {
                 var llmResponse = await _generationProvider.GenerateAsync(prompt, ct);
@@ -39,7 +39,7 @@ namespace LlmContextCollector.Services
             }
         }
 
-        private string BuildPrompt(List<DiffResult> diffs, string? globalExplanation)
+        private string BuildPrompt(List<DiffResult> diffs, string? globalExplanation, string? originalPrompt)
         {
             var maxRequestTokens = 8192;
             var maxOutputTokens = _appState.GroqMaxOutputTokens;
@@ -47,16 +47,25 @@ namespace LlmContextCollector.Services
             var reserve = 1024;
             var sb = new StringBuilder();
 
-            if (!string.IsNullOrWhiteSpace(globalExplanation))
+            if (!string.IsNullOrWhiteSpace(originalPrompt))
             {
-                sb.AppendLine("Use the following explanation as the main context for the changes:");
-                sb.AppendLine("--- GLOBAL EXPLANATION ---");
-                sb.AppendLine(globalExplanation);
-                sb.AppendLine("--- END GLOBAL EXPLANATION ---");
+                sb.AppendLine("The changes were generated based on this original user instruction (PROMPT):");
+                sb.AppendLine("--- ORIGINAL USER PROMPT ---");
+                sb.AppendLine(originalPrompt);
+                sb.AppendLine("--- END ORIGINAL USER PROMPT ---");
                 sb.AppendLine();
             }
 
-            sb.AppendLine("Based on the following git diff summary, please suggest a git branch name and a conventional commit message.");
+            if (!string.IsNullOrWhiteSpace(globalExplanation))
+            {
+                sb.AppendLine("The AI that generated the code provided this explanation of its work:");
+                sb.AppendLine("--- AI EXPLANATION ---");
+                sb.AppendLine(globalExplanation);
+                sb.AppendLine("--- END AI EXPLANATION ---");
+                sb.AppendLine();
+            }
+
+            sb.AppendLine("Based on the original instruction and the resulting changes, please suggest a git branch name and a conventional commit message.");
             sb.AppendLine("The input is structured to show the code hierarchy (e.g. Namespace > Class > Method) for context.");
             sb.AppendLine("For CSS files, only the file status is provided.");
             sb.AppendLine("Format:");

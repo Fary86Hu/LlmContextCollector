@@ -305,6 +305,7 @@ namespace LlmContextCollector.Services
         }
         public string DiffGlobalExplanation { get; set; } = string.Empty;
         public string DiffFullLlmResponse { get; set; } = string.Empty;
+        public string DiffOriginalPrompt { get; set; } = string.Empty;
         public List<DiffResult> DiffResults { get; set; } = new();
 
         private string _statusText = "Készen áll.";

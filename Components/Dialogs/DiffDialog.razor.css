@@ -74,6 +74,15 @@
         width: 100%;
     }
 
+.badge-mode {
+    background-color: var(--accent-color);
+    color: white;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-weight: bold;
+}
+
     .diff-selector-box button {
         display: flex;
         align-items: center;
