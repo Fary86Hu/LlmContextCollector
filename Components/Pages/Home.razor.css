@@ -27,14 +27,6 @@
     border-right: 1px solid var(--border-color);
 }
 
-::deep .panel-middle {
-    flex: var(--middle-flex);
-    min-width: 220px;
-    padding: 10px;
-    background-color: var(--bg-color);
-    border-right: 1px solid var(--border-color);
-}
-
 ::deep .panel-right {
     flex: var(--right-flex);
     min-width: 350px;

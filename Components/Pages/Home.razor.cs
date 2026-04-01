@@ -779,7 +779,7 @@ namespace LlmContextCollector.Components.Pages
                 _containerHeight = await JSRuntime.InvokeAsync<double>("eval", "window.innerHeight");
             }
             catch { }
-            _startLeftFlex = AppState.LeftPanelFlex; _startMiddleFlex = AppState.MiddlePanelFlex; _startRightFlex = AppState.RightPanelFlex;
+            _startLeftFlex = AppState.LeftPanelFlex; _startRightFlex = AppState.RightPanelFlex;
             _startTopFlex = AppState.RightTopPanelFlex; _startMidFlex = AppState.RightMiddlePanelFlex; _startBotFlex = AppState.RightBottomPanelFlex;
         }
 
@@ -793,15 +793,10 @@ namespace LlmContextCollector.Components.Pages
 
             switch (_activeSplitter)
             {
-                case "LeftMiddle":
-                    var delta1 = (e.ClientX - _startX) * flexFactorX;
-                    AppState.LeftPanelFlex = Math.Clamp(_startLeftFlex + delta1, 10, 80);
-                    AppState.MiddlePanelFlex = Math.Clamp(_startMiddleFlex - delta1, 10, 80);
-                    break;
-                case "MiddleRight":
-                    var delta2 = (e.ClientX - _startX) * flexFactorX;
-                    AppState.MiddlePanelFlex = Math.Clamp(_startMiddleFlex + delta2, 10, 80);
-                    AppState.RightPanelFlex = Math.Clamp(_startRightFlex - delta2, 10, 80);
+                case "LeftRight":
+                    var delta = (e.ClientX - _startX) * flexFactorX;
+                    AppState.LeftPanelFlex = Math.Clamp(_startLeftFlex + delta, 10, 80);
+                    AppState.RightPanelFlex = 100.0 - AppState.LeftPanelFlex;
                     break;
                 case "RightTop":
                     var deltaY1 = (e.ClientY - _startY) * flexFactorY;

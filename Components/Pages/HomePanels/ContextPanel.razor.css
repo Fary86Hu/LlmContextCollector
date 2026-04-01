@@ -3,6 +3,41 @@
     gap: 0;
 }
 
+.actions-toolbar-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--toolbar-bg);
+    border: 1px solid var(--border-color);
+    padding: 6px 10px;
+    margin-bottom: 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.action-group {
+    display: flex;
+    gap: 6px;
+}
+
+.ref-settings-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: var(--font-size-sm);
+}
+
+.ref-settings-group label {
+    font-weight: bold;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+}
+
 .right-top-section, .right-middle-section, .right-bottom-section, .bottom-actions {
     display: flex;
     flex-direction: column;

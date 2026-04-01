@@ -73,6 +73,12 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         public EventCallback OnShowDocumentSearchDialog { get; set; }
 
         [Parameter]
+        public EventCallback OnAddSelectedToContext { get; set; }
+
+        [Parameter]
+        public EventCallback OnExcludeSelectedFromTree { get; set; }
+
+        [Parameter]
         public EventCallback OnRequestRemoveSelected { get; set; }
 
         [Parameter]

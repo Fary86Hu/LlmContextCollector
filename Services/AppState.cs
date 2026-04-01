@@ -365,10 +365,7 @@ namespace LlmContextCollector.Services
         private double _leftPanelFlex = 30;
         public double LeftPanelFlex { get => _leftPanelFlex; set => SetField(ref _leftPanelFlex, value); }
 
-        private double _middlePanelFlex = 20;
-        public double MiddlePanelFlex { get => _middlePanelFlex; set => SetField(ref _middlePanelFlex, value); }
-
-        private double _rightPanelFlex = 50;
+        private double _rightPanelFlex = 70;
         public double RightPanelFlex { get => _rightPanelFlex; set => SetField(ref _rightPanelFlex, value); }
 
         private double _rightTopPanelFlex = 30;

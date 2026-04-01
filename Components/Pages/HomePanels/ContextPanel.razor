@@ -1,5 +1,20 @@
 <div class="panel panel-right" style="--right-top-flex:@(AppState.RightTopPanelFlex.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)); --right-middle-flex:@(AppState.RightMiddlePanelFlex.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)); --right-bottom-flex:@(AppState.RightBottomPanelFlex.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));">
     
+    <div class="actions-toolbar-row">
+        <div class="action-group">
+            <button class="primary" @onclick="OnAddSelectedToContext">>> Hozzáadás</button>
+            <button @onclick="OnExcludeSelectedFromTree">Kizárás</button>
+            <button @onclick="OnRequestRemoveSelected">Eltávolítás</button>
+        </div>
+        <div class="ref-settings-group">
+            <label>Ref. mélység:</label>
+            <input type="number" min="0" max="5" @bind="AppState.ReferenceSearchDepth" style="width: 45px;" />
+            <label class="checkbox-label">
+                <input type="checkbox" @bind="AppState.IncludeReferencingFiles" /> Hivatkozók
+            </label>
+        </div>
+    </div>
+
     <div class="right-top-section">
         <div class="toolbar" style="align-items: center;">
             <label style="margin-right: 5px;">Globális Prompt:</label>

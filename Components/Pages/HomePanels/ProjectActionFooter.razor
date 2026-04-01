@@ -37,14 +37,21 @@
             <div class="footer-filters">
                 <div class="filter-group">
                     <strong>Aktív fájltípusok:</strong>
-                    <div class="compact-extensions">
-                        @foreach (var extKvp in AppState.ExtensionFilters.OrderByDescending(x => AppState.ExtensionCounts.GetValueOrDefault(x.Key, 0)).Take(12))
-                        {
-                            var currentExt = extKvp.Key;
-                            <label class="ext-label" title="@currentExt">
-                                <input type="checkbox" @bind="AppState.ExtensionFilters[currentExt]" /> @currentExt
-                            </label>
-                        }
+                    <div class="compact-extensions-container">
+                        <div class="compact-extensions">
+                            @foreach (var extKvp in AppState.ExtensionCounts.OrderByDescending(x => x.Value))
+                            {
+                                var currentExt = extKvp.Key;
+                                if (!IsBinaryExtension(currentExt) && AppState.ExtensionFilters.ContainsKey(currentExt))
+                                {
+                                    <label class="ext-label" title="@currentExt (@extKvp.Value)">
+                                        <input type="checkbox" @bind="AppState.ExtensionFilters[currentExt]" />
+                                        <span class="ext-text">@currentExt</span>
+                                        <span class="ext-count">(@extKvp.Value)</span>
+                                    </label>
+                                }
+                            }
+                        </div>
                     </div>
                 </div>
 
@@ -84,9 +91,17 @@
     private bool _isSettingsExpanded = false;
     private string _exclusionSearchTerm = "";
 
+    private static readonly HashSet<string> _binaryExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".dll", ".exe", ".zip", ".7z", ".rar", 
+        ".mp4", ".mov", ".avi", ".wav", ".mp3", ".woff", ".woff2", ".ttf", ".eot", ".obj", ".pyc"
+    };
+
+    private bool IsBinaryExtension(string ext) => _binaryExtensions.Contains(ext);
+
     private IEnumerable<ExclusionRule> FilteredExclusions => 
         string.IsNullOrWhiteSpace(_exclusionSearchTerm) 
-        ? AppState.Exclusions.Take(50) 
+        ? AppState.Exclusions 
         : AppState.Exclusions.Where(e => e.Pattern.Contains(_exclusionSearchTerm, StringComparison.OrdinalIgnoreCase));
 
     protected override void OnInitialized()
@@ -99,6 +114,7 @@
         if (e.PropertyName == nameof(AppState.DefaultBuildCommand) ||
             e.PropertyName == nameof(AppState.DefaultRunCommand) ||
             e.PropertyName == nameof(AppState.ExtensionFilters) ||
+            e.PropertyName == nameof(AppState.ExtensionCounts) ||
             e.PropertyName == nameof(AppState.Exclusions))
         {
             await InvokeAsync(StateHasChanged);
