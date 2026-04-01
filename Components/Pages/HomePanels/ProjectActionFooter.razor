@@ -1,0 +1,134 @@
+@using LlmContextCollector.Models
+@using LlmContextCollector.Services
+@inject AppState AppState
+@inject BuildManagerService BuildManager
+@implements IDisposable
+
+<div class="project-footer">
+    <div class="footer-toolbar">
+        <div class="build-actions">
+            <button class="btn-small" @onclick="() => BuildManager.RunBuildAsync()" disabled="@(AppState.CurrentBuildStatus == BuildStatus.Running)">
+                🔨 Build
+            </button>
+            <button class="btn-small" @onclick="() => BuildManager.RunProjectAsync()" disabled="@(AppState.CurrentBuildStatus == BuildStatus.Running)">
+                ▶ Run
+            </button>
+        </div>
+        <div class="footer-right-actions">
+            <button class="icon-btn-footer" @onclick="() => OnReload.InvokeAsync()" title="Alkalmaz és Újratölt">🔄</button>
+            <button class="icon-btn-footer @(_isSettingsExpanded ? "active" : "")" @onclick="ToggleSettings" title="Projekt beállítások megjelenítése">⚙️</button>
+        </div>
+    </div>
+
+    @if (_isSettingsExpanded)
+    {
+        <div class="expanded-settings-pane">
+            <div class="command-info">
+                <div class="command-row">
+                    <span class="label">Build parancs:</span>
+                    <input type="text" @bind="AppState.DefaultBuildCommand" class="path-edit-input" />
+                </div>
+                <div class="command-row">
+                    <span class="label">Futtatási parancs:</span>
+                    <input type="text" @bind="AppState.DefaultRunCommand" class="path-edit-input" />
+                </div>
+            </div>
+
+            <div class="footer-filters">
+                <div class="filter-group">
+                    <strong>Aktív fájltípusok:</strong>
+                    <div class="compact-extensions">
+                        @foreach (var extKvp in AppState.ExtensionFilters.OrderByDescending(x => AppState.ExtensionCounts.GetValueOrDefault(x.Key, 0)).Take(12))
+                        {
+                            var currentExt = extKvp.Key;
+                            <label class="ext-label" title="@currentExt">
+                                <input type="checkbox" @bind="AppState.ExtensionFilters[currentExt]" /> @currentExt
+                            </label>
+                        }
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <div class="group-header">
+                        <strong>Kizárások (@AppState.Exclusions.Count(e => e.IsEnabled)/@AppState.Exclusions.Count):</strong>
+                        <button class="icon-btn-mini" @onclick="AddExclusion" title="Új szabály">➕</button>
+                    </div>
+                    
+                    <div class="mini-search-box">
+                        <input type="text" placeholder="Keresés szabályokra..." @bind="_exclusionSearchTerm" @bind:event="oninput" />
+                    </div>
+
+                    <div class="mini-exclusion-list">
+                        @foreach (var rule in FilteredExclusions)
+                        {
+                            <div class="mini-exclusion-item @(rule.IsEnabled ? "" : "disabled")">
+                                <input type="checkbox" checked="@rule.IsEnabled" @onchange="@((e) => ToggleRule(rule, e))" />
+                                <input type="text" @bind="rule.Pattern" @bind:after="UpdateAppState" class="mini-pattern-input" />
+                                <button class="mini-delete-btn" @onclick="() => RemoveExclusion(rule)" title="Törlés">×</button>
+                            </div>
+                        }
+                        @if (!FilteredExclusions.Any())
+                        {
+                            <div class="empty-hint">Nincs találat.</div>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="footer-note">A beállítások a projekthez kapcsolódnak.</div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public EventCallback OnReload { get; set; }
+    private bool _isSettingsExpanded = false;
+    private string _exclusionSearchTerm = "";
+
+    private IEnumerable<ExclusionRule> FilteredExclusions => 
+        string.IsNullOrWhiteSpace(_exclusionSearchTerm) 
+        ? AppState.Exclusions.Take(50) 
+        : AppState.Exclusions.Where(e => e.Pattern.Contains(_exclusionSearchTerm, StringComparison.OrdinalIgnoreCase));
+
+    protected override void OnInitialized()
+    {
+        AppState.PropertyChanged += OnAppStateChanged;
+    }
+
+    private async void OnAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppState.DefaultBuildCommand) ||
+            e.PropertyName == nameof(AppState.DefaultRunCommand) ||
+            e.PropertyName == nameof(AppState.ExtensionFilters) ||
+            e.PropertyName == nameof(AppState.Exclusions))
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ToggleSettings() => _isSettingsExpanded = !_isSettingsExpanded;
+
+    private void UpdateAppState() => AppState.UpdateRawFromExclusions();
+
+    private void ToggleRule(ExclusionRule rule, ChangeEventArgs e)
+    {
+        rule.IsEnabled = (bool)(e.Value ?? false);
+        UpdateAppState();
+    }
+
+    private void AddExclusion()
+    {
+        AppState.Exclusions.Insert(0, new ExclusionRule { Pattern = "uj-minta/", IsEnabled = true });
+        UpdateAppState();
+    }
+
+    private void RemoveExclusion(ExclusionRule rule)
+    {
+        AppState.Exclusions.Remove(rule);
+        UpdateAppState();
+    }
+
+    public void Dispose()
+    {
+        AppState.PropertyChanged -= OnAppStateChanged;
+    }
+}

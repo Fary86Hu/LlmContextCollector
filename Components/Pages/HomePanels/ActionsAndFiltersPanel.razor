@@ -18,56 +18,6 @@
             </div>
         </div>
     </div>
-
-    <div class="filters-box">
-        <h4>Szűrők</h4>
-
-        <div class="filter-section">
-            <strong>Aktív fájltípusok:</strong>
-            <div class="extensions-list">
-                @foreach (var extKvp in AppState.ExtensionCounts.OrderByDescending(x => x.Value))
-                {
-                    var currentExt = extKvp.Key;
-                    var count = extKvp.Value;
-                    if (AppState.ExtensionFilters.ContainsKey(currentExt))
-                    {
-                        <div>
-                            <input type="checkbox" id="@($"ext-{currentExt}")" @bind="AppState.ExtensionFilters[currentExt]" />
-                            <label for="@($"ext-{currentExt}")">@currentExt (@count)</label>
-                        </div>
-                    }
-                }
-            </div>
-        </div>
-
-        <div class="filter-section">
-            <div class="exclusion-header">
-                <strong>Kizárások (@AppState.Exclusions.Count(e => e.IsEnabled)/@AppState.Exclusions.Count):</strong>
-                <button class="icon-btn-small" @onclick="AddExclusion" title="Új szabály hozzáadása">➕</button>
-            </div>
-            
-            <div class="exclusion-search">
-                <input type="text" placeholder="Szűrés a szabályok között..." @bind="_exclusionSearchTerm" @bind:event="oninput" />
-            </div>
-
-            <div class="exclusion-list">
-                @foreach (var rule in FilteredExclusions)
-                {
-                    <div class="exclusion-item @(rule.IsEnabled ? "" : "disabled")">
-                        <input type="checkbox" checked="@rule.IsEnabled" @onchange="@((e) => ToggleRule(rule, e))" />
-                        <input type="text" @bind="rule.Pattern" @bind:event="oninput" @onchange="OnExclusionChanged" class="pattern-input" />
-                        <button class="delete-btn" @onclick="() => RemoveExclusion(rule)">×</button>
-                    </div>
-                }
-                @if (!FilteredExclusions.Any())
-                {
-                    <div class="empty-list-hint">@(string.IsNullOrEmpty(_exclusionSearchTerm) ? "Nincs megadott szabály." : "Nincs találat.")</div>
-                }
-            </div>
-        </div>
-
-        <button class="apply-filters-btn" @onclick="OnApplyFilters">Alkalmaz és Újratölt</button>
-    </div>
 </div>
 
 @code {
@@ -83,13 +33,6 @@
     [Parameter]
     public EventCallback OnApplyFilters { get; set; }
 
-    private string _exclusionSearchTerm = "";
-
-    private IEnumerable<ExclusionRule> FilteredExclusions => 
-        string.IsNullOrWhiteSpace(_exclusionSearchTerm) 
-        ? AppState.Exclusions 
-        : AppState.Exclusions.Where(e => e.Pattern.Contains(_exclusionSearchTerm, StringComparison.OrdinalIgnoreCase));
-
     protected override void OnInitialized()
     {
         AppState.PropertyChanged += OnAppStateChanged;
@@ -97,38 +40,11 @@
 
     private async void OnAppStateChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(AppState.IgnorePatternsRaw) ||
-            e.PropertyName == nameof(AppState.ExtensionFilters) ||
-            e.PropertyName == nameof(AppState.ExtensionCounts) ||
-            e.PropertyName == nameof(AppState.ReferenceSearchDepth) ||
-            e.PropertyName == nameof(AppState.IncludeReferencingFiles) ||
-            e.PropertyName == nameof(AppState.Exclusions))
+        if (e.PropertyName == nameof(AppState.ReferenceSearchDepth) ||
+            e.PropertyName == nameof(AppState.IncludeReferencingFiles))
         {
             await InvokeAsync(StateHasChanged);
         }
-    }
-
-    private void OnExclusionChanged()
-    {
-        AppState.UpdateRawFromExclusions();
-    }
-
-    private void ToggleRule(ExclusionRule rule, ChangeEventArgs e)
-    {
-        rule.IsEnabled = (bool)(e.Value ?? false);
-        OnExclusionChanged();
-    }
-
-    private void AddExclusion()
-    {
-        AppState.Exclusions.Insert(0, new ExclusionRule { Pattern = "uj-minta/", IsEnabled = true });
-        OnExclusionChanged();
-    }
-
-    private void RemoveExclusion(ExclusionRule rule)
-    {
-        AppState.Exclusions.Remove(rule);
-        OnExclusionChanged();
     }
 
     public void Dispose()
