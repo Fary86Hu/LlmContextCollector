@@ -250,19 +250,7 @@ namespace LlmContextCollector.Services
             set => SetField(ref _ollamaModel, value);
         }
 
-        private bool _useOllamaEmbeddings = false;
-        public bool UseOllamaEmbeddings
-        {
-            get => _useOllamaEmbeddings;
-            set => SetField(ref _useOllamaEmbeddings, value);
-        }
 
-        private string _ollamaEmbeddingModel = "nomic-embed-text";
-        public string OllamaEmbeddingModel
-        {
-            get => _ollamaEmbeddingModel;
-            set => SetField(ref _ollamaEmbeddingModel, value);
-        }
 
         public List<HistoryEntry> HistoryEntries { get; set; } = new();
 
@@ -271,9 +259,6 @@ namespace LlmContextCollector.Services
 
         private string _azureDevOpsProject = "";
         public string AzureDevOpsProject { get => _azureDevOpsProject; set => SetField(ref _azureDevOpsProject, value); }
-
-        private string _azureDevOpsRepository = "";
-        public string AzureDevOpsRepository { get => _azureDevOpsRepository; set => SetField(ref _azureDevOpsRepository, value); }
 
         private string _azureDevOpsIterationPath = "";
         public string AzureDevOpsIterationPath { get => _azureDevOpsIterationPath; set => SetField(ref _azureDevOpsIterationPath, value); }
@@ -336,8 +321,6 @@ namespace LlmContextCollector.Services
             set => SetField(ref _useHotReload, value); 
         }
 
-        public string LastLlmGlobalExplanation { get; set; } = string.Empty;
-
         private bool _isDiffDialogVisible = false;
         public bool IsDiffDialogVisible
         {
@@ -363,12 +346,7 @@ namespace LlmContextCollector.Services
             set => SetField(ref _isLoading, value);
         }
 
-        private bool _isSemanticIndexBuilding = false;
-        public bool IsSemanticIndexBuilding
-        {
-            get => _isSemanticIndexBuilding;
-            set => SetField(ref _isSemanticIndexBuilding, value);
-        }
+
 
         private bool _isAiInspectorVisible = false;
         public bool IsAiInspectorVisible

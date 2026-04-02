@@ -168,7 +168,6 @@ namespace LlmContextCollector.Services
         public async Task<DiffResultArgs> ProcessChangesFromClipboardAsync(string clipboardText)
         {
             var (explanation, parsedFiles) = _llmResponseParserService.ParseResponse(clipboardText);
-            _appState.LastLlmGlobalExplanation = explanation;
 
             // Lokalizációs adatok kinyerése
             var locRegex = new System.Text.RegularExpressions.Regex(@"<data name=""[^""]+"" xml:space=""preserve"">[\s\S]*?</data>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);

@@ -14,20 +14,16 @@ namespace LlmContextCollector.Services
         private readonly FileSystemService _fileSystemService;
         private readonly GitService _gitService;
         private readonly AzureDevOpsService _azureDevOpsService;
-        private readonly EmbeddingIndexService _embeddingIndexService;
-
         public ProjectService(
             AppState appState, 
             FileSystemService fileSystemService, 
             GitService gitService,
-            AzureDevOpsService azureDevOpsService,
-            EmbeddingIndexService embeddingIndexService)
+            AzureDevOpsService azureDevOpsService)
         {
             _appState = appState;
             _fileSystemService = fileSystemService;
             _gitService = gitService;
             _azureDevOpsService = azureDevOpsService;
-            _embeddingIndexService = embeddingIndexService;
         }
 
         public async Task ReloadProjectAsync(bool preserveSelection)
@@ -37,8 +33,6 @@ namespace LlmContextCollector.Services
                 _appState.StatusText = "Érvénytelen vagy nem létező mappa.";
                 return;
             }
-
-            _embeddingIndexService.CancelIndexing();
             
             // Build log és státusz ürítése projektváltáskor
             _appState.BuildOutput = string.Empty;
@@ -48,7 +42,6 @@ namespace LlmContextCollector.Services
             var filesToPreserve = preserveSelection ? _appState.SelectedFilesForContext.ToList() : new List<string>();
             _appState.SelectedFilesForContext.Clear();
             _appState.ResetContextListHistory();
-            _embeddingIndexService.ClearIndex();
 
             var tree = await _fileSystemService.ScanDirectoryAsync(_appState.ProjectRoot);
             _appState.SetFileTree(tree);

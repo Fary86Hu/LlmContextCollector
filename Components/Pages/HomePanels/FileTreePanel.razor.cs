@@ -38,12 +38,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         [Parameter]
         public EventCallback OnAzureDevOpsAttach { get; set; }
 
-        [Parameter]
-        public EventCallback OnStartIndexingCode { get; set; }
 
-        [Parameter]
-
-        public EventCallback OnStartIndexingAdo { get; set; }
 
         private Timer? _searchTimer;
         private List<FileNode> _searchResults = new();

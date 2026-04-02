@@ -83,27 +83,6 @@ namespace LlmContextCollector.Services
             }
         }
 
-        public async IAsyncEnumerable<string> GetAiResponseStream(string userPrompt, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
-        {
-            var messages = new[] { new { role = "user", content = userPrompt } };
-            await foreach (var token in GetChatResponseStreamAsync(messages, ct))
-            {
-                yield return token;
-            }
-        }
 
-        public async Task<string> GenerateContentAsync(string prompt, CancellationToken ct = default)
-        {
-            var sb = new StringBuilder();
-            await foreach (var token in GetAiResponseStream(prompt, ct))
-            {
-                sb.Append(token);
-            }
-
-            var finalResponse = sb.ToString();
-            _logService.LogAi("Ollama (Service Call)", _appState.OllamaModel, prompt, finalResponse);
-
-            return finalResponse;
-        }
     }
 }

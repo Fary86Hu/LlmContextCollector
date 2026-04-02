@@ -47,54 +47,6 @@ namespace LlmContextCollector.Models
         public Dictionary<string, object> Attributes { get; set; } = new();
     }
 
-    // Model for Git Repositories list
-    public class GitRepositoryListResponse
-    {
-        [JsonPropertyName("value")]
-        public List<GitRepository> Value { get; set; } = new();
-    }
-
-    public class GitRepository
-    {
-        [JsonPropertyName("id")]
-        public string Id { get; set; } = string.Empty;
-
-        [JsonPropertyName("name")]
-        public string Name { get; set; } = string.Empty;
-    }
-
-    // Minimal models for PR listing
-    public class GitPullRequestListResponse
-    {
-        [JsonPropertyName("value")]
-        public List<GitPullRequest> Value { get; set; } = new();
-    }
-
-    public class GitPullRequest
-    {
-        [JsonPropertyName("pullRequestId")]
-        public int PullRequestId { get; set; }
-
-        [JsonPropertyName("status")]
-        public string Status { get; set; } = string.Empty;
-    }
-
-    // Minimal models for PR -> WorkItems mapping
-    public class ResourceRefListResponse
-    {
-        [JsonPropertyName("value")]
-        public List<ResourceRef> Value { get; set; } = new();
-    }
-
-    public class ResourceRef
-    {
-        [JsonPropertyName("id")]
-        public string Id { get; set; } = string.Empty;
-
-        [JsonPropertyName("url")]
-        public string Url { get; set; } = string.Empty;
-    }
-
     public class WorkItemCommentListResponse
     {
         [JsonPropertyName("comments")]

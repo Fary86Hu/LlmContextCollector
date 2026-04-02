@@ -1,11 +1,7 @@
 using Microsoft.Extensions.Logging;
 using LlmContextCollector.Services;
-using Microsoft.Maui.ApplicationModel.DataTransfer;
-using LlmContextCollector.AI.Embeddings;
-using LlmContextCollector.AI.Search;
 using LlmContextCollector.AI;
 using System.Net.Http.Headers;
-using LlmContextCollector.AI.Embeddings.Chunking;
 
 #if WINDOWS
 using LlmContextCollector.WinUI.Services;
@@ -48,11 +44,8 @@ namespace LlmContextCollector
 
             builder.Services.AddTransient<FileTreeFilterService>();
             builder.Services.AddTransient<ReferenceFinderService>();
-            builder.Services.AddSingleton<EmbeddingIndexService>();
-            builder.Services.AddTransient<RelevanceFinderService>();
             builder.Services.AddSingleton<GitSuggestionService>();
             builder.Services.AddSingleton<GitService>();
-            builder.Services.AddTransient<CodeStructureExtractor>();
             builder.Services.AddSingleton<AzureDevOpsService>();
             builder.Services.AddTransient<LlmResponseParserService>();
             builder.Services.AddTransient<ContextProcessingService>();
@@ -61,12 +54,9 @@ namespace LlmContextCollector
             builder.Services.AddSingleton<BuildManagerService>();
             builder.Services.AddTransient<ProjectService>();
             builder.Services.AddTransient<FileContextService>();
-            builder.Services.AddTransient<QueryBuilders>();
             builder.Services.AddTransient<OllamaService>();
             builder.Services.AddSingleton<BrowserService>();
             builder.Services.AddSingleton<LocalizationService>();
-            builder.Services.AddTransient<AgentContentLoader>();
-            builder.Services.AddTransient<AgentPromptBuilder>();
 
 
 #if WINDOWS
@@ -92,19 +82,7 @@ namespace LlmContextCollector
                 c.BaseAddress = new Uri(appState.OllamaApiUrl);
                 c.Timeout = TimeSpan.FromMinutes(10); 
             });
-            builder.Services.AddHttpClient("OllamaEmbed", (sp, c) =>
-            {
-                 c.Timeout = TimeSpan.FromMinutes(5);
-            });
-
             builder.Services.AddSingleton<ITextGenerationProvider, GroqTextGenerationProvider>();
-            builder.Services.AddSingleton<NullEmbeddingProvider>();
-            builder.Services.AddSingleton<OllamaEmbeddingProvider>();
-            builder.Services.AddSingleton<IChunker, SimpleChunker>();
-            builder.Services.AddSingleton<IEmbeddingProvider, SwitchingEmbeddingProvider>();
-
-            builder.Services.AddSingleton(new JsonEmbeddingCache(Path.Combine(FileSystem.AppDataDirectory, "embeddings", "cache.json")));
-            builder.Services.AddSingleton<SemanticSearchService>();
 
             return builder.Build();
         }

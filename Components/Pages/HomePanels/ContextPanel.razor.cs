@@ -25,8 +25,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private IClipboard Clipboard { get; set; } = null!;
         [Inject]
         private IJSRuntime JSRuntime { get; set; } = null!;
-        [Inject]
-        private EmbeddingIndexService EmbeddingIndexService { get; set; } = null!;
+
         [Inject]
         private GitSuggestionService GitSuggestionService { get; set; } = null!;
         [Inject]
@@ -35,8 +34,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private GitWorkflowService GitWorkflowService { get; set; } = null!;
         [Inject]
         private ContextProcessingService ContextProcessingService { get; set; } = null!;
-        [Inject]
-        private RelevanceFinderService RelevanceFinderService { get; set; } = null!;
+
         [Inject]
         private ReferenceFinderService ReferenceFinderService { get; set; } = null!;
         [Inject]
@@ -68,9 +66,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         [Parameter]
         public EventCallback<DiffResultArgs> OnShowDiffDialog { get; set; }
-
-        [Parameter]
-        public EventCallback OnShowDocumentSearchDialog { get; set; }
 
         [Parameter]
         public EventCallback OnAddSelectedToContext { get; set; }
@@ -113,17 +108,15 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private int? _adoWorkItemIdToLoad;
         
         private const string AdoFilePrefix = "[ADO]";
-        private Dictionary<string, double> _semanticScores = new();
         private Dictionary<string, long> _originalSizeCache = new();
-        private string? _promptForLastSemanticSort;
         
         private bool _isClarificationDialogVisible = false;
 
         private string _clarificationDialogText = string.Empty;
         
-        private record ContextListItem(string RelativePath, string DisplayPath, string FileName, long Size, double SemanticScore);
+        private record ContextListItem(string RelativePath, string DisplayPath, string FileName, long Size);
 
-        private bool IsIndexReady => EmbeddingIndexService.GetIndex()?.Any() ?? false;
+
 
         private string GetRowId(string relPath) => "ctxrow-" + Convert.ToBase64String(Encoding.UTF8.GetBytes(relPath))
             .Replace("=", "")
@@ -161,12 +154,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         private void OnAppStateChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(AppState.PromptText))
-            {
-                _promptForLastSemanticSort = null;
-            }
-            if (e.PropertyName == nameof(AppState.IsSemanticIndexBuilding) ||
-                e.PropertyName == nameof(AppState.AdoDocsExist) ||
+            if (e.PropertyName == nameof(AppState.AdoDocsExist) ||
                 e.PropertyName == nameof(AppState.ActiveGlobalPromptId) || 
                 e.PropertyName == nameof(AppState.PromptTemplates))
             {
@@ -496,8 +484,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                     continue;
                 }
 
-                var score = _semanticScores.GetValueOrDefault(fileRelPath, -1.0);
-                
                 string fileName;
                 string displayPath;
                 if (fileRelPath.StartsWith(AdoFilePrefix))
@@ -528,51 +514,18 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                         string fullPath = GetFullPathFromRelative(fileRelPath);
                         size = (!string.IsNullOrEmpty(fullPath) && File.Exists(fullPath)) ? new FileInfo(fullPath).Length : 0;
                     }
-                    _sortedFiles.Add(new ContextListItem(fileRelPath, displayPath, fileName, size, score));
+                    _sortedFiles.Add(new ContextListItem(fileRelPath, displayPath, fileName, size));
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"Error adding file {fileRelPath}: {ex.Message}");
-                    _sortedFiles.Add(new ContextListItem(fileRelPath, displayPath, fileName, 0, score));
+                    _sortedFiles.Add(new ContextListItem(fileRelPath, displayPath, fileName, 0));
                 }
             }
         }
         
         private async Task SortBy(string key)
         {
-            if (key == "semantic")
-            {
-                if (string.IsNullOrWhiteSpace(AppState.PromptText) || !IsIndexReady)
-                {
-                    AppState.StatusText = "A szemantikai rendezéshez prompt és betöltött index szükséges.";
-                    return;
-                }
-
-                if (_promptForLastSemanticSort != AppState.PromptText)
-                {
-                    AppState.ShowLoading("Szemantikai egyezés számítása...");
-                    try
-                    {
-                        var results = await RelevanceFinderService.ScoreGivenFilesAsync(AppState.SelectedFilesForContext);
-                        
-                        _semanticScores.Clear();
-                        foreach (var result in results)
-                        {
-                            _semanticScores[result.FilePath] = result.Score;
-                        }
-                        _promptForLastSemanticSort = AppState.PromptText;
-
-                        _sortedFiles = _sortedFiles.Select(item => 
-                            item with { SemanticScore = _semanticScores.GetValueOrDefault(item.RelativePath, -1.0) }
-                        ).ToList();
-                    }
-                    finally
-                    {
-                        AppState.HideLoading();
-                    }
-                }
-            }
-
             if (_currentSortKey == key)
             {
                 _isSortAscending = !_isSortAscending;
@@ -600,11 +553,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                     sorted = _isSortAscending
                         ? _sortedFiles.OrderBy(f => f.Size)
                         : _sortedFiles.OrderByDescending(f => f.Size);
-                    break;
-                case "semantic":
-                    sorted = _isSortAscending
-                        ? _sortedFiles.OrderBy(f => f.SemanticScore)
-                        : _sortedFiles.OrderByDescending(f => f.SemanticScore);
                     break;
                 case "path":
                 default:

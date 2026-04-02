@@ -20,7 +20,7 @@ namespace LlmContextCollector.Services
         {
             var parsedFilesDict = new Dictionary<string, ParsedFile>(StringComparer.OrdinalIgnoreCase);
 
-            var headerRegex = new Regex(@"^(?<type>Új Fájl|Fájl):\s*(?<path>[^\r\n]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
+            var headerRegex = new Regex(@"^(?<type>Új Fájl|Fájl|Törölt Fájl):\s*(?<path>[^\r\n]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
             var matches = headerRegex.Matches(text);
 
             string globalExplanation = "";
@@ -45,14 +45,16 @@ namespace LlmContextCollector.Services
                 var path = rawPath.StartsWith("./") ? rawPath.Substring(2) : rawPath;
                 path = path.TrimStart('/');
 
-                var status = typeStr.StartsWith("Új", StringComparison.OrdinalIgnoreCase) ? DiffStatus.New : DiffStatus.Modified;
+                var status = typeStr.StartsWith("Új", StringComparison.OrdinalIgnoreCase) ? DiffStatus.New : 
+                             typeStr.StartsWith("Törölt", StringComparison.OrdinalIgnoreCase) ? DiffStatus.Deleted : 
+                             DiffStatus.Modified;
 
                 int contentStart = match.Index + match.Length;
                 int contentEnd = (i == matches.Count - 1) ? text.Length : matches[i + 1].Index;
 
                 string rawBlock = text.Substring(contentStart, contentEnd - contentStart);
-                var (codePart, nextLog) = ExtractExplanationAndLog(rawBlock, looksForLogAtEnd: true);
-                string cleanCode = RemoveMarkdownFences(codePart);
+                var (codePart, nextLog) = ExtractExplanationAndLog(rawBlock);
+                string cleanCode = status == DiffStatus.Deleted ? string.Empty : RemoveMarkdownFences(codePart);
 
                 if (parsedFilesDict.TryGetValue(path, out var existing))
                 {
@@ -80,7 +82,7 @@ namespace LlmContextCollector.Services
             return (globalExplanation, parsedFilesDict.Values.ToList());
         }
 
-        private (string content, string log) ExtractExplanationAndLog(string text, bool looksForLogAtEnd = false)
+        private (string content, string log) ExtractExplanationAndLog(string text)
         {
             var logStartMarker = "[CHANGE_LOG]";
             var logEndMarker = "[/CHANGE_LOG]";

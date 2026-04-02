@@ -10,6 +10,18 @@
                 <button class="close-btn" @onclick="Close">&times;</button>
             </div>
             <div class="modal-body">
+                <h4>Megjelenés</h4>
+                <div class="form-section">
+                    <div class="form-group">
+                        <label for="theme-select">Téma:</label>
+                        <select id="theme-select" @bind="AppState.Theme">
+                            <option value="System">Rendszer alapértelmezett</option>
+                            <option value="Light">Világos</option>
+                            <option value="Dark">Sötét</option>
+                        </select>
+                    </div>
+                </div>
+
                 <h4>Groq LLM Beállítások</h4>
                 <div class="form-section">
                     <div class="form-group">
@@ -85,14 +97,13 @@
     {
         var settings = new Settings
         {
+            Theme = AppState.Theme,
             GroqApiKey = AppState.GroqApiKey,
             GroqModel = AppState.GroqModel,
             GroqMaxOutputTokens = AppState.GroqMaxOutputTokens,
             GroqApiUrl = AppState.GroqApiUrl,
             OllamaApiUrl = AppState.OllamaApiUrl,
             OllamaModel = AppState.OllamaModel,
-            UseOllamaEmbeddings = AppState.UseOllamaEmbeddings,
-            OllamaEmbeddingModel = AppState.OllamaEmbeddingModel,
             AzureDevOpsOrganizationUrl = AppState.AzureDevOpsOrganizationUrl,
             AzureDevOpsProject = AppState.AzureDevOpsProject,
             AzureDevOpsIterationPath = AppState.AzureDevOpsIterationPath,

@@ -11,40 +11,6 @@ namespace LlmContextCollector.Utils
         public enum DiffLineType { Context, Add, Delete, Empty }
         public record DiffLineItem(DiffLineType Type, string Content, int? OriginalIndex, int? NewIndex);
 
-        public static List<DiffLineItem> GenerateDiffList(string oldText, string newText)
-        {
-            var oldLines = oldText.Replace("\r\n", "\n").Split('\n');
-            var newLines = newText.Replace("\r\n", "\n").Split('\n');
-            var opcodes = GetOpcodes(oldLines, newLines);
-            var result = new List<DiffLineItem>();
-
-            foreach (var op in opcodes)
-            {
-                switch (op.Tag)
-                {
-                    case 'e':
-                        for (int i = 0; i < (op.I2 - op.I1); i++)
-                            result.Add(new DiffLineItem(DiffLineType.Context, oldLines[op.I1 + i], op.I1 + i, op.J1 + i));
-                        break;
-                    case 'd':
-                        for (int i = 0; i < (op.I2 - op.I1); i++)
-                            result.Add(new DiffLineItem(DiffLineType.Delete, oldLines[op.I1 + i], op.I1 + i, null));
-                        break;
-                    case 'i':
-                        for (int j = 0; j < (op.J2 - op.J1); j++)
-                            result.Add(new DiffLineItem(DiffLineType.Add, newLines[op.J1 + j], null, op.J1 + j));
-                        break;
-                    case 'r':
-                        for (int i = 0; i < (op.I2 - op.I1); i++)
-                            result.Add(new DiffLineItem(DiffLineType.Delete, oldLines[op.I1 + i], op.I1 + i, null));
-                        for (int j = 0; j < (op.J2 - op.J1); j++)
-                            result.Add(new DiffLineItem(DiffLineType.Add, newLines[op.J1 + j], null, op.J1 + j));
-                        break;
-                }
-            }
-            return result;
-        }
-
         public static List<DiffOpcode> GetOpcodes(string[] a, string[] b)
         {
             return MyersDiff.GetDiffOpcodes(a, b);

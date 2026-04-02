@@ -10,10 +10,6 @@ namespace LlmContextCollector.Models
         public string OllamaApiUrl { get; set; } = "http://localhost:11434/v1/"; // Ez a chat API base URL
         public string OllamaModel { get; set; } = "qwen3:4b-instruct";
         
-        // --- Embedding Beállítások ---
-        public bool UseOllamaEmbeddings { get; set; } = false;
-        public string OllamaEmbeddingModel { get; set; } = "nomic-embed-text";
-
         // --- Azure DevOps Beállítások ---
         public string AzureDevOpsOrganizationUrl { get; set; } = string.Empty;
         public string AzureDevOpsProject { get; set; } = string.Empty;

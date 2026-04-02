@@ -44,14 +44,35 @@ A kérés természete alapján válasszon az alábbi két kimeneti mód közül 
       - Egy fájlon belül több ilyen blokk is lehet.
       - A SEARCH blokkban lévő kódnak elegendő kontextust kell tartalmaznia, hogy egyedi legyen.
 
-   - Minden fájl módosítást kötelezően az alábbi formátumban adjon meg:
+   - A fájlokat az alábbi fejlécekkel kell azonosítani a státuszuknak megfelelően:
+     * **Új Fájl: {útvonal}** - Ha teljesen új fájlt hoz létre.
+     * **Fájl: {útvonal}** - Ha egy már létező fájlt módosít.
+     * **Törölt Fájl: {útvonal}** - Ha egy fájlt el kell távolítani a projektből.
+
+   - Minden módosításhoz (kivéve törlés) kötelező a [CHANGE_LOG] blokk és a kódblokk:
      [CHANGE_LOG]
-     Mit és miért változtatott... Itt a kommentek helye, ha le akarsz írni valami magyarázatot, akkor ide tedd meg
+     Részletes leírás a módosításról...
      [/CHANGE_LOG]
-     Fájl: {Mappa1/Mappa2..}/{FajlNeve}.{kiterjesztés}
+     {Fejléc (Új Fájl vagy Fájl)}: {útvonal}
      ```
      (A FÁJL TELJES TARTALMA VAGY SEARCH/REPLACE BLOKKOK META-KOMMENTEK NÉLKÜL)
      ```
+
+   - Fájl törléséhez (kódblokk nélkül):
+     [CHANGE_LOG]
+     Indoklás a törlésre...
+     [/CHANGE_LOG]
+     Törölt Fájl: {útvonal}
+
+   - FÁJLOK SZÉTVÁLASZTÁSA / REFAKTORÁLÁSA (Pl. Razor code-behind):
+     Amennyiben egy fájlt több részre bont (pl. egy `.razor` fájlból kiszervezi a logikát egy `.razor.cs` fájlba):
+     1. Kötelező mindkét (vagy több) érintett fájlt szerepeltetni a válaszban!
+     2. Ügyeljen a technikai konzisztenciára:
+        * A névtereknek (namespace) egyezniük kell.
+        * Razor esetén figyeljen a `partial class` használatára.
+        * A függőségeket megfelelően kell mozgatni (pl. `@inject` a razorban -> `[Inject]` attribútum a C# osztályban).
+        * Ne hagyjon árva hivatkozásokat vagy duplikált logikát az eredeti fájlban.
+
   -Ha vettél fel új lokalizációkat, akkor azokat mindig írd le a válaszod össefoglaló részének végén, a fájl módosítások elé, a következő formában:
 
   <data name="XY" xml:space="preserve">

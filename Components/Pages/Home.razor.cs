@@ -1,12 +1,9 @@
-using LlmContextCollector.AI;
-using LlmContextCollector.AI.Embeddings;
 using LlmContextCollector.Components.Pages.HomePanels;
 using LlmContextCollector.Models;
 using LlmContextCollector.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
-using Microsoft.Maui.ApplicationModel.DataTransfer;
 using System.ComponentModel;
 using System.Text;
 using static LlmContextCollector.Components.Pages.HomePanels.ContextPanel;
@@ -23,8 +20,7 @@ namespace LlmContextCollector.Components.Pages
         private ReferenceFinderService ReferenceFinder { get; set; } = null!;
         [Inject]
         private IClipboard Clipboard { get; set; } = null!;
-        [Inject]
-        private EmbeddingIndexService EmbeddingIndexService { get; set; } = null!;
+
         [Inject]
         private GitService GitService { get; set; } = null!;
         [Inject]
@@ -41,8 +37,7 @@ namespace LlmContextCollector.Components.Pages
         private HistoryManagerService HistoryManagerService { get; set; } = null!;
         [Inject]
         private FileContextService FileContextService { get; set; } = null!;
-        [Inject]
-        private IEmbeddingProvider EmbeddingProvider { get; set; } = null!;
+
         [Inject]
         private ProjectSettingsService ProjectSettingsService { get; set; } = null!;
         [Inject]
@@ -60,7 +55,6 @@ namespace LlmContextCollector.Components.Pages
 
         private bool _isSettingsDialogVisible = false;
         private bool _isAzureDevOpsDialogVisible = false;
-        private bool _isDocumentSearchDialogVisible = false;
         private bool _isLocalAiChatVisible = false;
         private bool _isExclusionsDialogVisible = false;
         private bool _isLocPathDialogVisible = false;
@@ -552,8 +546,6 @@ namespace LlmContextCollector.Components.Pages
             AppState.GroqApiUrl = settings.GroqApiUrl;
             AppState.OllamaApiUrl = settings.OllamaApiUrl;
             AppState.OllamaModel = settings.OllamaModel;
-            AppState.UseOllamaEmbeddings = settings.UseOllamaEmbeddings;
-            AppState.OllamaEmbeddingModel = settings.OllamaEmbeddingModel;
             AppState.AzureDevOpsOrganizationUrl = settings.AzureDevOpsOrganizationUrl;
             AppState.AzureDevOpsProject = settings.AzureDevOpsProject;
             AppState.AzureDevOpsIterationPath = settings.AzureDevOpsIterationPath;
@@ -582,18 +574,6 @@ namespace LlmContextCollector.Components.Pages
         {
             _isSettingsDialogVisible = false;
             await ApplyTheme();
-            StateHasChanged();
-        }
-
-        private void ShowDocumentSearchDialog()
-        {
-            _isDocumentSearchDialogVisible = true;
-            StateHasChanged();
-        }
-
-        private void OnDocumentSearchDialogClose()
-        {
-            _isDocumentSearchDialogVisible = false;
             StateHasChanged();
         }
 
@@ -694,7 +674,7 @@ namespace LlmContextCollector.Components.Pages
                 await AzureDevOpsService.SaveSettingsForCurrentProjectAsync();
                 await AzureDevOpsService.DownloadWorkItemsAsync(
                     AppState.AzureDevOpsOrganizationUrl, AppState.AzureDevOpsProject,
-                    AppState.AzureDevOpsPat, AppState.AzureDevOpsRepository,
+                    AppState.AzureDevOpsPat, 
                     AppState.AzureDevOpsIterationPath, AppState.ProjectRoot,
                     isIncremental, AppState.AdoDownloadOnlyMine);
 
@@ -712,19 +692,6 @@ namespace LlmContextCollector.Components.Pages
             }
         }
 
-        private void AddRelevantFiles(List<string> filesToAdd)
-        {
-            var currentFiles = AppState.SelectedFilesForContext.ToHashSet();
-            var initialCount = currentFiles.Count;
-            currentFiles.UnionWith(filesToAdd);
-
-            AppState.SelectedFilesForContext.Clear();
-            foreach (var file in currentFiles.OrderBy(f => f)) AppState.SelectedFilesForContext.Add(file);
-            AppState.SaveContextListState();
-
-            AppState.StatusText = $"{currentFiles.Count - initialCount} új releváns fájl hozzáadva.";
-            OnDocumentSearchDialogClose();
-        }
 
         private void ShowDiffDialog(DiffResultArgs args)
         {
@@ -793,19 +760,7 @@ namespace LlmContextCollector.Components.Pages
 
         #endregion
 
-        private async Task StartManualIndexing()
-        {
-            if (EmbeddingProvider is NullEmbeddingProvider) return;
-            var allFileNodes = new List<FileNode>();
-            Utils.FileTreeHelper.GetAllFileNodes(AppState.FileTree, allFileNodes);
-            EmbeddingIndexService.StartBuildingIndex(allFileNodes);
-        }
 
-        private async Task StartIndexingAdo()
-        {
-            if (EmbeddingProvider is NullEmbeddingProvider) return;
-            EmbeddingIndexService.StartBuildingAdoIndex();
-        }
 
         #region Panel Resizing
         private string _activeSplitter = "None";
@@ -861,7 +816,6 @@ namespace LlmContextCollector.Components.Pages
         public void Dispose()
         {
             AppState.PropertyChanged -= OnAppStateChanged;
-            EmbeddingIndexService.CancelIndexing();
         }
     }
 }

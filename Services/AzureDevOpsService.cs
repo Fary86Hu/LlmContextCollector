@@ -353,7 +353,7 @@ namespace LlmContextCollector.Services
             return HtmlToPlainText(processedHtml);
         }
 
-        public async Task DownloadWorkItemsAsync(string orgUrl, string project, string pat, string repoName, string iterationPath, string projectRoot, bool isIncremental, bool onlyMine)
+        public async Task DownloadWorkItemsAsync(string orgUrl, string project, string pat, string iterationPath, string projectRoot, bool isIncremental, bool onlyMine)
         {
             if (string.IsNullOrWhiteSpace(projectRoot) || !Directory.Exists(projectRoot))
             {
@@ -367,7 +367,7 @@ namespace LlmContextCollector.Services
             project = project.Trim();
             pat = pat.Trim();
             iterationPath = iterationPath?.Trim() ?? string.Empty;
-            
+
             var encodedProject = Uri.EscapeDataString(project);
 
             var client = _httpClientFactory.CreateClient("AzureDevOps");
@@ -378,12 +378,6 @@ namespace LlmContextCollector.Services
             {
                 "Task", "User Story", "Bug"
             };
-
-            string? repoId = null;
-            if (!string.IsNullOrWhiteSpace(repoName))
-            {
-                repoId = await GetRepositoryIdAsync(client, orgUrl, project, repoName.Trim());
-            }
 
             var projectFolderName = new DirectoryInfo(projectRoot).Name;
             var targetDir = Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory, projectFolderName, "ado");
@@ -400,47 +394,39 @@ namespace LlmContextCollector.Services
 
             List<int> workItemIds;
 
-            if (!string.IsNullOrWhiteSpace(repoId))
+            var safeProjectName = project.Replace("'", "''");
+            var queryBuilder = new StringBuilder();
+            queryBuilder.Append($"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{safeProjectName}'");
+            queryBuilder.Append(" AND [System.State] NOT IN ('New', 'To Do', 'Proposed', 'Backlog', 'Ötlet', 'New idea')");
+            queryBuilder.Append(" AND [System.WorkItemType] IN ('Task','User Story','Bug')");
+
+            if (onlyMine) queryBuilder.Append(" AND [System.AssignedTo] = @Me");
+
+            if (!string.IsNullOrWhiteSpace(iterationPath))
             {
-                var repoLinkedIds = await GetRepositoryLinkedWorkItemIdsAsync(client, orgUrl, project, repoId);
-                workItemIds = repoLinkedIds.ToList();
+                var escapedIterationPath = iterationPath.Replace("'", "''");
+                queryBuilder.Append($" AND [System.IterationPath] UNDER '{escapedIterationPath}'");
             }
-            else
+
+            if (isIncremental && _appState.AdoLastDownloadDate.HasValue)
             {
-                var safeProjectName = project.Replace("'", "''");
-                var queryBuilder = new StringBuilder();
-                queryBuilder.Append($"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{safeProjectName}'");
-                queryBuilder.Append(" AND [System.State] NOT IN ('New', 'To Do', 'Proposed', 'Backlog', 'Ötlet', 'New idea')");
-                queryBuilder.Append(" AND [System.WorkItemType] IN ('Task','User Story','Bug')");
-
-                if (onlyMine) queryBuilder.Append(" AND [System.AssignedTo] = @Me");
-
-                if (!string.IsNullOrWhiteSpace(iterationPath))
-                {
-                    var escapedIterationPath = iterationPath.Replace("'", "''");
-                    queryBuilder.Append($" AND [System.IterationPath] UNDER '{escapedIterationPath}'");
-                }
-                
-                if (isIncremental && _appState.AdoLastDownloadDate.HasValue)
-                {
-                    var dateStr = _appState.AdoLastDownloadDate.Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
-                    queryBuilder.Append($" AND [System.ChangedDate] > '{dateStr}'");
-                }
-
-                var wiqlQuery = new { query = queryBuilder.ToString() };
-                var wiqlContent = new StringContent(JsonSerializer.Serialize(wiqlQuery), Encoding.UTF8, "application/json");
-                var wiqlResponse = await client.PostAsync($"{orgUrl}/{encodedProject}/_apis/wit/wiql?api-version=6.0", wiqlContent);
-                
-                if (!wiqlResponse.IsSuccessStatusCode)
-                {
-                    var errorBody = await wiqlResponse.Content.ReadAsStringAsync();
-                    throw new HttpRequestException($"WIQL Query Failed ({wiqlResponse.StatusCode}): {errorBody}");
-                }
-
-                var wiqlResult = await JsonSerializer.DeserializeAsync<WiqlResponse>(await wiqlResponse.Content.ReadAsStreamAsync(), _jsonOptions);
-                if (wiqlResult == null || !wiqlResult.WorkItems.Any()) return;
-                workItemIds = wiqlResult.WorkItems.Select(wi => wi.Id).ToList();
+                var dateStr = _appState.AdoLastDownloadDate.Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
+                queryBuilder.Append($" AND [System.ChangedDate] > '{dateStr}'");
             }
+
+            var wiqlQuery = new { query = queryBuilder.ToString() };
+            var wiqlContent = new StringContent(JsonSerializer.Serialize(wiqlQuery), Encoding.UTF8, "application/json");
+            var wiqlResponse = await client.PostAsync($"{orgUrl}/{encodedProject}/_apis/wit/wiql?api-version=6.0", wiqlContent);
+
+            if (!wiqlResponse.IsSuccessStatusCode)
+            {
+                var errorBody = await wiqlResponse.Content.ReadAsStringAsync();
+                throw new HttpRequestException($"WIQL Query Failed ({wiqlResponse.StatusCode}): {errorBody}");
+            }
+
+            var wiqlResult = await JsonSerializer.DeserializeAsync<WiqlResponse>(await wiqlResponse.Content.ReadAsStreamAsync(), _jsonOptions);
+            if (wiqlResult == null || !wiqlResult.WorkItems.Any()) return;
+            workItemIds = wiqlResult.WorkItems.Select(wi => wi.Id).ToList();
 
             const int batchSize = 200;
             for (int i = 0; i < workItemIds.Count; i += batchSize)
@@ -466,68 +452,6 @@ namespace LlmContextCollector.Services
                     await File.WriteAllTextAsync(Path.Combine(targetDir, fileName), formattedContent);
                 }
             }
-        }
-
-        private async Task<HashSet<int>> GetRepositoryLinkedWorkItemIdsAsync(HttpClient client, string orgUrl, string project, string repoId)
-        {
-            var prIds = await GetAllPullRequestIdsAsync(client, orgUrl, project, repoId);
-            var wiIds = new HashSet<int>();
-            var encodedProject = Uri.EscapeDataString(project);
-
-            foreach (var prId in prIds)
-            {
-                var resp = await client.GetAsync($"{orgUrl}/{encodedProject}/_apis/git/repositories/{repoId}/pullRequests/{prId}/workitems?api-version=7.1");
-                if (!resp.IsSuccessStatusCode) continue;
-                var list = await JsonSerializer.DeserializeAsync<ResourceRefListResponse>(await resp.Content.ReadAsStreamAsync(), _jsonOptions);
-                if (list?.Value == null) continue;
-                foreach (var rr in list.Value)
-                {
-                    if (int.TryParse(rr.Id, out var id)) wiIds.Add(id);
-                }
-            }
-            return wiIds;
-        }
-
-        private async Task<List<int>> GetAllPullRequestIdsAsync(HttpClient client, string orgUrl, string project, string repoId)
-        {
-            var result = new List<int>();
-            var statuses = new[] { "active", "completed", "abandoned" };
-            var encodedProject = Uri.EscapeDataString(project);
-
-            foreach (var status in statuses)
-            {
-                int skip = 0;
-                const int pageSize = 100;
-                while (true)
-                {
-                    var url = $"{orgUrl}/{encodedProject}/_apis/git/repositories/{repoId}/pullrequests?searchCriteria.status={status}&$top={pageSize}&$skip={skip}&api-version=7.1";
-                    var resp = await client.GetAsync(url);
-                    if (!resp.IsSuccessStatusCode) break;
-                    var list = await JsonSerializer.DeserializeAsync<GitPullRequestListResponse>(await resp.Content.ReadAsStreamAsync(), _jsonOptions);
-                    var items = list?.Value ?? new List<GitPullRequest>();
-                    if (items.Count == 0) break;
-                    result.AddRange(items.Select(p => p.PullRequestId));
-                    if (items.Count < pageSize) break;
-                    skip += items.Count;
-                }
-            }
-            return result.Distinct().ToList();
-        }
-
-        private async Task<string?> GetRepositoryIdAsync(HttpClient client, string orgUrl, string project, string repoName)
-        {
-            var encodedProject = Uri.EscapeDataString(project);
-            var response = await client.GetAsync($"{orgUrl}/{encodedProject}/_apis/git/repositories?api-version=6.0");
-            
-            if (!response.IsSuccessStatusCode) throw new HttpRequestException($"GetRepositoryIdAsync Failed: {response.StatusCode}");
-
-            var repoList = await JsonSerializer.DeserializeAsync<GitRepositoryListResponse>(
-                await response.Content.ReadAsStreamAsync(), _jsonOptions);
-
-            var repository = repoList?.Value.FirstOrDefault(r => r.Name.Equals(repoName, StringComparison.OrdinalIgnoreCase));
-            if (repository == null) throw new InvalidOperationException($"A(z) '{repoName}' repository nem található.");
-
-            return repository.Id;
         }
 
         private string FormatWorkItem(WorkItem item)

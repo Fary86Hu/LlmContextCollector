@@ -123,7 +123,6 @@
             <button title="Visszavonás" @onclick="AppState.UndoContextListChange" disabled="@(!AppState.CanUndo)">⮌</button>
             <button title="Újra" @onclick="AppState.RedoContextListChange" disabled="@(!AppState.CanRedo)">⮍</button>
         
-            <button style="margin: 0 5px;" @onclick="OnShowDocumentSearchDialog" disabled="@(AppState.IsSemanticIndexBuilding || !IsIndexReady)">Keresés</button>
             <button style="margin: 0 5px;" @onclick="GitWorkflowService.AddOriginalModifiedFilesToContextAsync" disabled="@(!AppState.IsGitRepository)" title="A branch nyitása óta módosított fájlok eredeti verziójának hozzáadása">Eredetiek</button>
         
             <span style="margin-left:auto;"></span>
