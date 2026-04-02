@@ -125,6 +125,20 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         private bool IsIndexReady => EmbeddingIndexService.GetIndex()?.Any() ?? false;
 
+        private string GetRowId(string relPath) => "ctxrow-" + Convert.ToBase64String(Encoding.UTF8.GetBytes(relPath))
+            .Replace("=", "")
+            .Replace("+", "-")
+            .Replace("/", "_");
+
+        public async Task ScrollToPath(string relPath)
+        {
+            if (_sortedFiles.Any(f => f.RelativePath == relPath))
+            {
+                await Task.Delay(10);
+                await JSRuntime.InvokeVoidAsync("scrollToElement", GetRowId(relPath));
+            }
+        }
+
         protected override async Task OnInitializedAsync()
         {
             _objRef = DotNetObjectReference.Create(this);

@@ -203,10 +203,10 @@ namespace LlmContextCollector.Components.Pages
                 await JSRuntime.InvokeVoidAsync("scrollToElement", elementId);
             }
 
-            var selectedNodes = new List<FileNode>();
-            Utils.FileTreeHelper.FindSelectedNodes(AppState.FileTree, selectedNodes);
+            var selectedNodesInTree = new List<FileNode>();
+            Utils.FileTreeHelper.FindSelectedNodes(AppState.FileTree, selectedNodesInTree);
 
-            var selectedPathsFromTree = selectedNodes
+            var selectedPathsFromTree = selectedNodesInTree
                 .Where(n => !n.IsDirectory)
                 .Select(n => GetRelativeNodePath(n))
                 .ToList();
@@ -217,10 +217,15 @@ namespace LlmContextCollector.Components.Pages
 
             if (_contextPanelRef != null)
             {
-                if (selectedNodes.Count == 1 && !selectedNodes[0].IsDirectory)
+                if (selectedNodesInTree.Count == 1 && !selectedNodesInTree[0].IsDirectory)
                 {
-                    var relativePath = GetRelativeNodePath(selectedNodes[0]);
+                    var relativePath = GetRelativeNodePath(selectedNodesInTree[0]);
                     await _contextPanelRef.UpdatePreview(relativePath);
+
+                    if (_selectedInContextList.Contains(relativePath))
+                    {
+                        await _contextPanelRef.ScrollToPath(relativePath);
+                    }
 
                     if (e == null && AppState.SearchInContent && !string.IsNullOrWhiteSpace(AppState.SearchTerm))
                     {
@@ -229,7 +234,16 @@ namespace LlmContextCollector.Components.Pages
                 }
                 else
                 {
-                    await _contextPanelRef.UpdatePreview(null);
+                    // Ha a Context panelben volt kijelölés, de most a fában egy olyat jelöltünk ki 
+                    // ami nincs a kontextusban, akkor az előnézetet a fa aktuális elemére állítjuk.
+                    if (selectedNodesInTree.Count == 1 && !selectedNodesInTree[0].IsDirectory)
+                    {
+                         await _contextPanelRef.UpdatePreview(GetRelativeNodePath(selectedNodesInTree[0]));
+                    }
+                    else
+                    {
+                        await _contextPanelRef.UpdatePreview(null);
+                    }
                 }
             }
 
@@ -259,27 +273,50 @@ namespace LlmContextCollector.Components.Pages
 
             if (_selectedInContextList.Any() && !string.IsNullOrEmpty(AppState.ProjectRoot))
             {
-                FileNode? lastFoundNode = null;
+                FileNode? focusNode = null;
+                
                 foreach (var relPath in _selectedInContextList)
                 {
-                    if (relPath.StartsWith("[ADO]")) continue;
-                    var fullPath = Path.Combine(AppState.ProjectRoot, relPath.Replace('/', Path.DirectorySeparatorChar));
+                    if (relPath.StartsWith("[ADO]") || relPath.StartsWith("[ORIGINAL]")) continue;
+                    
+                    var fullPath = Path.Combine(AppState.ProjectRoot, relPath);
                     var node = AppState.FindNodeByPath(fullPath);
+                    
                     if (node != null)
                     {
                         node.IsSelectedInTree = true;
-                        lastFoundNode = node;
+                        AppState.ExpandNodeParents(node);
+                        
+                        // Ha egyetlen elem van, vagy ez az utolsó a listában, erre fókuszálunk
+                        focusNode = node;
                     }
                 }
 
-                if (lastFoundNode != null)
+                // Explicit jelezzük az AppState-nek, hogy a fa módosult, hogy a FileTreePanel frissítse a kijelöléseket
+                AppState.NotifyStateChanged(nameof(AppState.FileTree));
+
+                if (focusNode != null && selectedFiles.Count == 1)
                 {
-                    AppState.ExpandNodeParents(lastFoundNode);
+                    _lastInteractionNode = focusNode;
+                    await Task.Delay(50); // Hosszabb várakozás, hogy a DOM felépüljön a lenyíló mappákkal
+                    
+                    var elementId = "filenode-" + Convert.ToBase64String(Encoding.UTF8.GetBytes(focusNode.FullPath))
+                        .Replace("=", "")
+                        .Replace("+", "-")
+                        .Replace("/", "_");
+                    
+                    await JSRuntime.InvokeVoidAsync("scrollToElement", elementId);
                 }
+            }
+            else
+            {
+                // Ha üres a lista, akkor is frissíteni kell a fát a törölt kijelölések miatt
+                AppState.NotifyStateChanged(nameof(AppState.FileTree));
             }
 
             if (_contextPanelRef != null)
             {
+                // Előnézet frissítése: ha pontosan egy elem van kijelölve a listában
                 var pathToPreview = selectedFiles.Count == 1 ? selectedFiles.First() : null;
                 await _contextPanelRef.UpdatePreview(pathToPreview);
             }
@@ -414,12 +451,30 @@ namespace LlmContextCollector.Components.Pages
             var selectedNodes = new List<FileNode>();
             Utils.FileTreeHelper.FindSelectedNodes(AppState.FileTree, selectedNodes);
 
-            var items = selectedNodes
-                .Where(n => !n.IsDirectory)
-                .Select(n => (FullPath: n.FullPath, DisplayPath: GetRelativeNodePath(n)))
-                .ToList();
+            var items = new List<(string FullPath, string DisplayPath)>();
+            foreach (var node in selectedNodes)
+            {
+                CollectFilesRecursive(node, items);
+            }
 
-            await CopyFilesContentToClipboard(items);
+            var distinctItems = items.GroupBy(x => x.FullPath).Select(g => g.First()).ToList();
+
+            await CopyFilesContentToClipboard(distinctItems);
+        }
+
+        private void CollectFilesRecursive(FileNode node, List<(string FullPath, string DisplayPath)> items)
+        {
+            if (node.IsDirectory)
+            {
+                foreach (var child in node.Children)
+                {
+                    CollectFilesRecursive(child, items);
+                }
+            }
+            else
+            {
+                items.Add((node.FullPath, GetRelativeNodePath(node)));
+            }
         }
 
         private async Task CopySelectedFilesContentFromList()
