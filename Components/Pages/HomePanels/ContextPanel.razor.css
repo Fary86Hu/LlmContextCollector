@@ -294,6 +294,11 @@
         color: var(--selected-text-color);
     }
 
+    .context-table tbody tr {
+        scroll-margin-top: 32px;
+        scroll-margin-bottom: 8px;
+    }
+
 .char-counter {
     font-size: var(--font-size-sm);
     color: var(--text-color-light);

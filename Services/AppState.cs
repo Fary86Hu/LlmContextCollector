@@ -486,11 +486,15 @@ namespace LlmContextCollector.Services
         
         public FileNode? FindNodeByPath(string fullPath)
         {
+            var normalizedSearchPath = fullPath.Replace('\\', '/').TrimEnd('/');
+
             FileNode? Find(IEnumerable<FileNode> nodes)
             {
                 foreach (var node in nodes)
                 {
-                    if (node.FullPath.Equals(fullPath, StringComparison.OrdinalIgnoreCase)) return node;
+                    var normalizedNodePath = node.FullPath.Replace('\\', '/').TrimEnd('/');
+
+                    if (normalizedNodePath.Equals(normalizedSearchPath, StringComparison.OrdinalIgnoreCase)) return node;
                     if (node.IsDirectory)
                     {
                         var found = Find(node.Children);

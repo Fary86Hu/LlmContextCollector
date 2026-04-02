@@ -96,6 +96,7 @@
                     @foreach (var fileInfo in _sortedFiles)
                     {
                         <tr @key="fileInfo.RelativePath"
+                            id="@GetRowId(fileInfo.RelativePath)"
                             class="@(SelectedItems.Contains(fileInfo.RelativePath) ? "selected" : "")"
                             @onclick="(e) => OnFileRowClick(e, fileInfo.RelativePath)"
                             @oncontextmenu="(e) => ShowContextMenuForRow(e, fileInfo.RelativePath)" @oncontextmenu:preventDefault>
