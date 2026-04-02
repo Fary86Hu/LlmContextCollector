@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
+using System.Text;
 
 namespace LlmContextCollector.Components.Dialogs
 {
@@ -324,6 +325,34 @@ namespace LlmContextCollector.Components.Dialogs
         private void CloseManualMerge()
         {
             _isManualMergeMode = false;
+        }
+
+        private async Task CopyFixPromptToClipboard()
+        {
+            var failedFiles = _localDiffResults.Where(r => r.PatchFailed).ToList();
+            if (!failedFiles.Any()) return;
+
+            var sb = new StringBuilder();
+            sb.AppendLine("A kapott válaszban az alábbi fájlok SEARCH/REPLACE blokkjait nem sikerült automatikusan feldolgozni, mert a SEARCH rész nem egyezik meg pontosan (karakterhelyesen, beleértve az indentációt is) a fájl aktuális tartalmával:");
+            sb.AppendLine();
+
+            foreach (var file in failedFiles)
+            {
+                sb.AppendLine($"- Fájl: {file.Path}");
+                sb.AppendLine("A beküldött, de nem talált módosítási kísérlet:");
+                sb.AppendLine("```");
+                sb.AppendLine(file.FailedPatchContent);
+                sb.AppendLine("```");
+                sb.AppendLine();
+            }
+
+            sb.AppendLine("Kérlek, vizsgáld meg a fájlok aktuális tartalmát (amit korábban megkaptál a kontextusban), és küldd el újra a módosításokat. Ügyelj rá, hogy:");
+            sb.AppendLine("1. A SEARCH blokk tartalmának PONTOSAN meg kell egyeznie a fájlban lévő szöveggel.");
+            sb.AppendLine("2. Ne hagyj ki sorokat a SEARCH blokkból, és ne módosíts benne semmit.");
+            sb.AppendLine("3. Csak a javított fájlokat küldd vissza a standard Fájl: {útvonal} formátumban.");
+
+            await Clipboard.SetTextAsync(sb.ToString());
+            AppState.StatusText = "Hibajavító prompt a vágólapra másolva. Illeszd be az LLM-nek!";
         }
 
         private async Task DeleteLine()

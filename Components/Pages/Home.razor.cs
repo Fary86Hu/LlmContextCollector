@@ -220,7 +220,7 @@ namespace LlmContextCollector.Components.Pages
                 if (selectedNodesInTree.Count == 1 && !selectedNodesInTree[0].IsDirectory)
                 {
                     var relativePath = GetRelativeNodePath(selectedNodesInTree[0]);
-                    await _contextPanelRef.UpdatePreview(relativePath);
+                    await _contextPanelRef.UpdatePreview(relativePath, _selectedInContextList);
 
                     if (_selectedInContextList.Contains(relativePath))
                     {
@@ -234,16 +234,7 @@ namespace LlmContextCollector.Components.Pages
                 }
                 else
                 {
-                    // Ha a Context panelben volt kijelölés, de most a fában egy olyat jelöltünk ki 
-                    // ami nincs a kontextusban, akkor az előnézetet a fa aktuális elemére állítjuk.
-                    if (selectedNodesInTree.Count == 1 && !selectedNodesInTree[0].IsDirectory)
-                    {
-                         await _contextPanelRef.UpdatePreview(GetRelativeNodePath(selectedNodesInTree[0]));
-                    }
-                    else
-                    {
-                        await _contextPanelRef.UpdatePreview(null);
-                    }
+                    await _contextPanelRef.UpdatePreview(null, _selectedInContextList);
                 }
             }
 
@@ -318,7 +309,7 @@ namespace LlmContextCollector.Components.Pages
             {
                 // Előnézet frissítése: ha pontosan egy elem van kijelölve a listában
                 var pathToPreview = selectedFiles.Count == 1 ? selectedFiles.First() : null;
-                await _contextPanelRef.UpdatePreview(pathToPreview);
+                await _contextPanelRef.UpdatePreview(pathToPreview, selectedFiles);
             }
 
             await InvokeAsync(StateHasChanged);

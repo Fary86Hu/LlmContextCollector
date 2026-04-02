@@ -89,7 +89,7 @@ namespace LlmContextCollector.Services
             _appState.AdoDocsExist = newExist;
         }
 
-        public async Task<(string Text, List<AttachedImage> Images)> GetFormattedWorkItemAsync(int workItemId)
+        public async Task<(string Text, List<AttachedImage> Images)> GetFormattedWorkItemAsync(int workItemId, int startIndex)
         {
             _logService.LogInfo("ADO", $"Work Item {workItemId} lekérése indítva...");
 
@@ -185,7 +185,7 @@ namespace LlmContextCollector.Services
             for (int i = 0; i < orderedImageUrls.Count; i++)
             {
                 var currentUrl = orderedImageUrls[i];
-                var index = i + 1;
+                var index = startIndex + i + 1;
                 urlToIndexMap[currentUrl] = index;
 
                 var fileNameMatch = Regex.Match(currentUrl, @"fileName=([^&]+)");

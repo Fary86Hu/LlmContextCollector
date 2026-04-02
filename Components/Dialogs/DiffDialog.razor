@@ -252,6 +252,11 @@
                 }
                 else
                 {
+                    @if (_localDiffResults.Any(r => r.PatchFailed))
+                    {
+                        <button class="primary" style="background-color: #e67e22; border-color: #d35400;" @onclick="CopyFixPromptToClipboard" title="Összeállít egy visszakérdezést az LLM-nek a hibás blokkokról">⚠️ Hibajavító Prompt Másolása</button>
+                    }
+
                     @if (!_isGitDiffMode)
                     {
                         <button class="primary" @onclick="AcceptSelectedChanges" disabled="@(!_localDiffResults.Any(r => r.IsSelectedForAccept))">Változások Alkalmazása</button>

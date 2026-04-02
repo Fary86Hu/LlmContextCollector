@@ -352,20 +352,22 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             return Path.Combine(AppState.ProjectRoot ?? string.Empty, relPath.Replace('/', Path.DirectorySeparatorChar));
         }
 
-        public async Task UpdatePreview(string? path = null)
+        public async Task UpdatePreview(string? path = null, List<string>? items = null)
         {
             await ClearPreviewSearch();
             
+            var effectiveSelection = items ?? SelectedItems;
             string? fileRelPath = path;
+
             if (fileRelPath == null)
             {
-                if (SelectedItems.Count == 1)
+                if (effectiveSelection.Count == 1)
                 {
-                    fileRelPath = SelectedItems.First();
+                    fileRelPath = effectiveSelection.First();
                 }
-                else if (SelectedItems.Count > 1)
+                else if (effectiveSelection.Count > 1)
                 {
-                    _previewContent = $"{SelectedItems.Count} fájl kiválasztva. Válassz egyet az előnézethez.";
+                    _previewContent = $"{effectiveSelection.Count} fájl kiválasztva. Válassz egyet az előnézethez.";
                     UpdatePreviewMarkup();
                     StateHasChanged();
                     return;
@@ -825,7 +827,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             AppState.ShowLoading($"ADO Work Item {_adoWorkItemIdToLoad} lekérése...");
             try
             {
-                var result = await SettingsStore.GetFormattedWorkItemAsync(_adoWorkItemIdToLoad.Value);
+                int currentImgCount = AppState.AttachedImages.Count;
+                var result = await SettingsStore.GetFormattedWorkItemAsync(_adoWorkItemIdToLoad.Value, currentImgCount);
                 if (!string.IsNullOrWhiteSpace(result.Text))
                 {
                     if (!string.IsNullOrWhiteSpace(AppState.PromptText))
