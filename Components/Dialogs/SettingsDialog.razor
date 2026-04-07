@@ -52,6 +52,10 @@
                         <label for="ollama-model">Modell neve:</label>
                         <input id="ollama-model" type="text" @bind="AppState.OllamaModel" placeholder="qwen3:4b-instruct" />
                     </div>
+                    <div class="form-group" style="display: flex; flex-direction: row; align-items: center; gap: 10px;">
+                        <input id="ollama-thinking" type="checkbox" @bind="AppState.OllamaShowThinking" style="width: auto;" />
+                        <label for="ollama-thinking" style="margin-bottom: 0; cursor: pointer;">Thinking mutatása alapértelmezésben</label>
+                    </div>
                 </div>
 
                 <h4>Azure DevOps Beállítások</h4>
@@ -104,6 +108,7 @@
             GroqApiUrl = AppState.GroqApiUrl,
             OllamaApiUrl = AppState.OllamaApiUrl,
             OllamaModel = AppState.OllamaModel,
+            OllamaShowThinking = AppState.OllamaShowThinking,
             AzureDevOpsOrganizationUrl = AppState.AzureDevOpsOrganizationUrl,
             AzureDevOpsProject = AppState.AzureDevOpsProject,
             AzureDevOpsIterationPath = AppState.AzureDevOpsIterationPath,

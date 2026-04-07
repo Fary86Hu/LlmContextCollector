@@ -250,6 +250,12 @@ namespace LlmContextCollector.Services
             set => SetField(ref _ollamaModel, value);
         }
 
+        private bool _ollamaShowThinking = true;
+        public bool OllamaShowThinking
+        {
+            get => _ollamaShowThinking;
+            set => SetField(ref _ollamaShowThinking, value);
+        }
 
 
         public List<HistoryEntry> HistoryEntries { get; set; } = new();

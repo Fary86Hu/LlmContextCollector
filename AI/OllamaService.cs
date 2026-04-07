@@ -3,22 +3,17 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text;
-
 namespace LlmContextCollector.Services
 {
     public class OllamaService
     {
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly AppState _appState;
-        private readonly AppLogService _logService;
-
-        public OllamaService(IHttpClientFactory httpClientFactory, AppState appState, AppLogService logService)
+        public OllamaService(IHttpClientFactory httpClientFactory, AppState appState)
         {
             _httpClientFactory = httpClientFactory;
             _appState = appState;
-            _logService = logService;
         }
-
         public async IAsyncEnumerable<string> GetChatResponseStreamAsync(IEnumerable<object> messages, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
         {
             var requestBody = new
@@ -26,37 +21,31 @@ namespace LlmContextCollector.Services
                 model = _appState.OllamaModel,
                 messages = messages,
                 stream = true,
-                keep_alive = 0,
+                keep_alive = "5m",
                 options = new
                 {
                     num_ctx = 65536
                 }
             };
-
             var client = _httpClientFactory.CreateClient("OllamaClient");
             var baseUrl = _appState.OllamaApiUrl.TrimEnd('/');
-
             using var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/chat/completions")
             {
                 Content = JsonContent.Create(requestBody)
             };
-
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
             response.EnsureSuccessStatusCode();
-
             using var stream = await response.Content.ReadAsStreamAsync(ct);
             using var reader = new StreamReader(stream);
-
             while (!reader.EndOfStream)
             {
                 if (ct.IsCancellationRequested) break;
                 var line = await reader.ReadLineAsync(ct);
                 if (string.IsNullOrWhiteSpace(line)) continue;
-                
+
                 var jsonData = line.StartsWith("data: ") ? line.Substring(6).Trim() : line.Trim();
                 if (jsonData == "[DONE]") break;
                 if (string.IsNullOrEmpty(jsonData)) continue;
-
                 string? content = null;
                 try
                 {
@@ -75,14 +64,11 @@ namespace LlmContextCollector.Services
                     }
                 }
                 catch { }
-
                 if (!string.IsNullOrEmpty(content))
                 {
                     yield return content;
                 }
             }
         }
-
-
     }
 }

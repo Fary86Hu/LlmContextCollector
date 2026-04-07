@@ -97,7 +97,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private DotNetObjectReference<ContextPanel>? _objRef;
 
         private string _copyButtonText = "Másolás";
-        private bool _isTopDropdownOpen = false;
         private bool _isBottomDropdownOpen = false;
         private bool _isDocsDropdownOpen = false;
 
@@ -688,17 +687,14 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         [CascadingParameter]
         public LlmContextCollector.Components.Pages.Home? HomeRef { get; set; }
 
-        private void ToggleTopDropdown() { _isTopDropdownOpen = !_isTopDropdownOpen; _isBottomDropdownOpen = false; _isDocsDropdownOpen = false; }
-        private void ToggleBottomDropdown() { _isBottomDropdownOpen = !_isBottomDropdownOpen; _isTopDropdownOpen = false; _isDocsDropdownOpen = false; }
-        private void ToggleDocsDropdown() { _isDocsDropdownOpen = !_isDocsDropdownOpen; _isTopDropdownOpen = false; _isBottomDropdownOpen = false; }
-        private void SelectTopPrompt(Guid id) { AppState.ActiveGlobalPromptId = id; _isTopDropdownOpen = false; }
+        private void ToggleBottomDropdown() { _isBottomDropdownOpen = !_isBottomDropdownOpen; _isDocsDropdownOpen = false; }
+        private void ToggleDocsDropdown() { _isDocsDropdownOpen = !_isDocsDropdownOpen; _isBottomDropdownOpen = false; }
         private void SelectBottomPrompt(Guid id) { AppState.ActiveGlobalPromptId = id; _isBottomDropdownOpen = false; }
 
         public void CloseCustomDropdowns()
         {
-            if (_isTopDropdownOpen || _isBottomDropdownOpen || _isDocsDropdownOpen)
+            if (_isBottomDropdownOpen || _isDocsDropdownOpen)
             {
-                _isTopDropdownOpen = false;
                 _isBottomDropdownOpen = false;
                 _isDocsDropdownOpen = false;
                 StateHasChanged();

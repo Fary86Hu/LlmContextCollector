@@ -2,6 +2,7 @@
 @using System.Text
 @inject OllamaService OllamaService
 @inject IJSRuntime JSRuntime
+@inject AppState AppState
 @implements IDisposable
 
 @if (IsVisible)
@@ -21,6 +22,9 @@
                         <label class="selector-label">
                             <input type="checkbox" @bind="_includeFiles" disabled="@(_messages.Any(m => m.Role != "system"))" /> Fájlok
                         </label>
+                        <label class="selector-label" title="Gondolatmenet mutatása/elrejtése">
+                            <input type="checkbox" @bind="AppState.OllamaShowThinking" /> Thinking
+                        </label>
                     </div>
                 </div>
                 <button class="close-btn" @onclick="Close">&times;</button>
@@ -31,7 +35,7 @@
                     {
                         <div class="chat-message @(msg.Role)">
                             <strong>@(msg.Role == "user" ? "Te" : "AI"):</strong>
-                            <div class="message-content">@msg.Content</div>
+                            <div class="message-content">@((MarkupString)GetFormattedResponse(msg.Content, false))</div>
                         </div>
                     }
                     @if (_isGenerating)
@@ -39,7 +43,7 @@
                         <div class="chat-message assistant generating">
                             <strong>AI:</strong>
                             <div class="message-content">
-                                @_currentResponse<span class="cursor-blink">|</span>
+                                @((MarkupString)GetFormattedResponse(_currentResponse, true))
                             </div>
                         </div>
                     }
@@ -100,6 +104,52 @@
     private string _currentInput = string.Empty;
     private string _currentResponse = string.Empty;
     private bool _isGenerating = false;
+
+    protected override void OnInitialized()
+    {
+        AppState.PropertyChanged += HandleAppStateChanged;
+    }
+
+    private async void HandleAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppState.OllamaShowThinking))
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private string GetFormattedResponse(string rawText, bool isGenerating)
+    {
+        if (string.IsNullOrWhiteSpace(rawText)) return isGenerating ? "<span class=\"cursor-blink\">|</span>" : string.Empty;
+
+        string displayHtml;
+
+        if (!AppState.OllamaShowThinking)
+        {
+            var text = rawText;
+            while (text.Contains("<think>"))
+            {
+                int start = text.IndexOf("<think>");
+                int end = text.IndexOf("</think>");
+                if (end != -1) 
+                    text = text.Remove(start, (end + 8) - start);
+                else 
+                    text = text.Substring(0, start);
+            }
+            displayHtml = System.Web.HttpUtility.HtmlEncode(text).Replace("\n", "<br />");
+        }
+        else
+        {
+            var text = rawText.Replace("<think>", "___T_S___").Replace("</think>", "___T_E___");
+            displayHtml = System.Web.HttpUtility.HtmlEncode(text)
+                .Replace("___T_S___", "<div class=\"thinking-block\">")
+                .Replace("___T_E___", "</div>")
+                .Replace("\n", "<br />");
+        }
+
+        if (isGenerating) displayHtml += "<span class=\"cursor-blink\">|</span>";
+        return displayHtml;
+    }
     private bool _prevIsVisible = false;
 
     private bool _includePrompt = true;
@@ -188,16 +238,26 @@
         {
             var apiMessages = _messages.Select(m => new { role = m.Role, content = m.Content }).ToList<object>();
             var responseSb = new StringBuilder();
+            var lastUpdate = DateTime.MinValue;
 
             await foreach (var token in OllamaService.GetChatResponseStreamAsync(apiMessages, _cts.Token))
             {
                 responseSb.Append(token);
                 _currentResponse = responseSb.ToString();
-                StateHasChanged();
-                await ScrollToBottom();
+
+                if ((DateTime.Now - lastUpdate).TotalMilliseconds > 100)
+                {
+                    StateHasChanged();
+                    _ = ScrollToBottom();
+                    lastUpdate = DateTime.Now;
+                    await Task.Delay(1);
+                }
             }
 
-            if (!_cts.IsCancellationRequested)
+            StateHasChanged();
+            await ScrollToBottom();
+
+            if (_cts != null && !_cts.IsCancellationRequested)
             {
                 _messages.Add(new ChatMessage { Role = "assistant", Content = _currentResponse });
             }
@@ -244,5 +304,6 @@
 
     public void Dispose()
     {
+        AppState.PropertyChanged -= HandleAppStateChanged;
     }
 }

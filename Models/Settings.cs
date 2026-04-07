@@ -9,6 +9,7 @@ namespace LlmContextCollector.Models
         public string GroqApiUrl { get; set; } = "https://api.groq.com/openai/v1/";
         public string OllamaApiUrl { get; set; } = "http://localhost:11434/v1/"; // Ez a chat API base URL
         public string OllamaModel { get; set; } = "qwen3:4b-instruct";
+        public bool OllamaShowThinking { get; set; } = true;
         
         // --- Azure DevOps Beállítások ---
         public string AzureDevOpsOrganizationUrl { get; set; } = string.Empty;

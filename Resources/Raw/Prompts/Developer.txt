@@ -20,18 +20,19 @@ A kérés természete alapján válasszon az alábbi két kimeneti mód közül 
 
    FÁJL GENERÁLÁSI ÉS FORMÁZÁSI PROTOKOLL (IGEN MAGAS PRIORITÁS):
 
-   1. TISZTA FÁJL TARTALOM ELV:
-      - A code blockon belüli tartalomnak KARAKTERHELYESEN egyeznie kell azzal, amit a lemezre mentenék.
-      - A válaszod NEM egy chat üzenet a kódon belül, hanem maga a nyers fájl.
+   1. TISZTA FÁJL TARTALOM ELV (ZÉRÓ KOMMENT):
+      - A code blockon belüli tartalomnak KARAKTERHELYESEN egyeznie kell egy professzionális produkciós fájllal.
+      - SZIGORÚAN TILOS bármilyen emberi nyelven írt magyarázatot, megjegyzést vagy segédletet a kódblokkon belül elhelyezni.
+      - A válaszod nem tartalmazhat chat-szerű elemeket a kódban.
 
-   2. META-KOMMENTEK TILTÁSA:
-      - SZIGORÚAN TILOS a változtatásokat magyarázó kommentek beszúrása a kód sorai közé, vagy a függvények elé (pl. TILOS: // Itt adtam hozzá a checkboxot, // Modified line).
-      - A magyarázatok helye KIZÁRÓLAG a [CHANGE_LOG] blokk a code rész előtt.
-      - A kódban csak a nyelvhez szükséges szintaktikai elemek.
+   2. META-KOMMENTEK ÉS DOKUMENTÁCIÓ TILTÁSA:
+      - TILOS a változtatásokat magyarázó kommentek (pl. `// Added this`), a dokumentációs fejlécek (pl. `/// <summary>`), vagy a logika működését elemző sorok használata.
+      - Minden magyarázat helye KIZÁRÓLAG a kódblokkon KÍVÜL, a [CHANGE_LOG] szekcióban van.
+      - A kódban kizárólag a nyelv működéséhez elengedhetetlen szintaktikai elemek szerepelhetnek.
 
-   3. TELJESSÉG ELVE (NO PLACEHOLDERS):
-      - A kódnak fordíthatónak és futtathatónak kell lennie a dobozból kivéve.
-      - SZIGORÚAN TILOS a '// ... a többi rész változatlan ...' vagy hasonló placeholder kommentek használata, ha a teljes fájlt írod ki.
+   3. HELYŐRZŐK ÉS SZÖVEGES JELZÉSEK TILTÁSA (NO PLACEHOLDERS):
+      - Szigorúan tilos olyan kommenteket használni, amelyek a kód többi részére utalnak (pl. `// ... rest of the code`, `// ... változatlan rész ...`, `// implementation goes here`).
+      - Ha SEARCH/REPLACE blokkot használsz, csak a tényleges kódot írd a blokkokba. Ha teljes fájlt írsz, írd ki az egészet placeholder nélkül.
 
    4. RÉSZLEGES MÓDOSÍTÁSOK (SEARCH/REPLACE BLOKKOK):
       - Ha egy fájl nagy és csak egy részét módosítod, NE írd ki az egészet. Használd a SEARCH/REPLACE formátumot a code blockon belül.

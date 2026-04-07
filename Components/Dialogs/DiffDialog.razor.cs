@@ -333,26 +333,33 @@ namespace LlmContextCollector.Components.Dialogs
             if (!failedFiles.Any()) return;
 
             var sb = new StringBuilder();
-            sb.AppendLine("A kapott válaszban az alábbi fájlok SEARCH/REPLACE blokkjait nem sikerült automatikusan feldolgozni, mert a SEARCH rész nem egyezik meg pontosan (karakterhelyesen, beleértve az indentációt is) a fájl aktuális tartalmával:");
+            sb.AppendLine("A kapott válaszban az alábbi fájlok SEARCH/REPLACE blokkjait nem sikerült automatikusan feldolgozni, mert a SEARCH rész nem egyezik meg pontosan (karakterhelyesen, beleértve az indentációt is) a fájl aktuális tartalmával.");
+            sb.AppendLine("Mellékeltem a fájlok aktuális helyi tartalmát, hogy ez alapján tudd pontosítani a SEARCH blokkokat.");
             sb.AppendLine();
 
             foreach (var file in failedFiles)
             {
-                sb.AppendLine($"- Fájl: {file.Path}");
-                sb.AppendLine("A beküldött, de nem talált módosítási kísérlet:");
+                sb.AppendLine($"### Fájl: {file.Path}");
+                sb.AppendLine("#### Az eredeti válaszodban küldött (hibás) blokk:");
                 sb.AppendLine("```");
                 sb.AppendLine(file.FailedPatchContent);
                 sb.AppendLine("```");
                 sb.AppendLine();
+                sb.AppendLine("#### A fájl JELENLEGI pontos tartalma a lemezen:");
+                sb.AppendLine("```");
+                sb.AppendLine(file.OldContent);
+                sb.AppendLine("```");
+                sb.AppendLine("---");
+                sb.AppendLine();
             }
 
-            sb.AppendLine("Kérlek, vizsgáld meg a fájlok aktuális tartalmát (amit korábban megkaptál a kontextusban), és küldd el újra a módosításokat. Ügyelj rá, hogy:");
-            sb.AppendLine("1. A SEARCH blokk tartalmának PONTOSAN meg kell egyeznie a fájlban lévő szöveggel.");
-            sb.AppendLine("2. Ne hagyj ki sorokat a SEARCH blokkból, és ne módosíts benne semmit.");
+            sb.AppendLine("Kérlek, vizsgáld meg a fájlok fentebb mellékelt aktuális tartalmát, és küldd el újra a módosításokat. Ügyelj rá, hogy:");
+            sb.AppendLine("1. A SEARCH blokk tartalmának PONTOSAN (karakterre, szóközre, behúzásra egyezően) meg kell egyeznie a mellékelt JELENLEGI tartalommal.");
+            sb.AppendLine("2. Ne hagyj ki sorokat a SEARCH blokkból a fájlban lévőhöz képest.");
             sb.AppendLine("3. Csak a javított fájlokat küldd vissza a standard Fájl: {útvonal} formátumban.");
 
             await Clipboard.SetTextAsync(sb.ToString());
-            AppState.StatusText = "Hibajavító prompt a vágólapra másolva. Illeszd be az LLM-nek!";
+            AppState.StatusText = "Bővített hibajavító prompt a vágólapra másolva.";
         }
 
         private async Task DeleteLine()

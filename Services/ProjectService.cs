@@ -62,13 +62,13 @@ namespace LlmContextCollector.Services
             _azureDevOpsService.UpdateAdoPaths(_appState.ProjectRoot);
             await ScanLaunchSettingsAsync();
             
-            var allFilePaths = new HashSet<string>();
+            var allFilePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             Utils.FileTreeHelper.GetAllFilePaths(_appState.FileTree, allFilePaths, _appState.ProjectRoot);
 
             _appState.SelectedFilesForContext.Clear();
             foreach (var file in filesToPreserve)
             {
-                if (file.StartsWith("[ADO]") || allFilePaths.Contains(file))
+                if (file.StartsWith("[ADO]") || file.StartsWith("[ORIGINAL]") || allFilePaths.Contains(file))
                 {
                     _appState.SelectedFilesForContext.Add(file);
                 }

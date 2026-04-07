@@ -58,6 +58,22 @@
 .message-content {
     white-space: pre-wrap;
     margin-top: 5px;
+    line-height: 1.5;
+}
+
+.thinking-block {
+    color: var(--text-color-light);
+    font-style: italic;
+    background-color: rgba(0,0,0,0.03);
+    border-left: 3px solid #ccc;
+    padding: 8px 12px;
+    margin: 8px 0;
+    font-size: 0.9em;
+}
+
+html[data-theme="dark"] .thinking-block {
+    background-color: rgba(255,255,255,0.05);
+    border-left-color: #555;
 }
 
 .chat-footer {
@@ -65,6 +81,13 @@
     gap: 10px;
     padding: 10px;
     border-top: 1px solid var(--border-color, #ccc);
+    position: relative;
+    z-index: 10;
+}
+
+.chat-input, .send-btn, .abort-btn {
+    position: relative;
+    z-index: 11;
 }
 
 .chat-input {

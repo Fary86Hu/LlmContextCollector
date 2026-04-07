@@ -17,8 +17,6 @@ namespace LlmContextCollector.Components.Pages
         [Inject]
         private HistoryService HistoryService { get; set; } = null!;
         [Inject]
-        private ReferenceFinderService ReferenceFinder { get; set; } = null!;
-        [Inject]
         private IClipboard Clipboard { get; set; } = null!;
 
         [Inject]
@@ -83,6 +81,8 @@ namespace LlmContextCollector.Components.Pages
             var latest = AppState.HistoryEntries.FirstOrDefault();
             if (latest != null)
             {
+                // Engedjük a UI-t renderelni (Loading overlay), mielőtt belekezdünk a nehéz szkennelésbe
+                await Task.Yield();
                 await LoadHistoryEntry(latest);
             }
             else

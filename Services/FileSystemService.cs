@@ -10,6 +10,15 @@ namespace LlmContextCollector.Services
         private List<string> _relativePathIgnores = new();
         private List<Regex> _wildcardRegexes = new();
 
+        private static readonly HashSet<string> BinaryExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".ico", ".svg", ".webp",
+            ".exe", ".dll", ".so", ".dylib", ".bin", ".obj", ".lib", ".pdb",
+            ".zip", ".rar", ".7z", ".tar", ".gz",
+            ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+            ".woff", ".woff2", ".ttf", ".eot",
+            ".mp3", ".wav", ".mp4", ".mov", ".avi", ".wmv", ".flv"
+        };
 
         public FileSystemService(AppState appState)
         {
@@ -114,6 +123,7 @@ namespace LlmContextCollector.Services
             try
             {
                 var directoryInfo = new DirectoryInfo(parentNode.FullPath);
+                var children = new List<FileNode>();
 
                 foreach (var dir in directoryInfo.GetDirectories())
                 {
@@ -122,24 +132,28 @@ namespace LlmContextCollector.Services
                     var dirNode = new FileNode { Name = dir.Name, FullPath = dir.FullName, IsDirectory = true, Parent = parentNode };
                     ScanDirectoryRecursively(dirNode, extensionCounts);
                     
-                    if (dirNode.Children.Any())
+                    if (dirNode.Children.Count > 0)
                     {
-                        parentNode.Children.Add(dirNode);
+                        children.Add(dirNode);
                     }
                 }
 
                 foreach (var file in directoryInfo.GetFiles())
                 {
                     if (IsIgnored(file.FullName, isDir: false)) continue;
+                    if (BinaryExtensions.Contains(file.Extension)) continue;
 
                     var ext = file.Extension.ToLowerInvariant();
                     if (string.IsNullOrEmpty(ext)) ext = ".noext";
 
-                    if (!extensionCounts.ContainsKey(ext))
+                    if (!extensionCounts.TryGetValue(ext, out int currentCount))
                     {
-                        extensionCounts[ext] = 0;
+                        extensionCounts[ext] = 1;
                     }
-                    extensionCounts[ext]++;
+                    else
+                    {
+                        extensionCounts[ext] = currentCount + 1;
+                    }
 
                     bool isVisible = true;
                     if (_appState.ExtensionFilters.TryGetValue(ext, out var storedValue))
@@ -150,11 +164,11 @@ namespace LlmContextCollector.Services
                     if (isVisible)
                     {
                         var fileNode = new FileNode { Name = file.Name, FullPath = file.FullName, IsDirectory = false, Parent = parentNode };
-                        parentNode.Children.Add(fileNode);
+                        children.Add(fileNode);
                     }
                 }
 
-                parentNode.Children = parentNode.Children.OrderBy(c => !c.IsDirectory).ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToList();
+                parentNode.Children = children.OrderBy(c => !c.IsDirectory).ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToList();
             }
             catch (UnauthorizedAccessException ex)
             {

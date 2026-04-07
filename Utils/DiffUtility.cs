@@ -8,7 +8,7 @@ namespace LlmContextCollector.Utils
     {
         public record DiffOpcode(char Tag, int I1, int I2, int J1, int J2);
 
-        public enum DiffLineType { Context, Add, Delete, Empty }
+        public enum DiffLineType { Context, Add, Delete }
         public record DiffLineItem(DiffLineType Type, string Content, int? OriginalIndex, int? NewIndex);
 
         public static List<DiffOpcode> GetOpcodes(string[] a, string[] b)

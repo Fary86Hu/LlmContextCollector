@@ -4,11 +4,6 @@ namespace LlmContextCollector.Models
 {
     public class AdoProjectSettings
     {
-        public string OrganizationUrl { get; set; } = string.Empty;
-        public string Project { get; set; } = string.Empty;
-        public string IterationPath { get; set; } = string.Empty;
-        public string Pat { get; set; } = string.Empty;
-        public bool DownloadOnlyMine { get; set; } = false;
         public DateTime? LastFullDownloadUtc { get; set; }
         public string LocalizationResourcePath { get; set; } = string.Empty;
     }
