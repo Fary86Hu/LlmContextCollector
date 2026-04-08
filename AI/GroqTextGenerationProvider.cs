@@ -40,6 +40,9 @@ namespace LlmContextCollector.AI
                 throw new InvalidOperationException("Groq API URL is not set. Please configure it in the settings.");
             }
 
+            bool isReasoningModel = _appState.GroqModel.Contains("gpt-oss", StringComparison.OrdinalIgnoreCase) || 
+                                    _appState.GroqModel.StartsWith("o1-", StringComparison.OrdinalIgnoreCase);
+
             var payload = new ChatRequest
             {
                 model = _appState.GroqModel,
@@ -47,9 +50,19 @@ namespace LlmContextCollector.AI
                 {
                     new ChatMessage { role = "user", content = prompt }
                 },
-                temperature = 0.2,
-                max_tokens = _appState.GroqMaxOutputTokens
+                temperature = isReasoningModel ? 1.0 : 0.2,
+                top_p = isReasoningModel ? 1.0 : null,
+                reasoning_effort = isReasoningModel ? "medium" : null
             };
+
+            if (isReasoningModel)
+            {
+                payload.max_completion_tokens = _appState.GroqMaxOutputTokens == 0 ? 8192 : _appState.GroqMaxOutputTokens;
+            }
+            else
+            {
+                payload.max_tokens = _appState.GroqMaxOutputTokens;
+            }
 
             var json = JsonSerializer.Serialize(payload, JsonOpts);
 
@@ -87,6 +100,11 @@ namespace LlmContextCollector.AI
             public ChatMessage[] messages { get; set; } = Array.Empty<ChatMessage>();
             public double? temperature { get; set; }
             public int? max_tokens { get; set; }
+            [JsonPropertyName("max_completion_tokens")]
+            public int? max_completion_tokens { get; set; }
+            [JsonPropertyName("reasoning_effort")]
+            public string? reasoning_effort { get; set; }
+            public double? top_p { get; set; }
         }
 
         private sealed class ChatMessage

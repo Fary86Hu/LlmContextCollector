@@ -215,7 +215,7 @@ namespace LlmContextCollector.Services
             set => SetField(ref _groqApiKey, value);
         }
 
-        private string _groqModel = "llama-3.3-70b-versatile";
+        private string _groqModel = "openai/gpt-oss-120b";
         public string GroqModel
         {
             get => _groqModel;

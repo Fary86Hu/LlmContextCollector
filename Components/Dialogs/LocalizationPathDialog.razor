@@ -36,8 +36,27 @@
 
     private async Task PickResxFile()
     {
-        // A FolderPickerService kiterjesztése vagy manuális megadás szükséges lehet fájl választáshoz, 
-        // de az egyszerűség kedvéért itt most az AppState-be írunk.
+        try
+        {
+            var result = await Microsoft.Maui.Storage.FilePicker.Default.PickAsync(new Microsoft.Maui.Storage.PickOptions
+            {
+                PickerTitle = "Válassz lokalizációs resource (.resx) fájlt",
+                FileTypes = new Microsoft.Maui.Storage.FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+                {
+                    { DevicePlatform.WinUI, new[] { ".resx" } }
+                })
+            });
+
+            if (result != null)
+            {
+                AppState.LocalizationResourcePath = result.FullPath;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            AppState.StatusText = $"Hiba a fájlválasztáskor: {ex.Message}";
+        }
     }
 
     private async Task Confirm()

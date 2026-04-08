@@ -974,8 +974,19 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 }
                 else
                 {
-                    AppState.StatusText = $"{finalArgs.DiffResults.Count} elem feldolgozva. Változások ablak megnyitva.";
-                    await OnShowDiffDialog.InvokeAsync(finalArgs);
+                    bool hasLocData = !string.IsNullOrEmpty(finalArgs.LocalizationData);
+                    bool hasLocPath = !string.IsNullOrWhiteSpace(AppState.LocalizationResourcePath);
+
+                    if (hasLocData && !hasLocPath)
+                    {
+                        AppState.StatusText = "Lokalizációs adatok észlelve, útvonal bekérése...";
+                        await OnRequestLocalizationPath.InvokeAsync(finalArgs);
+                    }
+                    else
+                    {
+                        AppState.StatusText = $"{finalArgs.DiffResults.Count} elem feldolgozva. Változások ablak megnyitva.";
+                        await OnShowDiffDialog.InvokeAsync(finalArgs);
+                    }
                 }
             }
         }
