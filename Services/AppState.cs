@@ -208,34 +208,23 @@ namespace LlmContextCollector.Services
             NotifyStateChanged(nameof(ActiveGlobalPromptId));
         }
 
-        private string _groqApiKey = string.Empty;
-        public string GroqApiKey
+        public ObservableCollection<AiModelConfig> AiModels { get; } = new();
+
+        private Guid _commitMessageModelId = Guid.Empty;
+        public Guid CommitMessageModelId
         {
-            get => _groqApiKey;
-            set => SetField(ref _groqApiKey, value);
+            get => _commitMessageModelId;
+            set => SetField(ref _commitMessageModelId, value);
         }
 
-        private string _groqModel = "openai/gpt-oss-120b";
-        public string GroqModel
+        private Guid _branchNameModelId = Guid.Empty;
+        public Guid BranchNameModelId
         {
-            get => _groqModel;
-            set => SetField(ref _groqModel, value);
+            get => _branchNameModelId;
+            set => SetField(ref _branchNameModelId, value);
         }
 
-        private int _groqMaxOutputTokens = 2048;
-        public int GroqMaxOutputTokens
-        {
-            get => _groqMaxOutputTokens;
-            set => SetField(ref _groqMaxOutputTokens, value);
-        }
-        
-        private string _groqApiUrl = "https://api.groq.com/openai/v1/";
-        public string GroqApiUrl
-        {
-            get => _groqApiUrl;
-            set => SetField(ref _groqApiUrl, value);
-        }
-
+        // --- Chat specifikus beállítások (visszaállítva a build hiba miatt) ---
         private string _ollamaApiUrl = "http://localhost:11434/v1/";
         public string OllamaApiUrl
         {
@@ -243,7 +232,7 @@ namespace LlmContextCollector.Services
             set => SetField(ref _ollamaApiUrl, value);
         }
 
-        private string _ollamaModel = "qwen3:4b-instruct";
+        private string _ollamaModel = "qwen2.5:7b-instruct";
         public string OllamaModel
         {
             get => _ollamaModel;

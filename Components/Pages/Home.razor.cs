@@ -540,19 +540,26 @@ namespace LlmContextCollector.Components.Pages
         {
             var settings = await SettingsService.GetSettingsAsync();
             AppState.Theme = settings.Theme;
-            AppState.GroqApiKey = settings.GroqApiKey;
-            AppState.GroqModel = settings.GroqModel;
-            AppState.GroqMaxOutputTokens = settings.GroqMaxOutputTokens;
-            AppState.GroqApiUrl = settings.GroqApiUrl;
-            AppState.OllamaApiUrl = settings.OllamaApiUrl;
-            AppState.OllamaModel = settings.OllamaModel;
+            
+            AppState.AiModels.Clear();
+            if (settings.AiModels != null)
+            {
+                foreach (var model in settings.AiModels) AppState.AiModels.Add(model);
+            }
+            
+            AppState.CommitMessageModelId = settings.CommitMessageModelId;
+            AppState.BranchNameModelId = settings.BranchNameModelId;
+
+            AppState.OllamaApiUrl = settings.OllamaApiUrl ?? "http://localhost:11434/v1/";
+            AppState.OllamaModel = settings.OllamaModel ?? "qwen2.5:7b-instruct";
+            AppState.OllamaShowThinking = settings.OllamaShowThinking;
+
             AppState.AzureDevOpsOrganizationUrl = settings.AzureDevOpsOrganizationUrl;
             AppState.AzureDevOpsProject = settings.AzureDevOpsProject;
             AppState.AzureDevOpsIterationPath = settings.AzureDevOpsIterationPath;
             AppState.AzureDevOpsPat = settings.AzureDevOpsPat;
             AppState.AdoDownloadOnlyMine = settings.AdoDownloadOnlyMine;
             
-            // Ezek a globális alapértelmezések. Ha nincs projekt-specifikus override, ezeket használjuk.
             AppState.DefaultBuildCommand = settings.BuildCommand ?? "dotnet build";
             AppState.DefaultRunCommand = settings.RunCommand ?? "dotnet run";
         }

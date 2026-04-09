@@ -10,12 +10,12 @@ namespace LlmContextCollector.Services
 {
     public class GitSuggestionService
     {
-        private readonly ITextGenerationProvider _generationProvider;
+        private readonly AiProviderFactory _providerFactory;
         private readonly AppState _appState;
 
-        public GitSuggestionService(ITextGenerationProvider generationProvider, AppState appState)
+        public GitSuggestionService(AiProviderFactory providerFactory, AppState appState)
         {
-            _generationProvider = generationProvider;
+            _providerFactory = providerFactory;
             _appState = appState;
         }
 
@@ -27,22 +27,26 @@ namespace LlmContextCollector.Services
             }
 
             var prompt = BuildPrompt(diffs, globalExplanation, originalPrompt);
-            try
-            {
-                var llmResponse = await _generationProvider.GenerateAsync(prompt, ct);
-                return ParseResponse(llmResponse);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"LLM suggestion generation failed: {ex.Message}");
-                return (null, null);
-            }
+            
+            var provider = _providerFactory.GetProvider(_appState.CommitMessageModelId);
+            var llmResponse = await provider.GenerateAsync(prompt, ct);
+            return ParseResponse(llmResponse);
         }
 
         private string BuildPrompt(List<DiffResult> diffs, string? globalExplanation, string? originalPrompt)
         {
-            var maxRequestTokens = 8192;
-            var maxOutputTokens = _appState.GroqMaxOutputTokens;
+            // Megkeressük a kiválasztott modell konfigurációját a budget számításhoz
+            var config = _appState.AiModels.FirstOrDefault(m => m.Id == _appState.CommitMessageModelId) 
+                         ?? _appState.AiModels.FirstOrDefault();
+
+            // Gemini és modern modellek esetén 32k-64k kontextus is belefér, 
+            // de a biztonság kedvéért 16k-ra lőjük be az alapértelmezett keretet
+            var maxRequestTokens = 16384; 
+            var maxOutputTokens = config?.MaxOutputTokens ?? 4096;
+            
+            // Ha a felhasználó túl magas MaxTokent állított be (pl 32000), ne legyen negatív a maradék
+            var inputBudgetTokens = Math.Max(2048, maxRequestTokens - maxOutputTokens);
+            
             var charsPerToken = 3.5;
             var reserve = 1024;
             var sb = new StringBuilder();
@@ -85,7 +89,6 @@ namespace LlmContextCollector.Services
             sb.AppendLine("--- DETAILED CHANGES ---");
 
             var headerLen = sb.Length;
-            var inputBudgetTokens = Math.Max(256, maxRequestTokens - maxOutputTokens);
             var inputBudgetChars = (int)(inputBudgetTokens * charsPerToken);
             var remaining = Math.Max(0, inputBudgetChars - headerLen - reserve);
 

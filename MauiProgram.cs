@@ -65,10 +65,15 @@ namespace LlmContextCollector
 #endif
             builder.Services.AddSingleton(Clipboard.Default);
 
-            builder.Services.AddHttpClient("groq", c =>
+            builder.Services.AddHttpClient("GenericAi", c =>
             {
                 c.Timeout = TimeSpan.FromSeconds(120);
                 c.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            });
+
+            builder.Services.AddHttpClient("OllamaClient", c =>
+            {
+                c.Timeout = TimeSpan.FromMinutes(10);
             });
             
             builder.Services.AddHttpClient("AzureDevOps", c =>
@@ -76,13 +81,7 @@ namespace LlmContextCollector
                 c.Timeout = TimeSpan.FromSeconds(30);
             });
 
-            builder.Services.AddHttpClient("OllamaClient", (sp, c) =>
-            {
-                var appState = sp.GetRequiredService<AppState>();
-                c.BaseAddress = new Uri(appState.OllamaApiUrl);
-                c.Timeout = TimeSpan.FromMinutes(10); 
-            });
-            builder.Services.AddSingleton<ITextGenerationProvider, GroqTextGenerationProvider>();
+            builder.Services.AddSingleton<AiProviderFactory>();
 
             return builder.Build();
         }

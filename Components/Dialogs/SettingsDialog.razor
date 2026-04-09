@@ -4,126 +4,198 @@
 @if (IsVisible)
 {
     <div class="modal-backdrop">
-        <div class="modal-dialog">
+        <div class="modal-dialog settings-large">
             <div class="modal-header">
                 <h3>Beállítások</h3>
                 <button class="close-btn" @onclick="Close">&times;</button>
             </div>
             <div class="modal-body">
-                <h4>Megjelenés</h4>
-                <div class="form-section">
-                    <div class="form-group">
-                        <label for="theme-select">Téma:</label>
-                        <select id="theme-select" @bind="AppState.Theme">
-                            <option value="System">Rendszer alapértelmezett</option>
-                            <option value="Light">Világos</option>
-                            <option value="Dark">Sötét</option>
-                        </select>
-                    </div>
-                </div>
+                <div class="settings-grid">
+                    <!-- Bal oldali panel: Általános és Feladatok -->
+                    <div class="settings-nav">
+                        <h4>Megjelenés</h4>
+                        <div class="form-group">
+                            <label>Téma:</label>
+                            <select @bind="AppState.Theme">
+                                <option value="System">Rendszer</option>
+                                <option value="Light">Világos</option>
+                                <option value="Dark">Sötét</option>
+                            </select>
+                        </div>
 
-                <h4>Groq LLM Beállítások</h4>
-                <div class="form-section">
-                    <div class="form-group">
-                        <label for="groq-apiurl">API URL:</label>
-                        <input id="groq-apiurl" type="text" @bind="AppState.GroqApiUrl" placeholder="https://api.groq.com/openai/v1/"/>
-                    </div>
-                    <div class="form-group">
-                        <label for="groq-model">Modell:</label>
-                        <input id="groq-model" type="text" @bind="AppState.GroqModel" />
-                    </div>
-                    <div class="form-group">
-                        <label for="groq-apikey">API Kulcs:</label>
-                        <input id="groq-apikey" type="password" @bind="AppState.GroqApiKey" placeholder="gsk_..."/>
-                    </div>
-                    <div class="form-group">
-                        <label for="groq-maxtokens">Max. kimeneti token:</label>
-                        <input id="groq-maxtokens" type="number" min="64" max="8192" @bind="AppState.GroqMaxOutputTokens" />
-                    </div>
-                </div>
+                        <h4 style="margin-top: 20px;">Chat / Lokális Előkészítés</h4>
+                        <div class="form-group">
+                            <label>Ollama Chat URL:</label>
+                            <input type="text" @bind="AppState.OllamaApiUrl" />
+                        </div>
+                        <div class="form-group">
+                            <label>Ollama Chat Modell:</label>
+                            <input type="text" @bind="AppState.OllamaModel" />
+                        </div>
 
-                <h4>Lokális Ollama Beállítások</h4>
-                <div class="form-section">
-                    <div class="form-group">
-                        <label for="ollama-url">API URL:</label>
-                        <input id="ollama-url" type="text" @bind="AppState.OllamaApiUrl" placeholder="http://localhost:11434/v1/" />
-                    </div>
-                    <div class="form-group">
-                        <label for="ollama-model">Modell neve:</label>
-                        <input id="ollama-model" type="text" @bind="AppState.OllamaModel" placeholder="qwen3:4b-instruct" />
-                    </div>
-                    <div class="form-group" style="display: flex; flex-direction: row; align-items: center; gap: 10px;">
-                        <input id="ollama-thinking" type="checkbox" @bind="AppState.OllamaShowThinking" style="width: auto;" />
-                        <label for="ollama-thinking" style="margin-bottom: 0; cursor: pointer;">Thinking mutatása alapértelmezésben</label>
-                    </div>
-                </div>
+                        <h4 style="margin-top: 20px;">Feladatokhoz rendelt modellek</h4>
+                        <div class="form-group">
+                            <label>Commit & Branch generálás:</label>
+                            <select @bind="AppState.CommitMessageModelId">
+                                <option value="@Guid.Empty">-- Nincs választva --</option>
+                                @foreach (var model in AppState.AiModels)
+                                {
+                                    <option value="@model.Id">@model.FriendlyName</option>
+                                }
+                            </select>
+                        </div>
 
-                <h4>Azure DevOps Beállítások</h4>
-                <div class="form-section">
-                    <div class="form-group">
-                        <label for="ado-org">Szervezet URL:</label>
-                        <input id="ado-org" type="text" placeholder="https://dev.azure.com/your-organization" @bind="AppState.AzureDevOpsOrganizationUrl" />
+                        <h4 style="margin-top: 20px;">Azure DevOps</h4>
+                        <div class="form-group">
+                            <label>Szervezet URL:</label>
+                            <input type="text" @bind="AppState.AzureDevOpsOrganizationUrl" />
+                        </div>
+                        <div class="form-group">
+                            <label>Projekt Név:</label>
+                            <input type="text" @bind="AppState.AzureDevOpsProject" />
+                        </div>
+                        <div class="form-group">
+                            <label>PAT:</label>
+                            <input type="password" @bind="AppState.AzureDevOpsPat" />
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="ado-project">Projekt Név:</label>
-                        <input id="ado-project" type="text" placeholder="YourProject" @bind="AppState.AzureDevOpsProject" />
-                    </div>
-                    <div class="form-group">
-                        <label for="ado-iteration">Iteration Path (opcionális):</label>
-                        <input id="ado-iteration" type="text" placeholder="pl. DmsSolutions\ePostaláda\2025\13" @bind="AppState.AzureDevOpsIterationPath" />
-                    </div>
-                    <div class="form-group">
-                        <label for="ado-pat">Personal Access Token (PAT):</label>
-                        <input id="ado-pat" type="password" @bind="AppState.AzureDevOpsPat" />
-                    </div>
-                    <div class="form-group" style="display: flex; flex-direction: row; align-items: center; gap: 10px;">
-                        <input id="ado-mine" type="checkbox" @bind="AppState.AdoDownloadOnlyMine" style="width: auto;" />
-                        <label for="ado-mine" style="margin-bottom: 0; cursor: pointer;">Csak a hozzám rendelt elemek letöltése</label>
+
+                    <!-- Jobb oldali panel: AI Modell Registry -->
+                    <div class="settings-content">
+                        <div class="header-with-action">
+                            <h4>AI Modell Registry</h4>
+                            <button class="primary btn-small" @onclick="AddNewModel">＋ Új modell</button>
+                        </div>
+
+                        <div class="model-list">
+                            @foreach (var model in AppState.AiModels)
+                            {
+                                <div class="model-card @(_selectedModelId == model.Id ? "selected" : "")" @onclick="() => _selectedModelId = model.Id">
+                                    <div class="model-card-header">
+                                        <strong>@model.FriendlyName</strong>
+                                        <div class="card-actions">
+                                            <button class="icon-btn-small" @onclick="() => RemoveModel(model)" @onclick:stopPropagation>🗑️</button>
+                                        </div>
+                                    </div>
+                                    <div class="model-card-meta">@model.ProviderType | @model.ModelName</div>
+                                </div>
+                            }
+                        </div>
+
+                        @if (SelectedModel != null)
+                        {
+                            <div class="model-editor">
+                                <h5>Szerkesztés: @SelectedModel.FriendlyName</h5>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Megjelenítési név:</label>
+                                        <input type="text" @bind="SelectedModel.FriendlyName" />
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Típus:</label>
+                                        <select @bind="SelectedModel.ProviderType">
+                                            @foreach (var type in Enum.GetValues<AiProviderType>())
+                                            {
+                                                <option value="@type">@type</option>
+                                            }
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>API URL (Base URL):</label>
+                                    <input type="text" @bind="SelectedModel.ApiUrl" placeholder="https://api.groq.com/openai/v1" />
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Modell azonosító:</label>
+                                        <input type="text" @bind="SelectedModel.ModelName" placeholder="gpt-4o, qwen2.5..." />
+                                    </div>
+                                    <div class="form-group">
+                                        <label>API Kulcs (ha kell):</label>
+                                        <input type="password" @bind="SelectedModel.ApiKey" />
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Max Token:</label>
+                                    <input type="number" @bind="SelectedModel.MaxOutputTokens" />
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="editor-placeholder">Válassz ki egy modellt a szerkesztéshez vagy adj hozzá egy újat.</div>
+                        }
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button @onclick="Close">Mégsem</button>
-                <button class="primary" @onclick="SaveChanges">Mentés</button>
+                <button class="primary" @onclick="SaveChanges">Minden mentése</button>
             </div>
         </div>
     </div>
 }
 
-@code {
-    [Parameter]
-    public bool IsVisible { get; set; }
+<style>
+    .settings-large { width: 900px; height: 80vh; }
+    .settings-grid { display: grid; grid-template-columns: 280px 1fr; gap: 20px; height: 100%; overflow: hidden; }
+    .settings-nav { border-right: 1px solid var(--border-color); padding-right: 15px; overflow-y: auto; }
+    .settings-content { display: flex; flex-direction: column; overflow: hidden; }
+    .header-with-action { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .model-list { display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; border: 1px solid var(--border-color); padding: 5px; border-radius: 4px; background: var(--input-bg-color); }
+    .model-card { padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; }
+    .model-card:hover { background: var(--hover-bg-color); }
+    .model-card.selected { border-color: var(--accent-color); background: var(--hover-bg-color); }
+    .model-card-header { display: flex; justify-content: space-between; align-items: center; }
+    .model-card-meta { font-size: 11px; color: var(--text-color-light); }
+    .model-editor { margin-top: 15px; padding-top: 15px; border-top: 2px solid var(--border-color); overflow-y: auto; flex: 1; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    h5 { margin-top: 0; color: var(--accent-color); }
+</style>
 
-    [Parameter]
-    public EventCallback OnClose { get; set; }
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private Guid? _selectedModelId;
+    private AiModelConfig? SelectedModel => AppState.AiModels.FirstOrDefault(m => m.Id == _selectedModelId);
+
+    private void AddNewModel()
+    {
+        var model = new AiModelConfig { FriendlyName = "Új OpenAI kompatibilis" };
+        AppState.AiModels.Add(model);
+        _selectedModelId = model.Id;
+    }
+
+    private void RemoveModel(AiModelConfig model)
+    {
+        if (_selectedModelId == model.Id) _selectedModelId = null;
+        AppState.AiModels.Remove(model);
+    }
 
     private async Task SaveChanges()
     {
         var settings = new Settings
         {
             Theme = AppState.Theme,
-            GroqApiKey = AppState.GroqApiKey,
-            GroqModel = AppState.GroqModel,
-            GroqMaxOutputTokens = AppState.GroqMaxOutputTokens,
-            GroqApiUrl = AppState.GroqApiUrl,
+            AiModels = AppState.AiModels.ToList(),
+            CommitMessageModelId = AppState.CommitMessageModelId,
+            BranchNameModelId = AppState.BranchNameModelId,
             OllamaApiUrl = AppState.OllamaApiUrl,
             OllamaModel = AppState.OllamaModel,
             OllamaShowThinking = AppState.OllamaShowThinking,
             AzureDevOpsOrganizationUrl = AppState.AzureDevOpsOrganizationUrl,
             AzureDevOpsProject = AppState.AzureDevOpsProject,
-            AzureDevOpsIterationPath = AppState.AzureDevOpsIterationPath,
             AzureDevOpsPat = AppState.AzureDevOpsPat,
-            AdoDownloadOnlyMine = AppState.AdoDownloadOnlyMine,
             BuildCommand = AppState.DefaultBuildCommand,
             RunCommand = AppState.DefaultRunCommand
         };
         await SettingsService.SaveSettingsAsync(settings);
-        AppState.StatusText = "Beállítások mentve.";
+        AppState.StatusText = "Beállítások és modellek mentve.";
         await Close();
     }
 
-    private async Task Close()
-    {
-        await OnClose.InvokeAsync();
-    }
+    private async Task Close() => await OnClose.InvokeAsync();
 }

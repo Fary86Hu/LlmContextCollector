@@ -259,15 +259,29 @@ namespace LlmContextCollector.Components.Dialogs
         private async Task RefreshSuggestionsAsync() 
         { 
             _isRefreshingSuggestions = true; 
+            AppState.StatusText = "Javaslatok generálása...";
             try 
             { 
-                // A dialógus megnyitásakor kapott eredeti promptot (ha van) beküldjük a javaslathoz
                 var promptToUse = !string.IsNullOrWhiteSpace(OriginalPrompt) ? OriginalPrompt : AppState.DiffOriginalPrompt;
                 var (b, c) = await GitSuggestionService.GetSuggestionsAsync(_localDiffResults, _globalExplanationText, promptToUse); 
-                _suggestedBranch = b ?? ""; 
-                _suggestedCommit = c ?? ""; 
-                _hasSuggestions = b != null; 
+                
+                if (b == "suggestion-not-found")
+                {
+                    AppState.StatusText = "Hiba: A modell nem küldött érvényes javaslatot.";
+                }
+                else
+                {
+                    _suggestedBranch = b ?? ""; 
+                    _suggestedCommit = c ?? ""; 
+                    _hasSuggestions = !string.IsNullOrEmpty(b); 
+                    AppState.StatusText = "Javaslatok frissítve.";
+                }
             } 
+            catch (Exception ex)
+            {
+                AppState.StatusText = $"AI Hiba: {ex.Message}";
+                await JSRuntime.InvokeVoidAsync("alert", $"Nem sikerült a javaslat generálása: {ex.Message}");
+            }
             finally 
             { 
                 _isRefreshingSuggestions = false; 
