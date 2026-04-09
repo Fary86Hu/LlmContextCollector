@@ -81,7 +81,6 @@ namespace LlmContextCollector.Components.Pages
             var latest = AppState.HistoryEntries.FirstOrDefault();
             if (latest != null)
             {
-                // Engedjük a UI-t renderelni (Loading overlay), mielőtt belekezdünk a nehéz szkennelésbe
                 await Task.Yield();
                 await LoadHistoryEntry(latest);
             }
@@ -271,19 +270,16 @@ namespace LlmContextCollector.Components.Pages
                     {
                         node.IsSelectedInTree = true;
                         AppState.ExpandNodeParents(node);
-                        
-                        // Ha egyetlen elem van, vagy ez az utolsó a listában, erre fókuszálunk
                         focusNode = node;
                     }
                 }
 
-                // Explicit jelezzük az AppState-nek, hogy a fa módosult, hogy a FileTreePanel frissítse a kijelöléseket
                 AppState.NotifyStateChanged(nameof(AppState.FileTree));
 
                 if (focusNode != null && selectedFiles.Count == 1)
                 {
                     _lastInteractionNode = focusNode;
-                    await Task.Delay(50); // Hosszabb várakozás, hogy a DOM felépüljön a lenyíló mappákkal
+                    await Task.Delay(50); 
                     
                     var elementId = "filenode-" + Convert.ToBase64String(Encoding.UTF8.GetBytes(focusNode.FullPath))
                         .Replace("=", "")
@@ -295,13 +291,11 @@ namespace LlmContextCollector.Components.Pages
             }
             else
             {
-                // Ha üres a lista, akkor is frissíteni kell a fát a törölt kijelölések miatt
                 AppState.NotifyStateChanged(nameof(AppState.FileTree));
             }
 
             if (_contextPanelRef != null)
             {
-                // Előnézet frissítése: ha pontosan egy elem van kijelölve a listában
                 var pathToPreview = selectedFiles.Count == 1 ? selectedFiles.First() : null;
                 await _contextPanelRef.UpdatePreview(pathToPreview, selectedFiles);
             }
@@ -547,8 +541,8 @@ namespace LlmContextCollector.Components.Pages
                 foreach (var model in settings.AiModels) AppState.AiModels.Add(model);
             }
             
-            AppState.CommitMessageModelId = settings.CommitMessageModelId;
-            AppState.BranchNameModelId = settings.BranchNameModelId;
+            AppState.GitSuggestionModelId = settings.GitSuggestionModelId;
+            AppState.ChatModelId = settings.ChatModelId;
 
             AppState.OllamaApiUrl = settings.OllamaApiUrl ?? "http://localhost:11434/v1/";
             AppState.OllamaModel = settings.OllamaModel ?? "qwen2.5:7b-instruct";

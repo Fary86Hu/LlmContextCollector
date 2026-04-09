@@ -11,7 +11,6 @@
             </div>
             <div class="modal-body">
                 <div class="settings-grid">
-                    <!-- Bal oldali panel: Általános és Feladatok -->
                     <div class="settings-nav">
                         <h4>Megjelenés</h4>
                         <div class="form-group">
@@ -23,26 +22,36 @@
                             </select>
                         </div>
 
-                        <h4 style="margin-top: 20px;">Chat / Lokális Előkészítés</h4>
+                        <h4 style="margin-top: 20px;">Modell hozzárendelések</h4>
                         <div class="form-group">
-                            <label>Ollama Chat URL:</label>
-                            <input type="text" @bind="AppState.OllamaApiUrl" />
-                        </div>
-                        <div class="form-group">
-                            <label>Ollama Chat Modell:</label>
-                            <input type="text" @bind="AppState.OllamaModel" />
-                        </div>
-
-                        <h4 style="margin-top: 20px;">Feladatokhoz rendelt modellek</h4>
-                        <div class="form-group">
-                            <label>Commit & Branch generálás:</label>
-                            <select @bind="AppState.CommitMessageModelId">
-                                <option value="@Guid.Empty">-- Nincs választva --</option>
+                            <label>Chat funkció:</label>
+                            <select @bind="AppState.ChatModelId">
+                                <option value="@Guid.Empty">Lokális Ollama (Alapértelmezett)</option>
                                 @foreach (var model in AppState.AiModels)
                                 {
                                     <option value="@model.Id">@model.FriendlyName</option>
                                 }
                             </select>
+                        </div>
+                        <div class="form-group" style="margin-top: 10px;">
+                            <label>Git (Commit & Branch):</label>
+                            <select @bind="AppState.GitSuggestionModelId">
+                                <option value="@Guid.Empty">Lokális Ollama (Alapértelmezett)</option>
+                                @foreach (var model in AppState.AiModels)
+                                {
+                                    <option value="@model.Id">@model.FriendlyName</option>
+                                }
+                            </select>
+                        </div>
+
+                        <h4 style="margin-top: 20px;">Lokális Ollama beállítások</h4>
+                        <div class="form-group">
+                            <label>Ollama API URL:</label>
+                            <input type="text" @bind="AppState.OllamaApiUrl" />
+                        </div>
+                        <div class="form-group">
+                            <label>Ollama Modell név:</label>
+                            <input type="text" @bind="AppState.OllamaModel" />
                         </div>
 
                         <h4 style="margin-top: 20px;">Azure DevOps</h4>
@@ -60,7 +69,6 @@
                         </div>
                     </div>
 
-                    <!-- Jobb oldali panel: AI Modell Registry -->
                     <div class="settings-content">
                         <div class="header-with-action">
                             <h4>AI Modell Registry</h4>
@@ -181,8 +189,8 @@
         {
             Theme = AppState.Theme,
             AiModels = AppState.AiModels.ToList(),
-            CommitMessageModelId = AppState.CommitMessageModelId,
-            BranchNameModelId = AppState.BranchNameModelId,
+            GitSuggestionModelId = AppState.GitSuggestionModelId,
+            ChatModelId = AppState.ChatModelId,
             OllamaApiUrl = AppState.OllamaApiUrl,
             OllamaModel = AppState.OllamaModel,
             OllamaShowThinking = AppState.OllamaShowThinking,

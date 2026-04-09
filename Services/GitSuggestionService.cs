@@ -28,23 +28,19 @@ namespace LlmContextCollector.Services
 
             var prompt = BuildPrompt(diffs, globalExplanation, originalPrompt);
             
-            var provider = _providerFactory.GetProvider(_appState.CommitMessageModelId);
+            var provider = _providerFactory.GetProvider(_appState.GitSuggestionModelId);
             var llmResponse = await provider.GenerateAsync(prompt, ct);
             return ParseResponse(llmResponse);
         }
 
         private string BuildPrompt(List<DiffResult> diffs, string? globalExplanation, string? originalPrompt)
         {
-            // Megkeressük a kiválasztott modell konfigurációját a budget számításhoz
-            var config = _appState.AiModels.FirstOrDefault(m => m.Id == _appState.CommitMessageModelId) 
+            var config = _appState.AiModels.FirstOrDefault(m => m.Id == _appState.GitSuggestionModelId) 
                          ?? _appState.AiModels.FirstOrDefault();
 
-            // Gemini és modern modellek esetén 32k-64k kontextus is belefér, 
-            // de a biztonság kedvéért 16k-ra lőjük be az alapértelmezett keretet
             var maxRequestTokens = 16384; 
             var maxOutputTokens = config?.MaxOutputTokens ?? 4096;
             
-            // Ha a felhasználó túl magas MaxTokent állított be (pl 32000), ne legyen negatív a maradék
             var inputBudgetTokens = Math.Max(2048, maxRequestTokens - maxOutputTokens);
             
             var charsPerToken = 3.5;

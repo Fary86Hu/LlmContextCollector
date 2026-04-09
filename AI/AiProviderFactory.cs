@@ -21,7 +21,17 @@ namespace LlmContextCollector.AI
         {
             AiModelConfig? config = null;
             
-            if (configId != Guid.Empty)
+            if (configId == Guid.Empty)
+            {
+                config = new AiModelConfig
+                {
+                    FriendlyName = "Lokális Ollama",
+                    ProviderType = AiProviderType.Ollama,
+                    ApiUrl = _appState.OllamaApiUrl,
+                    ModelName = _appState.OllamaModel
+                };
+            }
+            else
             {
                 config = _appState.AiModels.FirstOrDefault(m => m.Id == configId);
             }

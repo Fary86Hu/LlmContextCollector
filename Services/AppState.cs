@@ -210,21 +210,20 @@ namespace LlmContextCollector.Services
 
         public ObservableCollection<AiModelConfig> AiModels { get; } = new();
 
-        private Guid _commitMessageModelId = Guid.Empty;
-        public Guid CommitMessageModelId
+        private Guid _gitSuggestionModelId = Guid.Empty;
+        public Guid GitSuggestionModelId
         {
-            get => _commitMessageModelId;
-            set => SetField(ref _commitMessageModelId, value);
+            get => _gitSuggestionModelId;
+            set => SetField(ref _gitSuggestionModelId, value);
         }
 
-        private Guid _branchNameModelId = Guid.Empty;
-        public Guid BranchNameModelId
+        private Guid _chatModelId = Guid.Empty;
+        public Guid ChatModelId
         {
-            get => _branchNameModelId;
-            set => SetField(ref _branchNameModelId, value);
+            get => _chatModelId;
+            set => SetField(ref _chatModelId, value);
         }
 
-        // --- Chat specifikus beállítások (visszaállítva a build hiba miatt) ---
         private string _ollamaApiUrl = "http://localhost:11434/v1/";
         public string OllamaApiUrl
         {
@@ -245,7 +244,6 @@ namespace LlmContextCollector.Services
             get => _ollamaShowThinking;
             set => SetField(ref _ollamaShowThinking, value);
         }
-
 
         public List<HistoryEntry> HistoryEntries { get; set; } = new();
 
@@ -340,8 +338,6 @@ namespace LlmContextCollector.Services
             get => _isLoading;
             set => SetField(ref _isLoading, value);
         }
-
-
 
         private bool _isAiInspectorVisible = false;
         public bool IsAiInspectorVisible

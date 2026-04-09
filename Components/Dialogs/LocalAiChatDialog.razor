@@ -11,7 +11,16 @@
         <div class="modal-dialog chat-dialog chat-modal">
             <div class="modal-header">
                 <div class="header-info">
-                    <h3 class="header-title">Lokális AI - Előkészítés</h3>
+                    <div style="display:flex; align-items: center; gap: 15px;">
+                        <h3 class="header-title">AI Chat</h3>
+                        <select @bind="AppState.ChatModelId" style="font-size: 11px; padding: 2px 5px; height: 24px;">
+                            <option value="@Guid.Empty">Lokális Ollama (Streaming)</option>
+                            @foreach (var model in AppState.AiModels)
+                            {
+                                <option value="@model.Id">@model.FriendlyName</option>
+                            }
+                        </select>
+                    </div>
                     <div class="chat-context-selectors">
                         <label class="selector-label">
                             <input type="checkbox" @bind="_includePrompt" disabled="@(_messages.Any(m => m.Role != "system"))" /> Prompt
@@ -79,6 +88,9 @@
 </script>
 
 @code {
+    [Inject]
+    public AiProviderFactory ProviderFactory { get; set; } = null!;
+
     [Parameter]
     public bool IsVisible { get; set; }
 
@@ -236,35 +248,45 @@
 
         try
         {
-            var apiMessages = _messages.Select(m => new { role = m.Role, content = m.Content }).ToList<object>();
-            var responseSb = new StringBuilder();
-            var lastUpdate = DateTime.MinValue;
-
-            await foreach (var token in OllamaService.GetChatResponseStreamAsync(apiMessages, _cts.Token))
+            if (AppState.ChatModelId == Guid.Empty)
             {
-                responseSb.Append(token);
-                _currentResponse = responseSb.ToString();
+                var apiMessages = _messages.Select(m => new { role = m.Role, content = m.Content }).ToList<object>();
+                var responseSb = new StringBuilder();
+                var lastUpdate = DateTime.MinValue;
 
-                if ((DateTime.Now - lastUpdate).TotalMilliseconds > 100)
+                await foreach (var token in OllamaService.GetChatResponseStreamAsync(apiMessages, _cts.Token))
                 {
-                    StateHasChanged();
-                    _ = ScrollToBottom();
-                    lastUpdate = DateTime.Now;
-                    await Task.Delay(1);
+                    responseSb.Append(token);
+                    _currentResponse = responseSb.ToString();
+
+                    if ((DateTime.Now - lastUpdate).TotalMilliseconds > 100)
+                    {
+                        StateHasChanged();
+                        _ = ScrollToBottom();
+                        lastUpdate = DateTime.Now;
+                        await Task.Delay(1);
+                    }
                 }
+                _messages.Add(new ChatMessage { Role = "assistant", Content = _currentResponse + (_cts.IsCancellationRequested ? " [MEGSZAKÍTVA]" : "") });
+            }
+            else
+            {
+                var provider = ProviderFactory.GetProvider(AppState.ChatModelId);
+                
+                var fullPromptSb = new StringBuilder();
+                foreach(var m in _messages)
+                {
+                    fullPromptSb.AppendLine($"### {m.Role.ToUpper()}:");
+                    fullPromptSb.AppendLine(m.Content);
+                    fullPromptSb.AppendLine();
+                }
+
+                _currentResponse = await provider.GenerateAsync(fullPromptSb.ToString(), _cts.Token);
+                _messages.Add(new ChatMessage { Role = "assistant", Content = _currentResponse });
             }
 
             StateHasChanged();
             await ScrollToBottom();
-
-            if (_cts != null && !_cts.IsCancellationRequested)
-            {
-                _messages.Add(new ChatMessage { Role = "assistant", Content = _currentResponse });
-            }
-            else
-            {
-                _messages.Add(new ChatMessage { Role = "assistant", Content = _currentResponse + " [MEGSZAKÍTVA]" });
-            }
         }
         catch (OperationCanceledException)
         {
