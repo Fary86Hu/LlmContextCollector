@@ -232,6 +232,18 @@ namespace LlmContextCollector.Services
                             File.Delete(fullPath);
                         }
                     }
+                    else if (result.Status == DiffStatus.Renamed && !string.IsNullOrEmpty(result.OriginalPath))
+                    {
+                        var oldFullPath = Path.GetFullPath(Path.Combine(_appState.ProjectRoot, result.OriginalPath.Replace('/', Path.DirectorySeparatorChar)));
+                        if (File.Exists(oldFullPath))
+                        {
+                            File.Delete(oldFullPath);
+                        }
+                        
+                        var dir = Path.GetDirectoryName(fullPath);
+                        if (dir != null && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                        await File.WriteAllTextAsync(fullPath, result.NewContent);
+                    }
                     else
                     {
                         var dir = Path.GetDirectoryName(fullPath);

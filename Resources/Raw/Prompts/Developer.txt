@@ -26,56 +26,36 @@ A kérés természete alapján válasszon az alábbi két kimeneti mód közül 
       - A válaszod nem tartalmazhat chat-szerű elemeket a kódban.
 
    2. META-KOMMENTEK ÉS DOKUMENTÁCIÓ TILTÁSA:
-      - TILOS a változtatásokat magyarázó kommentek (pl. `// Added this`), a dokumentációs fejlécek (pl. `/// <summary>`), vagy a logika működését elemző sorok használata.
+      - TILOS a változtatásokat magyarázó kommentek (pl. // Added this), a dokumentációs fejlécek, vagy a logika működését elemző sorok használata a kódon belül.
       - Minden magyarázat helye KIZÁRÓLAG a kódblokkon KÍVÜL, a [CHANGE_LOG] szekcióban van.
-      - A kódban kizárólag a nyelv működéséhez elengedhetetlen szintaktikai elemek szerepelhetnek.
 
    3. HELYŐRZŐK ÉS SZÖVEGES JELZÉSEK TILTÁSA (NO PLACEHOLDERS):
-      - Szigorúan tilos olyan kommenteket használni, amelyek a kód többi részére utalnak (pl. `// ... rest of the code`, `// ... változatlan rész ...`, `// implementation goes here`).
+      - Szigorúan tilos olyan kommenteket használni, amelyek a kód többi részére utalnak (pl. // ... rest of the code, // implementation goes here).
       - Ha SEARCH/REPLACE blokkot használsz, csak a tényleges kódot írd a blokkokba. Ha teljes fájlt írsz, írd ki az egészet placeholder nélkül.
 
-   4. RÉSZLEGES MÓDOSÍTÁSOK (SEARCH/REPLACE BLOKKOK):
-      - Ha egy fájl nagy és csak egy részét módosítod, NE írd ki az egészet. Használd a SEARCH/REPLACE formátumot a code blockon belül.
-      - Formátum:
+   4. FÁJL MŰVELETEK ÉS FEJLÉCEK:
+      A fájlokat az alábbi fejlécekkel KELL azonosítani:
+      * **Új Fájl: {útvonal}** - Ha teljesen új fájlt hoz létre.
+      * **Fájl: {útvonal}** - Ha egy már létező fájlt módosít.
+      * **Törölt Fájl: {útvonal}** - Ha egy fájlt el kell távolítani (kódblokk nem szükséges).
+      * **Átnevezett Fájl: {régi_útvonal} -> {új_útvonal}** - Ha egy fájlt mozgat vagy átnevez. A kódblokkba az ÚJ tartalmat írja (teljes fájlként vagy SEARCH/REPLACE blokkokkal az eredetihez képest).
+
+   5. RÉSZLEGES MÓDOSÍTÁSOK (SEARCH/REPLACE BLOKKOK):
+      - Ha egy fájl nagy és csak egy részét módosítod, használd az alábbi formátumot a code blockon belül:
         <<<<<<< SEARCH
         (Eredeti kód részlet, PONTOSAN karakterre egyeznie kell a fájlban lévővel)
         =======
         (Új kód részlet, amire cserélni kell)
         >>>>>>> REPLACE
-      - Egy fájlon belül több ilyen blokk is lehet.
-      - A SEARCH blokkban lévő kódnak elegendő kontextust kell tartalmaznia, hogy egyedi legyen.
-
-   - A fájlokat az alábbi fejlécekkel kell azonosítani a státuszuknak megfelelően:
-     * **Új Fájl: {útvonal}** - Ha teljesen új fájlt hoz létre.
-     * **Fájl: {útvonal}** - Ha egy már létező fájlt módosít.
-     * **Törölt Fájl: {útvonal}** - Ha egy fájlt el kell távolítani a projektből.
 
    - Minden módosításhoz (kivéve törlés) kötelező a [CHANGE_LOG] blokk és a kódblokk:
      [CHANGE_LOG]
      Részletes leírás a módosításról...
      [/CHANGE_LOG]
-     {Fejléc (Új Fájl vagy Fájl)}: {útvonal}
+     {Fejléc}: {útvonal}
      ```
-     (A FÁJL TELJES TARTALMA VAGY SEARCH/REPLACE BLOKKOK META-KOMMENTEK NÉLKÜL)
+     (Tartalom)
      ```
 
-   - Fájl törléséhez (kódblokk nélkül):
-     [CHANGE_LOG]
-     Indoklás a törlésre...
-     [/CHANGE_LOG]
-     Törölt Fájl: {útvonal}
-
-   - FÁJLOK SZÉTVÁLASZTÁSA / REFAKTORÁLÁSA (Pl. Razor code-behind):
-     Amennyiben egy fájlt több részre bont (pl. egy `.razor` fájlból kiszervezi a logikát egy `.razor.cs` fájlba):
-     1. Kötelező mindkét (vagy több) érintett fájlt szerepeltetni a válaszban!
-     2. Ügyeljen a technikai konzisztenciára:
-        * A névtereknek (namespace) egyezniük kell.
-        * Razor esetén figyeljen a `partial class` használatára.
-        * A függőségeket megfelelően kell mozgatni (pl. `@inject` a razorban -> `[Inject]` attribútum a C# osztályban).
-        * Ne hagyjon árva hivatkozásokat vagy duplikált logikát az eredeti fájlban.
-
-  -Ha vettél fel új lokalizációkat, akkor azokat mindig írd le a válaszod össefoglaló részének végén, a fájl módosítások elé, a következő formában:
-
-  <data name="XY" xml:space="preserve">
-    <value>XY</value>
-  </data>
+   - Ha új lokalizációkat vett fel, írja le őket az összefoglaló végén:
+     <data name="XY" xml:space="preserve"><value>XY</value></data>

@@ -1,0 +1,417 @@
+.context-tab-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 10px;
+    gap: 0;
+    min-height: 0;
+    overflow: hidden;
+    background-color: var(--bg-color);
+}
+
+.right-top-section {
+    flex: var(--right-top-flex);
+    min-height: 100px;
+    display: flex;
+    flex-direction: column;
+}
+
+.prompt-layout-horizontal {
+    display: flex;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+}
+
+.prompt-sidebar {
+    width: 170px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    background-color: var(--toolbar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    overflow-y: auto;
+}
+
+.sidebar-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sidebar-btn {
+    width: 100%;
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+.prompt-main-area {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.prompt-container {
+    position: relative;
+    flex: 1;
+    display: flex;
+}
+
+.prompt-editor {
+    flex: 1;
+    resize: none;
+    padding: 8px;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+.prompt-editor-button-group {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    display: flex;
+    gap: 5px;
+}
+
+.prompt-editor-btn {
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    transition: opacity 0.2s, background-color 0.2s;
+    padding: 0;
+    line-height: 1;
+}
+
+    .prompt-editor-btn:hover {
+        opacity: 1;
+        background-color: rgba(0, 0, 0, 0.7);
+    }
+
+.attached-images-strip {
+    display: flex;
+    gap: 10px;
+    padding: 5px;
+    background-color: var(--input-bg-color);
+    border: 1px solid var(--border-color);
+    overflow-x: auto;
+    align-items: center;
+    height: 60px;
+    flex-shrink: 0;
+}
+
+.image-thumbnail {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: #fff;
+    flex-shrink: 0;
+}
+
+    .image-thumbnail img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 4px;
+    }
+
+.remove-img-btn {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background-color: red;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.right-middle-section {
+    flex: var(--right-middle-flex);
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+}
+
+.context-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+    .context-list-header h4 {
+        margin: 0;
+        font-size: 13px;
+    }
+
+.context-table-container {
+    flex: 1;
+    border: 1px solid var(--border-color);
+    overflow-y: auto;
+    background-color: var(--panel-bg);
+}
+
+.context-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 11px;
+}
+
+    .context-table th, .context-table td {
+        padding: 2px 6px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        height: 22px;
+    }
+
+    .context-table th {
+        background-color: var(--toolbar-bg);
+        position: sticky;
+        top: 0;
+        z-index: 5;
+    }
+
+        .context-table th:nth-child(1) {
+            width: 50%;
+        }
+
+        .context-table th:nth-child(2) {
+            width: 20%;
+        }
+
+        .context-table th:nth-child(3) {
+            width: 10%;
+        }
+
+        .context-table th:nth-child(4) {
+            width: 20%;
+        }
+
+    .context-table tbody tr:hover {
+        background-color: var(--hover-bg-color);
+    }
+
+    .context-table tbody tr.selected {
+        background-color: var(--selected-bg-color);
+        color: var(--selected-text-color);
+    }
+
+.actions-cell {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    align-items: center;
+}
+
+.right-bottom-section {
+    flex: var(--right-bottom-flex);
+    min-height: 50px;
+    display: flex;
+    flex-direction: column;
+}
+
+.preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+    .preview-header h4 {
+        margin: 0;
+        font-size: 13px;
+    }
+
+.preview-box {
+    flex: 1;
+    background-color: var(--input-bg-color);
+    border: 1px solid var(--border-color);
+    overflow: auto;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+.preview-box pre {
+    margin: 0;
+    padding: 5px;
+    font-family: Consolas, monospace;
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+.bottom-actions {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.main-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.copy-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: var(--toolbar-bg);
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    flex: 1;
+}
+
+.copy-options-inline {
+    display: flex;
+    gap: 8px;
+    font-size: 11px;
+}
+
+    .copy-options-inline label {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        cursor: pointer;
+    }
+
+.other-actions {
+    display: flex;
+    gap: 4px;
+}
+
+    .other-actions button {
+        padding: 4px 10px;
+        font-size: 11px;
+        white-space: nowrap;
+    }
+
+.horizontal-splitter {
+    height: 4px;
+    cursor: row-resize;
+    background: transparent;
+    transition: background 0.2s;
+}
+
+    .horizontal-splitter:hover {
+        background: var(--accent-color);
+    }
+
+.icon-btn-small {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px;
+    font-size: 14px;
+    opacity: 0.7;
+}
+
+    .icon-btn-small:hover {
+        opacity: 1;
+        background: rgba(0,0,0,0.1);
+        border-radius: 2px;
+    }
+
+.ref-badge {
+    padding: 0 4px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: bold;
+    margin-right: 5px;
+}
+
+.ref-original {
+    background-color: #fff3e0;
+    color: #e65100;
+    border: 1px solid #ffe0b2;
+}
+
+.custom-dropdown-container {
+    position: relative;
+}
+
+.custom-dropdown-trigger {
+    padding: 3px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    background: var(--input-bg-color);
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.custom-dropdown-list {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    width: 250px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+    z-index: 100;
+}
+
+.custom-dropdown-item {
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+    .custom-dropdown-item:hover {
+        background: var(--hover-bg-color);
+    }
+
+    .custom-dropdown-item.active {
+        background: var(--selected-bg-color);
+        color: white;
+    }
+
+.copy-item-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    margin-left: auto;
+    opacity: 0.5;
+}
+
+.custom-dropdown-item:hover .copy-item-btn {
+    opacity: 1;
+}

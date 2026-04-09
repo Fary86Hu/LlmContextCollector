@@ -51,11 +51,14 @@
 
     private async void OnAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(AppState.BuildOutput))
+        if (e.PropertyName == nameof(AppState.BuildOutput) || e.PropertyName == nameof(AppState.CurrentBuildStatus))
         {
             await InvokeAsync(async () => {
                 StateHasChanged();
-                await JSRuntime.InvokeVoidAsync("scrollToBottom", "build-log-output");
+                if (e.PropertyName == nameof(AppState.BuildOutput))
+                {
+                    await JSRuntime.InvokeVoidAsync("scrollToBottom", "build-log-output");
+                }
             });
         }
     }

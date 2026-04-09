@@ -325,9 +325,16 @@ namespace LlmContextCollector
 
         private async void ExtractBrowser_Clicked(object sender, EventArgs e)
         {
-            if (_browserService != null)
+            if (_browserService != null && _clipboard != null)
             {
-                await _browserService.TriggerExtractionAsync();
+                _browserService.CloseBrowser();
+                
+                var content = await _clipboard.GetTextAsync();
+                
+                if (!string.IsNullOrEmpty(content))
+                {
+                    _browserService.TriggerDirectContent(content);
+                }
             }
         }
 

@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using System.ComponentModel;
 using System.Text;
-using static LlmContextCollector.Components.Pages.HomePanels.ContextPanel;
 
 namespace LlmContextCollector.Components.Pages
 {
@@ -44,7 +43,8 @@ namespace LlmContextCollector.Components.Pages
         private AcceptedResponseHistoryService AcceptedResponseHistoryService { get; set; } = null!;
 
 
-        private ContextPanel? _contextPanelRef;
+        private WorkbenchPanel? _workbenchPanelRef;
+        private ContextTab? _contextTabRef;
 
         private List<string> _selectedInContextList = new();
         private FileNode? _lastInteractionNode;
@@ -53,16 +53,12 @@ namespace LlmContextCollector.Components.Pages
 
         private bool _isSettingsDialogVisible = false;
         private bool _isAzureDevOpsDialogVisible = false;
-        private bool _isLocalAiChatVisible = false;
         private bool _isExclusionsDialogVisible = false;
         private bool _isLocPathDialogVisible = false;
         private DiffResultArgs? _pendingLocDiffArgs;
 
         private bool _isAttachableDocDialogVisible = false;
         private AttachableDocument? _editingAttachableDoc;
-        private string _localAiPrompt = string.Empty;
-        private string _localAiSystem = string.Empty;
-        private string _localAiFiles = string.Empty;
 
         private bool _showTreeContextMenu = false;
         private bool _showListContextMenu = false;
@@ -208,26 +204,26 @@ namespace LlmContextCollector.Components.Pages
                 .Intersect(AppState.SelectedFilesForContext)
                 .ToList();
 
-            if (_contextPanelRef != null)
+            if (_workbenchPanelRef != null)
             {
                 if (selectedNodesInTree.Count == 1 && !selectedNodesInTree[0].IsDirectory)
                 {
                     var relativePath = GetRelativeNodePath(selectedNodesInTree[0]);
-                    await _contextPanelRef.UpdatePreview(relativePath, _selectedInContextList);
+                    await _workbenchPanelRef.UpdatePreview(relativePath, _selectedInContextList);
 
                     if (_selectedInContextList.Contains(relativePath))
                     {
-                        await _contextPanelRef.ScrollToPath(relativePath);
+                        await _workbenchPanelRef.ScrollToPath(relativePath);
                     }
 
                     if (e == null && AppState.SearchInContent && !string.IsNullOrWhiteSpace(AppState.SearchTerm))
                     {
-                        await _contextPanelRef.SearchInPreview(AppState.SearchTerm);
+                        await _workbenchPanelRef.SearchInPreview(AppState.SearchTerm);
                     }
                 }
                 else
                 {
-                    await _contextPanelRef.UpdatePreview(null, _selectedInContextList);
+                    await _workbenchPanelRef.UpdatePreview(null, _selectedInContextList);
                 }
             }
 
@@ -294,10 +290,10 @@ namespace LlmContextCollector.Components.Pages
                 AppState.NotifyStateChanged(nameof(AppState.FileTree));
             }
 
-            if (_contextPanelRef != null)
+            if (_contextTabRef != null)
             {
                 var pathToPreview = selectedFiles.Count == 1 ? selectedFiles.First() : null;
-                await _contextPanelRef.UpdatePreview(pathToPreview, selectedFiles);
+                await _contextTabRef.UpdatePreview(pathToPreview, selectedFiles);
             }
 
             await InvokeAsync(StateHasChanged);
@@ -354,7 +350,7 @@ namespace LlmContextCollector.Components.Pages
                 _selectedNodeForMenu = null;
                 StateHasChanged();
             }
-            _contextPanelRef?.CloseCustomDropdowns();
+            _workbenchPanelRef?.CloseCustomDropdowns();
         }
 
         private async Task SetAsBuildTarget()
@@ -520,6 +516,12 @@ namespace LlmContextCollector.Components.Pages
         private async Task LoadHistoryEntry(HistoryEntry entry)
         {
             await HistoryManagerService.ApplyHistoryEntryAsync(entry);
+            _selectedInContextList = AppState.SelectedFilesForContext.ToList();
+            if (_workbenchPanelRef != null)
+            {
+                await _workbenchPanelRef.UpdatePreview(null, _selectedInContextList);
+            }
+            StateHasChanged();
         }
 
         #endregion
@@ -579,25 +581,9 @@ namespace LlmContextCollector.Components.Pages
             StateHasChanged();
         }
 
-        private void ShowLocalAiChat(LocalAiContextArgs args)
-        {
-            _localAiPrompt = args.Prompt;
-            _localAiSystem = args.System;
-            _localAiFiles = args.Files;
-            _isLocalAiChatVisible = true;
-            StateHasChanged();
-        }
-
-        private void OnLocalAiChatClose()
-        {
-            _isLocalAiChatVisible = false;
-            StateHasChanged();
-        }
-
         private async Task HandleChatApplyResponse(string content)
         {
-            _isLocalAiChatVisible = false;
-            await _contextPanelRef!.RouteResponseAsync(content);
+            await _workbenchPanelRef!.RouteResponseAsync(content);
         }
 
         private void HandleRequestLocPath(DiffResultArgs args)
@@ -788,8 +774,12 @@ namespace LlmContextCollector.Components.Pages
                 _containerHeight = await JSRuntime.InvokeAsync<double>("eval", "window.innerHeight");
             }
             catch { }
-            _startLeftFlex = AppState.LeftPanelFlex; _startRightFlex = AppState.RightPanelFlex;
-            _startTopFlex = AppState.RightTopPanelFlex; _startMidFlex = AppState.RightMiddlePanelFlex; _startBotFlex = AppState.RightBottomPanelFlex;
+            _startLeftFlex = AppState.LeftPanelFlex; 
+            _startMiddleFlex = AppState.MiddlePanelFlex;
+            _startRightFlex = AppState.RightPanelFlex;
+            _startTopFlex = AppState.RightTopPanelFlex; 
+            _startMidFlex = AppState.RightMiddlePanelFlex; 
+            _startBotFlex = AppState.RightBottomPanelFlex;
         }
 
         private void StopResize() { _isResizing = false; _activeSplitter = "None"; }
@@ -802,10 +792,29 @@ namespace LlmContextCollector.Components.Pages
 
             switch (_activeSplitter)
             {
-                case "LeftRight":
-                    var delta = (e.ClientX - _startX) * flexFactorX;
-                    AppState.LeftPanelFlex = Math.Clamp(_startLeftFlex + delta, 10, 80);
-                    AppState.RightPanelFlex = 100.0 - AppState.LeftPanelFlex;
+                case "LeftMiddle":
+                    {
+                        var delta = (e.ClientX - _startX) * flexFactorX;
+                        // A bal és középső panel közötti splitter mozgatása. 
+                        // Az összegüknek (StartLeft + StartMiddle) állandónak kell maradnia.
+                        var combinedFlex = _startLeftFlex + _startMiddleFlex;
+                        var newLeft = Math.Clamp(_startLeftFlex + delta, 10, combinedFlex - 10);
+                        
+                        AppState.LeftPanelFlex = newLeft;
+                        AppState.MiddlePanelFlex = combinedFlex - newLeft;
+                    }
+                    break;
+                case "MiddleRight":
+                    {
+                        var delta = (e.ClientX - _startX) * flexFactorX;
+                        // A középső és jobb panel közötti splitter mozgatása.
+                        // Az összegüknek (StartMiddle + StartRight) állandónak kell maradnia.
+                        var combinedFlex = _startMiddleFlex + _startRightFlex;
+                        var newMiddle = Math.Clamp(_startMiddleFlex + delta, 10, combinedFlex - 10);
+
+                        AppState.MiddlePanelFlex = newMiddle;
+                        AppState.RightPanelFlex = combinedFlex - newMiddle;
+                    }
                     break;
                 case "RightTop":
                     var deltaY1 = (e.ClientY - _startY) * flexFactorY;

@@ -1,5 +1,9 @@
 using LlmContextCollector.Components.Pages.HomePanels;
 using LlmContextCollector.Models;
+using System.Text;
+
+using LlmContextCollector.Components.Pages.HomePanels;
+using LlmContextCollector.Models;
 using System;
 using System.IO;
 using System.Linq;
@@ -100,7 +104,7 @@ namespace LlmContextCollector.Services
                     {
                         fullPath = Path.GetFullPath(Path.Combine(_appState.ProjectRoot, fileRelPath.Replace('/', Path.DirectorySeparatorChar)));
                         var fullRoot = Path.GetFullPath(_appState.ProjectRoot);
-                        if (!fullPath.StartsWith(fullRoot)) continue; 
+                        if (!fullPath.StartsWith(fullRoot)) continue;
 
                         header = $"// --- Fájl: {fileRelPath.Replace('\\', '/')} ---";
                         if (File.Exists(fullPath))
@@ -129,13 +133,12 @@ namespace LlmContextCollector.Services
                 sb.AppendLine($"  Üzenet: {error.Message}");
                 sb.AppendLine();
 
-                // Automatikus hozzáadás a kontextushoz, ha még nincs benne
                 if (!_appState.SelectedFilesForContext.Contains(error.FilePath))
                 {
                     _appState.SelectedFilesForContext.Add(error.FilePath);
                 }
             }
-            
+
             _appState.SaveContextListState();
 
             sb.AppendLine("A fenti hibák javításához szükséges fájlokat hozzáadtam a kontextushoz. Kérlek, fókuszálj a hibaüzenetekben megjelölt sorokra.");
@@ -159,7 +162,7 @@ namespace LlmContextCollector.Services
                 {
                     var relPath = Path.GetRelativePath(_appState.ProjectRoot, node.FullPath).Replace('\\', '/');
                     var isIncluded = _appState.SelectedFilesForContext.Contains(relPath);
-                    
+
                     sb.AppendLine($"{indentation}{(isIncluded ? "[*] " : "")}{node.Name}");
                 }
             }
@@ -169,23 +172,26 @@ namespace LlmContextCollector.Services
         {
             var (explanation, parsedFiles) = _llmResponseParserService.ParseResponse(clipboardText);
 
-            // Lokalizációs adatok kinyerése
             var locRegex = new System.Text.RegularExpressions.Regex(@"<data name=""[^""]+"" xml:space=""preserve"">[\s\S]*?</data>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             var locMatches = locRegex.Matches(clipboardText);
             var localizationFragment = string.Join("\n", locMatches.Select(m => m.Value));
 
-            if (!parsedFiles.Any() && string.IsNullOrEmpty(localizationFragment)) 
+            if (!parsedFiles.Any() && string.IsNullOrEmpty(localizationFragment))
                 return new DiffResultArgs(explanation, new List<DiffResult>(), clipboardText, string.Empty);
 
             var diffResults = new List<DiffResult>();
             foreach (var fileData in parsedFiles)
             {
-                var fullPath = Path.GetFullPath(Path.Combine(_appState.ProjectRoot, fileData.Path.Replace('/', Path.DirectorySeparatorChar)));
+                var targetRelPath = fileData.Path;
+                var sourceRelPath = fileData.OldPath ?? targetRelPath;
+
+                var fullPath = Path.GetFullPath(Path.Combine(_appState.ProjectRoot, targetRelPath.Replace('/', Path.DirectorySeparatorChar)));
+                var sourceFullPath = Path.GetFullPath(Path.Combine(_appState.ProjectRoot, sourceRelPath.Replace('/', Path.DirectorySeparatorChar)));
                 var fullRoot = Path.GetFullPath(_appState.ProjectRoot);
-                
-                if (!fullPath.StartsWith(fullRoot))
+
+                if (!fullPath.StartsWith(fullRoot) || !sourceFullPath.StartsWith(fullRoot))
                 {
-                    fileData.Explanation += $"\n[HIBA: Érvénytelen útvonal (Path Traversal gyanú): {fileData.Path}]";
+                    fileData.Explanation += $"\n[HIBA: Érvénytelen útvonal: {fileData.Path}]";
                     continue;
                 }
 
@@ -196,10 +202,10 @@ namespace LlmContextCollector.Services
                 bool patchFailed = false;
                 string failedPatchContent = string.Empty;
 
-                if (File.Exists(fullPath))
+                if (File.Exists(sourceFullPath))
                 {
-                    oldContent = await File.ReadAllTextAsync(fullPath);
-                    if (status == DiffStatus.Modified && finalNewContent.Contains("<<<<<<< SEARCH"))
+                    oldContent = await File.ReadAllTextAsync(sourceFullPath);
+                    if ((status == DiffStatus.Modified || status == DiffStatus.Renamed) && finalNewContent.Contains("<<<<<<< SEARCH"))
                     {
                         try
                         {
@@ -214,25 +220,25 @@ namespace LlmContextCollector.Services
                         }
                     }
                 }
-                else if (status == DiffStatus.Modified)
+                else if (status == DiffStatus.Modified || status == DiffStatus.Renamed)
                 {
                     if (finalNewContent.Contains("<<<<<<< SEARCH"))
                     {
                         status = DiffStatus.Error;
                         patchFailed = true;
                         failedPatchContent = finalNewContent;
-                        fileData.Explanation += "\n[HIBA: A fájl nem található a lemezen, ezért a SEARCH/REPLACE módosítás nem alkalmazható.]";
+                        fileData.Explanation += $"\n[HIBA: A forrásfájl ({sourceRelPath}) nem található, a SEARCH/REPLACE nem alkalmazható.]";
                     }
                     else
                     {
                         status = DiffStatus.NewFromModified;
                     }
                 }
-                else if (status == DiffStatus.Modified) status = DiffStatus.NewFromModified;
 
                 diffResults.Add(new DiffResult
                 {
-                    Path = fileData.Path,
+                    Path = targetRelPath,
+                    OriginalPath = fileData.OldPath,
                     OldContent = oldContent,
                     NewContent = finalNewContent,
                     Status = status,
@@ -252,14 +258,11 @@ namespace LlmContextCollector.Services
             for (int i = 1; i < parts.Length; i++)
             {
                 string block = parts[i];
-                // Deklaráljuk explicit típussal, hogy elkerüljük a kétértelműséget
                 string[] splitBlock = block.Split(new[] { "=======" }, StringSplitOptions.None);
 
                 if (splitBlock.Length < 2) continue;
 
                 string searchBlock = splitBlock[0].TrimStart('\r', '\n').TrimEnd('\r', '\n').Replace("\r\n", "\n");
-
-                // Itt használjuk a splitBlock-ot
                 string restOfBlock = string.Join("=======", splitBlock.Skip(1));
 
                 string[] replaceSplit = restOfBlock.Split(new[] { ">>>>>>> REPLACE" }, StringSplitOptions.None);

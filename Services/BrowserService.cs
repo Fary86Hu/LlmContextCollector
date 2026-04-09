@@ -37,5 +37,13 @@ namespace LlmContextCollector.Services
                 }
             }
         }
+
+        public void TriggerDirectContent(string content)
+        {
+            if (OnContentExtracted != null)
+            {
+                OnContentExtracted.Invoke(content);
+            }
+        }
     }
 }

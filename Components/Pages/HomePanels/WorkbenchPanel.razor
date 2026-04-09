@@ -1,0 +1,101 @@
+@using LlmContextCollector.Models
+@using LlmContextCollector.Services
+@inject AppState AppState
+@inject BrowserService BrowserService
+@implements IDisposable
+
+<div class="panel panel-right workbench-container">
+    <div class="workbench-header">
+        <div class="workbench-tabs">
+            <div class="workbench-tab @(AppState.ActiveTab == WorkbenchTab.Chat ? "active" : "")" 
+                 @onclick="() => AppState.ActiveTab = WorkbenchTab.Chat">
+                AI Chat
+            </div>
+            <div class="workbench-tab @(AppState.ActiveTab == WorkbenchTab.AgentLog ? "active" : "")" 
+                 @onclick="() => AppState.ActiveTab = WorkbenchTab.AgentLog">
+                Agent Log
+            </div>
+        </div>
+    </div>
+
+    <div class="workbench-content">
+        @if (AppState.ActiveTab == WorkbenchTab.Chat)
+        {
+            <ChatTab OnApplyResponse="RouteResponseAsync" />
+        }
+        else
+        {
+            <div class="editor-placeholder">Agent log hamarosan...</div>
+        }
+    </div>
+</div>
+
+@code {
+    private ContextTab? _contextTab;
+
+    [Parameter] public EventCallback<MouseEventArgs> OnShowListContextMenu { get; set; }
+    [Parameter] public List<string> SelectedItems { get; set; } = new();
+    [Parameter] public EventCallback<List<string>> SelectedItemsChanged { get; set; }
+    [Parameter] public EventCallback OnShowPromptManager { get; set; }
+    [Parameter] public EventCallback OnShowSettingsDialog { get; set; }
+    [Parameter] public EventCallback<DiffResultArgs> OnShowDiffDialog { get; set; }
+    [Parameter] public EventCallback OnAddSelectedToContext { get; set; }
+    [Parameter] public EventCallback OnExcludeSelectedFromTree { get; set; }
+    [Parameter] public EventCallback OnRequestRemoveSelected { get; set; }
+    [Parameter] public EventCallback OnHistorySaveRequested { get; set; }
+    [Parameter] public EventCallback<(MouseEventArgs, string)> OnSplitterMouseDown { get; set; }
+    [Parameter] public EventCallback<DiffResultArgs> OnRequestLocalizationPath { get; set; }
+
+    protected override void OnInitialized()
+    {
+        BrowserService.OnContentExtracted += HandleBrowserContentExtracted;
+    }
+
+    private async Task HandleBrowserContentExtracted(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content)) return;
+        
+        // BEZÁRJUK a böngésző overlay-t a MAUI rétegben
+        BrowserService.CloseBrowser();
+        
+        // Feldolgozzuk a választ
+        await RouteResponseAsync(content);
+    }
+
+    public async Task UpdatePreview(string? path = null, List<string>? items = null)
+    {
+        if (_contextTab != null) await _contextTab.UpdatePreview(path, items);
+    }
+
+    public async Task ScrollToPath(string relPath)
+    {
+        if (_contextTab != null) await _contextTab.ScrollToPath(relPath);
+    }
+
+    public async Task SearchInPreview(string term)
+    {
+        if (_contextTab != null) await _contextTab.SearchInPreview(term);
+    }
+
+    public void CloseCustomDropdowns()
+    {
+        _contextTab?.CloseCustomDropdowns();
+    }
+
+    public async Task RouteResponseAsync(string content)
+    {
+        AppState.ActiveTab = WorkbenchTab.Context;
+        await Task.Yield();
+        StateHasChanged();
+        await Task.Delay(100);
+        if (_contextTab != null)
+        {
+            await _contextTab.RouteResponseAsync(content);
+        }
+    }
+
+    public void Dispose()
+    {
+        BrowserService.OnContentExtracted -= HandleBrowserContentExtracted;
+    }
+}

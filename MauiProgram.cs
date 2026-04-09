@@ -38,6 +38,7 @@ namespace LlmContextCollector
             builder.Services.AddSingleton<HistoryService>();
             builder.Services.AddSingleton<HistoryManagerService>();
             builder.Services.AddSingleton<PromptService>();
+            builder.Services.AddSingleton<ChatService>();
             builder.Services.AddSingleton<SettingsService>();
             builder.Services.AddSingleton<ProjectSettingsService>();
             builder.Services.AddTransient<FileSystemService>();

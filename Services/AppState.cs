@@ -365,10 +365,13 @@ namespace LlmContextCollector.Services
         public bool CanUndo => _contextListHistoryIndex > 0;
         public bool CanRedo => _contextListHistoryIndex < _contextListHistory.Count - 1;
 
-        private double _leftPanelFlex = 30;
+        private double _leftPanelFlex = 20;
         public double LeftPanelFlex { get => _leftPanelFlex; set => SetField(ref _leftPanelFlex, value); }
 
-        private double _rightPanelFlex = 70;
+        private double _middlePanelFlex = 50;
+        public double MiddlePanelFlex { get => _middlePanelFlex; set => SetField(ref _middlePanelFlex, value); }
+
+        private double _rightPanelFlex = 30;
         public double RightPanelFlex { get => _rightPanelFlex; set => SetField(ref _rightPanelFlex, value); }
 
         private double _rightTopPanelFlex = 30;
@@ -379,6 +382,9 @@ namespace LlmContextCollector.Services
 
         private double _rightBottomPanelFlex = 30;
         public double RightBottomPanelFlex { get => _rightBottomPanelFlex; set => SetField(ref _rightBottomPanelFlex, value); }
+
+        private WorkbenchTab _activeTab = WorkbenchTab.Context;
+        public WorkbenchTab ActiveTab { get => _activeTab; set => SetField(ref _activeTab, value); }
 
         public void SaveContextListState()
         {

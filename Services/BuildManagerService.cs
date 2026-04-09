@@ -67,12 +67,19 @@ namespace LlmContextCollector.Services
             return _appState.ProjectRoot;
         }
 
+        private void SetStatus(BuildStatus status)
+        {
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                _appState.CurrentBuildStatus = status;
+            });
+        }
+
         private async Task ExecuteProcessAsync(string command, string logSource, bool parseErrors, string? workingDir = null)
         {
             var targetWorkingDir = !string.IsNullOrEmpty(workingDir) ? workingDir : _appState.ProjectRoot;
             if (string.IsNullOrWhiteSpace(targetWorkingDir) || string.IsNullOrWhiteSpace(command)) return;
 
-            // Ha a munkakönyvtár a projekt alkönyvtára, a parancsban szereplő útvonalat le kell egyszerűsíteni
             if (!string.IsNullOrEmpty(workingDir) && workingDir != _appState.ProjectRoot)
             {
                 var csprojMatch = Regex.Match(command, @"(?<path>[\w\.\/\\]+\.csproj)");
@@ -80,8 +87,6 @@ namespace LlmContextCollector.Services
                 {
                     var fullPathInCommand = csprojMatch.Groups["path"].Value;
                     var fileNameOnly = Path.GetFileName(fullPathInCommand);
-                    
-                    // Kicseréljük a parancsban a relatív utat a sima fájlnévre
                     command = command.Replace(fullPathInCommand, fileNameOnly);
                 }
             }
@@ -91,7 +96,7 @@ namespace LlmContextCollector.Services
             _buildCts = new CancellationTokenSource();
             var token = _buildCts.Token;
 
-            _appState.CurrentBuildStatus = BuildStatus.Running;
+            SetStatus(BuildStatus.Running);
             _appState.BuildOutput = string.Empty;
             _appState.CurrentBuildErrors.Clear();
 
@@ -127,42 +132,32 @@ namespace LlmContextCollector.Services
                 _activeProcess.BeginOutputReadLine();
                 _activeProcess.BeginErrorReadLine();
 
-                try
-                {
-                    await _activeProcess.WaitForExitAsync(token);
-                }
-                catch (OperationCanceledException)
-                {
-                    if (_activeProcess != null && !_activeProcess.HasExited)
-                    {
-                        _activeProcess.Kill(true);
-                    }
-                    throw;
-                }
+                await _activeProcess.WaitForExitAsync(token);
 
-                if (token.IsCancellationRequested)
+                if (!token.IsCancellationRequested)
                 {
-                    _appState.CurrentBuildStatus = BuildStatus.Idle;
-                    _logService.LogWarning(logSource, "Folyamat megszakítva.");
-                }
-                else
-                {
-                    _appState.CurrentBuildStatus = _activeProcess.ExitCode == 0 ? BuildStatus.Success : BuildStatus.Failed;
+                    var finalStatus = _activeProcess.ExitCode == 0 ? BuildStatus.Success : BuildStatus.Failed;
+                    SetStatus(finalStatus);
                     _logService.LogInfo(logSource, $"Folyamat befejeződött (Exit code: {_activeProcess.ExitCode})");
                 }
             }
             catch (OperationCanceledException)
             {
-                _appState.CurrentBuildStatus = BuildStatus.Idle;
+                _logService.LogWarning(logSource, "Folyamat megszakítva (Token).");
+                SetStatus(BuildStatus.Idle);
             }
             catch (Exception ex)
             {
-                _appState.CurrentBuildStatus = BuildStatus.Failed;
+                SetStatus(BuildStatus.Failed);
                 _appState.BuildOutput += $"\n[HIBA]: {ex.Message}";
                 _logService.LogError(logSource, "Váratlan hiba a végrehajtás során", ex.Message);
             }
             finally
             {
+                if (_appState.CurrentBuildStatus == BuildStatus.Running)
+                {
+                    SetStatus(BuildStatus.Idle);
+                }
                 _activeProcess?.Dispose();
                 _activeProcess = null;
             }
@@ -171,18 +166,40 @@ namespace LlmContextCollector.Services
         public void CancelBuild()
         {
             _buildCts?.Cancel();
+
+            if (_appState.CurrentBuildStatus == BuildStatus.Running)
+            {
+                SetStatus(BuildStatus.Idle);
+            }
             
             try
             {
                 if (_activeProcess != null && !_activeProcess.HasExited)
                 {
-                    _activeProcess.Kill(true);
-                    _logService.LogWarning("BuildManager", "Folyamat kényszerítve leállítva.");
+                    // Windows specifikus kényszerített folyamatfa leállítás (taskkill)
+                    // /F - Force, /T - Tree (minden alfolyamat lelövése, pl. dotnet run által indított webserver)
+                    var pid = _activeProcess.Id;
+                    using var killProcess = Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "taskkill",
+                        Arguments = $"/F /T /PID {pid}",
+                        CreateNoWindow = true,
+                        UseShellExecute = false
+                    });
+                    
+                    if (killProcess != null)
+                    {
+                        killProcess.WaitForExit(2000);
+                    }
+
+                    _logService.LogWarning("BuildManager", $"Folyamatfa (PID: {pid}) kényszerítve leállítva a taskkill-el.");
                 }
             }
             catch (Exception ex)
             {
-                _logService.LogWarning("BuildManager", $"Hiba a leállításkor: {ex.Message}");
+                _logService.LogWarning("BuildManager", $"Hiba a taskkill futtatásakor: {ex.Message}");
+                // Fallback a standard kill-re, ha a taskkill valamiért nem futna le
+                try { _activeProcess?.Kill(true); } catch { }
             }
             finally
             {

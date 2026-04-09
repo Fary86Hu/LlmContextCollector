@@ -1,0 +1,147 @@
+@using LlmContextCollector.Services
+@using LlmContextCollector.AI
+@using System.Text
+@inject ChatService ChatService
+@inject IJSRuntime JSRuntime
+@inject AppState AppState
+@inject PromptService PromptService
+@inject ContextProcessingService ContextProcessingService
+@implements IDisposable
+
+<div class="chat-tab-container">
+    <div class="chat-header-actions">
+        <div class="chat-model-selector">
+            <select @bind="AppState.ChatModelId">
+                <option value="@Guid.Empty">Lokális Ollama (Streaming)</option>
+                @foreach (var model in AppState.AiModels)
+                {
+                    <option value="@model.Id">@model.FriendlyName</option>
+                }
+            </select>
+            <label title="Gondolatmenet mutatása/elrejtése">
+                <input type="checkbox" @bind="AppState.OllamaShowThinking" /> Thinking
+            </label>
+        </div>
+        <button class="secondary btn-small" @onclick="ChatService.Clear">Chat ürítése</button>
+    </div>
+
+    <div class="chat-messages-area" id="chat-tab-messages">
+        @foreach (var msg in ChatService.Messages.Where(m => m.Role != "system"))
+        {
+            <div class="chat-message @(msg.Role)">
+                <div class="message-header">
+                    <strong>@(msg.Role == "user" ? "Te" : "AI"):</strong>
+                    @if (msg.Role == "assistant" && !ChatService.IsGenerating)
+                    {
+                        <button class="apply-btn" @onclick="() => OnApplyResponse.InvokeAsync(msg.Content)">Alkalmazás</button>
+                    }
+                </div>
+                <div class="message-content">@((MarkupString)GetFormattedResponse(msg.Content, false))</div>
+            </div>
+        }
+        @if (ChatService.IsGenerating)
+        {
+            <div class="chat-message assistant generating">
+                <strong>AI:</strong>
+                <div class="message-content">@((MarkupString)GetFormattedResponse(ChatService.CurrentResponseSnippet, true))</div>
+            </div>
+        }
+    </div>
+
+    <div class="chat-input-area">
+        <textarea id="chat-tab-input"
+                  class="chat-input" 
+                  @bind="_currentInput" 
+                  @bind:event="oninput" 
+                  @onkeydown="HandleKeyDown" 
+                  placeholder="Írj egy üzenetet... (Shift+Enter új sor, Enter küldés)"></textarea>
+        <div class="input-actions">
+            @if (ChatService.IsGenerating)
+            {
+                <button class="abort-btn" @onclick="ChatService.Abort">Stop</button>
+            }
+            else
+            {
+                <button class="primary send-btn" @onclick="SendMessage" disabled="@(string.IsNullOrWhiteSpace(_currentInput))">Küldés</button>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback<string> OnApplyResponse { get; set; }
+    private string _currentInput = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        AppState.PropertyChanged += HandleAppStateChanged;
+    }
+
+    private async void HandleAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppState.OllamaShowThinking) || e.PropertyName == "CurrentResponseSnippet" || e.PropertyName == "Messages")
+        {
+            await InvokeAsync(StateHasChanged);
+            await ScrollToBottom();
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessage();
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(_currentInput) || ChatService.IsGenerating) return;
+
+        var input = _currentInput;
+        _currentInput = string.Empty;
+
+        var system = await PromptService.GetSystemPromptAsync();
+        var files = await ContextProcessingService.BuildContextForClipboardAsync(false, false, true, AppState.SelectedFilesForContext);
+
+        await ChatService.SendMessageAsync(input, system, files);
+    }
+
+    private string GetFormattedResponse(string rawText, bool isGenerating)
+    {
+        if (string.IsNullOrWhiteSpace(rawText)) return isGenerating ? "<span class=\"cursor-blink\">|</span>" : string.Empty;
+        string displayHtml;
+        if (!AppState.OllamaShowThinking)
+        {
+            var text = rawText;
+            while (text.Contains("<think>"))
+            {
+                int start = text.IndexOf("<think>");
+                int end = text.IndexOf("</think>");
+                if (end != -1) text = text.Remove(start, (end + 8) - start);
+                else text = text.Substring(0, start);
+            }
+            displayHtml = System.Web.HttpUtility.HtmlEncode(text).Replace("\n", "<br />");
+        }
+        else
+        {
+            var text = rawText.Replace("<think>", "___T_S___").Replace("</think>", "___T_E___");
+            displayHtml = System.Web.HttpUtility.HtmlEncode(text)
+                .Replace("___T_S___", "<div class=\"thinking-block\">")
+                .Replace("___T_E___", "</div>")
+                .Replace("\n", "<br />");
+        }
+        if (isGenerating) displayHtml += "<span class=\"cursor-blink\">|</span>";
+        return displayHtml;
+    }
+
+    private async Task ScrollToBottom()
+    {
+        if (AppState.ActiveTab == WorkbenchTab.Chat)
+        {
+            try { await JSRuntime.InvokeVoidAsync("scrollToBottom", "chat-tab-messages"); } catch { }
+        }
+    }
+
+    public void Dispose() => AppState.PropertyChanged -= HandleAppStateChanged;
+}

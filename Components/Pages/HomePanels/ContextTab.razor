@@ -1,0 +1,211 @@
+@using LlmContextCollector.Models
+@using LlmContextCollector.Services
+
+<div class="context-tab-wrapper" style="--right-top-flex:@(AppState.RightTopPanelFlex.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)); --right-middle-flex:@(AppState.RightMiddlePanelFlex.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)); --right-bottom-flex:@(AppState.RightBottomPanelFlex.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));">
+
+    <div class="right-top-section">
+        <div class="prompt-layout-horizontal">
+            <div class="prompt-sidebar">
+                <div class="sidebar-group">
+                    <button class="primary sidebar-btn" @onclick="OnAddSelectedToContext">>> Hozzáadás</button>
+                    <button class="sidebar-btn" @onclick="OnExcludeSelectedFromTree">Kizárás</button>
+                    <button class="sidebar-btn" @onclick="OnRequestRemoveSelected">Eltávolítás</button>
+                </div>
+
+                <div class="sidebar-group">
+                    <div class="ref-row">
+                        <div class="ref-input-col">
+                            <label>Ref. mélység:</label>
+                            <input type="number" min="0" max="5" @bind="AppState.ReferenceSearchDepth" />
+                        </div>
+                        <label class="checkbox-label ref-check-col">
+                            <input type="checkbox" @bind="AppState.IncludeReferencingFiles" /> Hivatkozók
+                        </label>
+                    </div>
+                </div>
+
+                <div class="sidebar-group ado-sidebar-group">
+                    <label>ADO ID:</label>
+                    <div class="ado-input-row">
+                        <input type="number" placeholder="ID..." @bind="_adoWorkItemIdToLoad" @onkeyup="HandleAdoKeyup" />
+                        <button @onclick="LoadAdoWorkItemAsync" title="Work Item betöltése">⏎</button>
+                    </div>
+                </div>
+
+                <div class="sidebar-group system-controls-group">
+                    <button class="sidebar-btn" @onclick="OnShowPromptManager">Sablonok szerkesztése</button>
+                    <div class="icon-actions-row">
+                        <button class="sidebar-btn" @onclick="() => AppState.IsAiInspectorVisible = true" title="Rendszernapló és AI Inspector">📜 Napló</button>
+                        <button class="sidebar-btn" @onclick="OnShowSettingsDialog" title="Beállítások">⚙️</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="prompt-main-area">
+                <div class="prompt-container">
+                    <textarea class="prompt-editor" placeholder="Írja ide a promptot..." @bind="AppState.PromptText" @bind:event="oninput"></textarea>
+                    <div class="prompt-editor-button-group">
+                        <button class="prompt-editor-btn" @onclick="PickImagesAsync" title="Képek csatolása">🖼️</button>
+                        @if (!string.IsNullOrWhiteSpace(AppState.PromptText) || AppState.AttachedImages.Any())
+                        {
+                            <button class="prompt-editor-btn" @onclick="ClearPrompt" title="Prompt és képek törlése">&times;</button>
+                        }
+                    </div>
+                </div>
+                @if (AppState.AttachedImages.Any())
+                {
+                    <div class="attached-images-strip">
+                        <div class="attached-images-info">
+                            <button class="icon-btn-small" @onclick="CopyImagesAsync" title="Képek vágólapra másolása (Ctrl+B)">📋 (Ctrl+B)</button>
+                        </div>
+                        @foreach (var img in AppState.AttachedImages)
+                        {
+                            <div class="image-thumbnail" title="@img.FileName">
+                                <img src="@img.Base64Thumbnail" />
+                                <button class="remove-img-btn" @onclick="() => AppState.AttachedImages.Remove(img)">&times;</button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightTop"))'></div>
+
+    <div class="right-middle-section">
+        <div class="context-list-header">
+            <h4>Kiválasztott Fájlok</h4>
+            <div class="preview-search-controls">
+                <input type="text" placeholder="Szűrés..." @bind="_contextSearchTerm" @bind:event="oninput" @onkeyup="HandleContextSearchKeyup" />
+                <button @onclick="ClearContextSearch" disabled="@(string.IsNullOrEmpty(_contextSearchTerm))" class="clear-btn">&times;</button>
+            </div>
+        </div>
+        <div class="context-table-container" @onkeydown="HandleListKeyDown" tabindex="0">
+            <table class="context-table">
+                <thead>
+                    <tr>
+                        <th class="sortable @GetSortClass("path")" @onclick='() => SortBy("path")'>Elérési út</th>
+                        <th class="sortable @GetSortClass("name")" @onclick='() => SortBy("name")'>Fájlnév</th>
+                        <th class="sortable @GetSortClass("size")" @onclick='() => SortBy("size")'>Méret</th>
+                        <th>Műveletek</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var fileInfo in _sortedFiles)
+                    {
+                        <tr @key="fileInfo.RelativePath" id="@GetRowId(fileInfo.RelativePath)" class="@(SelectedItems.Contains(fileInfo.RelativePath) ? "selected" : "")" @onclick="(e) => OnFileRowClick(e, fileInfo.RelativePath)" @oncontextmenu="(e) => ShowContextMenuForRow(e, fileInfo.RelativePath)" @oncontextmenu:preventDefault>
+                            <td>@if (fileInfo.RelativePath.StartsWith("[ORIGINAL]")) {
+                            <span class="ref-badge ref-original">ORIG</span>
+                        }
+ @fileInfo.DisplayPath</td>
+                        <td>@fileInfo.FileName</td>
+                        <td style="text-align: right;">@fileInfo.Size.ToString("N0")</td>
+                        <td class="actions-cell" @onclick:stopPropagation>
+                            <button class="icon-btn-small" title="Referenciák hozzáadása" @onclick="() => OnAddReferencesClick(fileInfo.RelativePath)">🔗</button>
+@*                             <button class="icon-btn-small" title="Hivatkozó fájlok hozzáadása" @onclick="() => OnAddReferencingClick(fileInfo.RelativePath)">👈</button>
+ *@                            <button class="icon-btn-small delete-btn" title="Törlés a listából" @onclick="() => OnRemoveItemClick(fileInfo.RelativePath)">🗑️</button>
+                        </td>
+                    </tr>
+                                        }
+                </tbody>
+            </table>
+        </div>
+        <div class="toolbar">
+            <button title="Visszavonás" @onclick="AppState.UndoContextListChange" disabled="@(!AppState.CanUndo)">⮌</button>
+            <button title="Újra" @onclick="AppState.RedoContextListChange" disabled="@(!AppState.CanRedo)">⮍</button>
+            <button @onclick="GitWorkflowService.AddOriginalModifiedFilesToContextAsync" disabled="@(!AppState.IsGitRepository)">Eredetiek</button>
+            <span style="margin-left:auto;"></span>
+            <span class="char-counter">@_charCount.ToString("N0") kar. | ~@_tokenCount.ToString("N0") tok.</span>
+            <button @onclick="ClearSelectionList">Lista ürítése</button>
+        </div>
+    </div>
+
+    <div class="horizontal-splitter" @onmousedown='e => OnSplitterMouseDown.InvokeAsync((e, "RightMiddle"))'></div>
+
+    <div class="right-bottom-section">
+        @if (AppState.BuildOutput != string.Empty || AppState.CurrentBuildStatus != BuildStatus.Idle)
+        {
+            <BuildTerminal OnFixRequested="HandleBuildFixRequested" OnLocationClicked="HandleErrorLocationClicked" />
+            <div class="horizontal-splitter" style="height: 3px; cursor: default;"></div>
+        }
+        <div class="preview-header">
+            <h4>Fájl Előnézet</h4>
+            <div class="preview-search-controls">
+                <div class="ref-toggle"><input type="checkbox" id="chk-refs" checked="@_showReferences" @onchange="ToggleReferences" /><label for="chk-refs">Ref.</label></div>
+                <input type="text" placeholder="Keresés..." @bind="_previewSearchTerm" @bind:event="oninput" @onkeyup="HandlePreviewSearchKeyup" disabled="@_showReferences" />
+                @if (_totalPreviewMatches > 0)
+                {
+                    <span class="preview-match-counter">@_currentPreviewMatchIndex/@_totalPreviewMatches</span>
+                }
+                <button @onclick="FindPreviousInPreview" disabled="@(_totalPreviewMatches == 0 || _showReferences)">▲</button>
+                <button @onclick="FindNextInPreview" disabled="@(_totalPreviewMatches == 0 || _showReferences)">▼</button>
+                <button @onclick="ClearPreviewSearch" class="clear-btn">&times;</button>
+            </div>
+        </div>
+        <div id="preview-box" class="preview-box"><pre>@_previewContentMarkup</pre></div>
+    </div>
+
+    <div class="bottom-actions">
+        <div class="main-actions">
+            <div class="copy-group">
+                <div class="copy-options-inline">
+                    <label><input type="checkbox" @bind="AppState.IncludePromptInCopy" />Prompt</label>
+                    <label><input type="checkbox" @bind="AppState.IncludeSystemPromptInCopy" />System</label>
+                    <label><input type="checkbox" @bind="AppState.IncludeFilesInCopy" />Fájlok</label>
+                    <label><input type="checkbox" @bind="AppState.IncludeProjectTreeInCopy" />Struktúra</label>
+                </div>
+
+                <div class="custom-dropdown-container inline-dropdown" style="width: 140px;">
+                    <div class="custom-dropdown-trigger" @onclick="ToggleDocsDropdown" @onclick:stopPropagation="true">
+                        <span>Dokuk (@AppState.AttachableDocuments.Count(d => d.IsSelected))</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </div>
+                    @if (_isDocsDropdownOpen)
+                    {
+                        <div class="custom-dropdown-list bottom-dropdown">
+                            @foreach (var doc in AppState.AttachableDocuments)
+                            {
+                                <div class="custom-dropdown-item" @onclick="() => ToggleDocumentSelection(doc)" @onclick:stopPropagation="true">
+                                    <input type="checkbox" checked="@doc.IsSelected" @onclick:stopPropagation="true" @onchange="e => { doc.IsSelected = (bool)(e.Value ?? false); _ = SaveProjectSettingsAsync(); }" />
+                                    <span class="item-text">@doc.Title</span>
+                                    <button class="icon-btn-small" @onclick="() => EditDocument(doc)" @onclick:stopPropagation="true">✏️</button>
+                                </div>
+                            }
+                            <div class="custom-dropdown-item add-new-item" @onclick="AddNewDocument" @onclick:stopPropagation="true" style="justify-content:center; border-top:1px solid var(--border-color); color:var(--accent-color); font-weight:bold;">+ Új dokumentum</div>
+                        </div>
+                    }
+                </div>
+
+                <div class="custom-dropdown-container inline-dropdown" style="flex: 1; max-width: 200px;">
+                    <div class="custom-dropdown-trigger" @onclick="ToggleBottomDropdown" @onclick:stopPropagation="true">
+                        <span>@(AppState.PromptTemplates.FirstOrDefault(p => p.Id == AppState.ActiveGlobalPromptId)?.Title ?? "Válassz sablont...")</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </div>
+                    @if (_isBottomDropdownOpen)
+                    {
+                        <div class="custom-dropdown-list bottom-dropdown">
+                            @foreach (var prompt in AppState.PromptTemplates)
+                            {
+                                <div class="custom-dropdown-item @(prompt.Id == AppState.ActiveGlobalPromptId ? "active" : "")" @onclick="() => SelectBottomPrompt(prompt.Id)">
+                                    <span class="item-text">@prompt.Title</span>
+                                    <button class="copy-item-btn" @onclick:stopPropagation="true" @onclick="() => CopyTemplateById(prompt.Id)">📋</button>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+                <button class="copy-button primary" @onclick="CopyToClipboard">@_copyButtonText</button>
+            </div>
+
+            <div class="other-actions">
+                <button class="copy-button" @onclick="OpenAiStudioBrowser" title="AI Studio">🌐 AI Studio</button>
+                <button class="copy-button primary" @onclick="() => ProcessWithLocalAiAsync(true)" title="Ügynök hívása">🤖 Ügynök</button>
+                <button @onclick="ProcessGitDiffAsync">Git Diff</button>
+                <button class="copy-button" @onclick="ProcessChangesFromClipboardAsync">Feldolgoz</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<ClarificationDialog IsVisible="_isClarificationDialogVisible" ClipboardText="@_clarificationDialogText" OnClose="OnClarificationDialogClose" OnGenerateRefinedPrompt="HandleGenerateRefinedPrompt" />

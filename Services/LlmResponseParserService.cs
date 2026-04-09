@@ -11,6 +11,7 @@ namespace LlmContextCollector.Services
         public class ParsedFile
         {
             public string Path { get; set; } = "";
+            public string? OldPath { get; set; }
             public string NewContent { get; set; } = "";
             public DiffStatus Status { get; set; }
             public string Explanation { get; set; } = "";
@@ -20,7 +21,7 @@ namespace LlmContextCollector.Services
         {
             var parsedFilesDict = new Dictionary<string, ParsedFile>(StringComparer.OrdinalIgnoreCase);
 
-            var headerRegex = new Regex(@"^(?<type>Új Fájl|Fájl|Törölt Fájl):\s*(?<path>[^\r\n]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
+            var headerRegex = new Regex(@"^(?<type>Új Fájl|Fájl|Törölt Fájl|Átnevezett Fájl):\s*(?<path>[^\r\n]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
             var matches = headerRegex.Matches(text);
 
             string globalExplanation = "";
@@ -41,13 +42,31 @@ namespace LlmContextCollector.Services
                 var match = matches[i];
                 var typeStr = match.Groups["type"].Value;
                 var rawPath = match.Groups["path"].Value.Trim().Replace('\\', '/');
-                
+
                 var path = rawPath.StartsWith("./") ? rawPath.Substring(2) : rawPath;
                 path = path.TrimStart('/');
 
-                var status = typeStr.StartsWith("Új", StringComparison.OrdinalIgnoreCase) ? DiffStatus.New : 
-                             typeStr.StartsWith("Törölt", StringComparison.OrdinalIgnoreCase) ? DiffStatus.Deleted : 
-                             DiffStatus.Modified;
+                var status = DiffStatus.Modified;
+                string? oldPath = null;
+
+                if (typeStr.StartsWith("Új", StringComparison.OrdinalIgnoreCase))
+                {
+                    status = DiffStatus.New;
+                }
+                else if (typeStr.StartsWith("Törölt", StringComparison.OrdinalIgnoreCase))
+                {
+                    status = DiffStatus.Deleted;
+                }
+                else if (typeStr.StartsWith("Átnevezett", StringComparison.OrdinalIgnoreCase))
+                {
+                    status = DiffStatus.Renamed;
+                    var pathParts = rawPath.Split(new[] { "->" }, StringSplitOptions.None);
+                    if (pathParts.Length == 2)
+                    {
+                        oldPath = pathParts[0].Trim().TrimStart('/', '.').Replace('\\', '/');
+                        path = pathParts[1].Trim().TrimStart('/', '.').Replace('\\', '/');
+                    }
+                }
 
                 int contentStart = match.Index + match.Length;
                 int contentEnd = (i == matches.Count - 1) ? text.Length : matches[i + 1].Index;
@@ -70,6 +89,7 @@ namespace LlmContextCollector.Services
                     parsedFilesDict[path] = new ParsedFile
                     {
                         Path = path,
+                        OldPath = oldPath,
                         NewContent = cleanCode,
                         Status = status,
                         Explanation = nextFileExplanation
