@@ -5,145 +5,55 @@
              x:Class="LlmContextCollector.MainPage"
              BackgroundColor="{DynamicResource PageBackgroundColor}">
 
-    <Grid>
-        <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
+    <ContentPage.Resources>
+        <Style TargetType="Button" x:Key="TabBtn">
+            <Setter Property="BackgroundColor" Value="Transparent" />
+            <Setter Property="TextColor" Value="#9e9e9e" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="HeightRequest" Value="32" />
+            <Setter Property="Padding" Value="15,0" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+    </ContentPage.Resources>
+
+    <Grid x:Name="MainRootGrid">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="BlazorColumn" Width="0.7*" />
+            <ColumnDefinition Width="5" />
+            <ColumnDefinition x:Name="AiColumn" Width="0.3*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- OSZLOP 0: Fő Blazor UI (FileTree + Context) -->
+        <BlazorWebView Grid.Column="0" HostPage="wwwroot/index.html">
             <BlazorWebView.RootComponents>
                 <RootComponent Selector="#app" ComponentType="{x:Type local:Components.Routes}" />
             </BlazorWebView.RootComponents>
         </BlazorWebView>
 
-        <Grid x:Name="BrowserOverlay" IsVisible="False" BackgroundColor="#F0F0F0" ZIndex="1000">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+        <!-- OSZLOP 1: Natív Splitter -->
+        <BoxView Grid.Column="1" BackgroundColor="#454545" WidthRequest="5" HorizontalOptions="Center">
+            <BoxView.GestureRecognizers>
+                <PanGestureRecognizer PanUpdated="OnSplitterPanUpdated" />
+            </BoxView.GestureRecognizers>
+        </BoxView>
 
-            <WebView x:Name="InternalBrowser" Grid.Row="0" BackgroundColor="White" />
+        <!-- OSZLOP 2: Natív AI Workspace -->
+        <Grid Grid.Column="2" RowDefinitions="Auto, *">
+            <HorizontalStackLayout Grid.Row="0" BackgroundColor="#3c3c3c" Padding="5" Spacing="2">
+                <Button x:Name="TabChatBtn" Text="Chat" Clicked="OnTabClicked" Style="{StaticResource TabBtn}" CommandParameter="Chat" />
+                <Button x:Name="TabStudioBtn" Text="AI Studio" Clicked="OnTabClicked" Style="{StaticResource TabBtn}" CommandParameter="Studio" />
+                <Button x:Name="TabLogsBtn" Text="Logs" Clicked="OnTabClicked" Style="{StaticResource TabBtn}" CommandParameter="Logs" />
+            </HorizontalStackLayout>
 
-            <Frame x:Name="DocsDropdown" Grid.Row="0" IsVisible="False" Padding="0" Margin="350,0,0,5" 
-                   BackgroundColor="White" BorderColor="#0078d4" HasShadow="True" ZIndex="2000" 
-                   VerticalOptions="End" HorizontalOptions="Start" 
-                   MaximumHeightRequest="350" WidthRequest="200">
-                <CollectionView x:Name="DocsListView" SelectionMode="None">
-                    <CollectionView.ItemTemplate>
-                        <DataTemplate>
-                            <Grid ColumnDefinitions="Auto, *" Padding="8,8">
-                                <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" Color="#0078d4" WidthRequest="30" CheckedChanged="DocCheckBox_CheckedChanged" BindingContext="{Binding}" />
-                                <Label Grid.Column="1" Text="{Binding Title}" FontSize="12" TextColor="Black" VerticalOptions="Center" />
-                            </Grid>
-                        </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
-            </Frame>
-
-            <Frame x:Name="PickerDropdown" Grid.Row="0" IsVisible="False" Padding="0" Margin="515,0,0,5" 
-                   BackgroundColor="White" BorderColor="#0078d4" HasShadow="True" ZIndex="2000" 
-                   VerticalOptions="End" HorizontalOptions="Start" 
-                   MaximumHeightRequest="350" WidthRequest="280">
-                <CollectionView x:Name="TemplatesListView" SelectionMode="Single" SelectionChanged="TemplatesListView_SelectionChanged">
-                    <CollectionView.ItemTemplate>
-                        <DataTemplate>
-                            <Grid ColumnDefinitions="*, Auto" Padding="12,8">
-                                <Label Text="{Binding Title}" FontSize="12" TextColor="Black" VerticalOptions="Center" />
-                                <Button Grid.Column="1" Text="📋" Clicked="CopyTemplateItem_Clicked" 
-                                        BackgroundColor="Transparent" TextColor="#0078d4" 
-                                        HeightRequest="32" WidthRequest="32" Padding="0" FontSize="16" 
-                                        VerticalOptions="Center" ToolTipProperties.Text="Sablon másolása" />
-                            </Grid>
-                        </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
-            </Frame>
-
-            <Grid Grid.Row="1" BackgroundColor="#E0E0E0" Padding="10" RowSpacing="8">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
-                <HorizontalStackLayout Grid.Row="0" Spacing="8" VerticalOptions="Center" HorizontalOptions="Start">
-                    <Grid ColumnDefinitions="30,Auto" VerticalOptions="Center">
-                        <CheckBox x:Name="PromptCheckBox" Grid.Column="0" IsChecked="True" Color="#0078d4" WidthRequest="30" VerticalOptions="Center" />
-                        <Label Grid.Column="1" Text="Prompt" VerticalOptions="Center" TextColor="#333" FontSize="12">
-                            <Label.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="PromptLabel_Tapped" />
-                            </Label.GestureRecognizers>
-                        </Label>
-                    </Grid>
-                    
-                    <Grid ColumnDefinitions="30,Auto" VerticalOptions="Center">
-                        <CheckBox x:Name="SystemPromptCheckBox" Grid.Column="0" IsChecked="True" Color="#0078d4" WidthRequest="30" VerticalOptions="Center" />
-                        <Label Grid.Column="1" Text="System" VerticalOptions="Center" TextColor="#333" FontSize="12">
-                            <Label.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="SystemLabel_Tapped" />
-                            </Label.GestureRecognizers>
-                        </Label>
-                    </Grid>
-
-                    <Grid ColumnDefinitions="30,Auto" VerticalOptions="Center">
-                        <CheckBox x:Name="FileContextCheckBox" Grid.Column="0" IsChecked="True" Color="#0078d4" WidthRequest="30" VerticalOptions="Center" />
-                        <Label Grid.Column="1" Text="Fájlok" VerticalOptions="Center" TextColor="#333" FontSize="12">
-                            <Label.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="FilesLabel_Tapped" />
-                            </Label.GestureRecognizers>
-                        </Label>
-                    </Grid>
-
-                    <Grid ColumnDefinitions="30,Auto" VerticalOptions="Center">
-                        <CheckBox x:Name="TreeContextCheckBox" Grid.Column="0" IsChecked="False" Color="#0078d4" WidthRequest="30" VerticalOptions="Center" />
-                        <Label Grid.Column="1" Text="Struktúra" VerticalOptions="Center" TextColor="#333" FontSize="12">
-                            <Label.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="TreeLabel_Tapped" />
-                            </Label.GestureRecognizers>
-                        </Label>
-                    </Grid>
-
-                    <BoxView WidthRequest="1" HeightRequest="20" BackgroundColor="#CCC" VerticalOptions="Center" Margin="5,0" />
-
-                    <Grid VerticalOptions="Center" WidthRequest="150" Margin="0,0,5,0">
-                        <Frame Padding="8,4" HeightRequest="32" BackgroundColor="#EEE" BorderColor="#CCC" HasShadow="False" CornerRadius="4">
-                            <Frame.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="ToggleDocsPicker_Tapped" />
-                            </Frame.GestureRecognizers>
-                            <Grid ColumnDefinitions="*, Auto">
-                                <Label x:Name="SelectedDocsLabel" Text="Dokumentumok (0)" FontSize="12" TextColor="Black" VerticalOptions="Center" LineBreakMode="NoWrap" />
-                                <Label Grid.Column="1" Text="▼" FontSize="8" TextColor="#666" VerticalOptions="Center" Margin="5,0,0,0" />
-                            </Grid>
-                        </Frame>
-                    </Grid>
-
-                    <BoxView WidthRequest="1" HeightRequest="20" BackgroundColor="#CCC" VerticalOptions="Center" Margin="5,0" />
-
-                    <Label Text="Sablon:" VerticalOptions="Center" TextColor="#333" FontSize="12" FontAttributes="Bold" />
-                    
-                    <Grid VerticalOptions="Center" WidthRequest="200" Margin="0,0,5,0">
-                        <Frame Padding="8,4" HeightRequest="32" BackgroundColor="#EEE" BorderColor="#CCC" HasShadow="False" CornerRadius="4">
-                            <Frame.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="TogglePicker_Tapped" />
-                            </Frame.GestureRecognizers>
-                            <Grid ColumnDefinitions="*, Auto">
-                                <Label x:Name="SelectedTemplateLabel" Text="Válassz..." FontSize="12" TextColor="Black" VerticalOptions="Center" LineBreakMode="NoWrap" />
-                                <Label Grid.Column="1" Text="▼" FontSize="8" TextColor="#666" VerticalOptions="Center" Margin="5,0,0,0" />
-                            </Grid>
-                        </Frame>
-                    </Grid>
-
-                    <BoxView WidthRequest="1" HeightRequest="20" BackgroundColor="#CCC" VerticalOptions="Center" Margin="5,0" />
-
-                    <Button x:Name="CopyButton" Text="Másolás" Clicked="CopyContext_Clicked" BackgroundColor="#0078d4" TextColor="White" HeightRequest="34" Padding="15,0" FontSize="12" FontAttributes="Bold" VerticalOptions="Center" Margin="10,0,0,0" />
-                    <Button x:Name="CopyImagesButton" Text="Képek (0) 📋" Clicked="CopyImagesButton_Clicked" BackgroundColor="#17a2b8" TextColor="White" HeightRequest="34" Padding="10,0" FontSize="12" FontAttributes="Bold" VerticalOptions="Center" Margin="5,0,0,0" IsVisible="False" />
-                </HorizontalStackLayout>
-
-                <Editor x:Name="PromptEditor" Grid.Row="1" HeightRequest="60" MaximumHeightRequest="120" BackgroundColor="White" TextColor="Black" FontSize="12" AutoSize="TextChanges" Placeholder="Prompt szövege..." />
-
-                <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Padding="0,5,0,0">
-                    <Button Grid.Column="0" Text="Bezárás" Clicked="CloseBrowser_Clicked" BackgroundColor="#666" TextColor="White" HeightRequest="36" FontSize="12" WidthRequest="80" />
-                    <Label Grid.Column="1" Text="Illeszd be a vágólap tartalmát az AI-nak, majd a válasz után kattints a Feldolgozásra." 
-                           VerticalOptions="Center" TextColor="#333" FontSize="11" LineBreakMode="WordWrap" HorizontalTextAlignment="Center" />
-                    <Button Grid.Column="2" Text="Feldolgozás" Clicked="ExtractBrowser_Clicked" BackgroundColor="#28a745" TextColor="White" HeightRequest="36" FontAttributes="Bold" FontSize="12" WidthRequest="100" />
-                </Grid>
+            <Grid Grid.Row="1">
+                <BlazorWebView x:Name="AiBlazorView" HostPage="wwwroot/index.html" IsVisible="True">
+                    <BlazorWebView.RootComponents>
+                        <RootComponent Selector="#app" ComponentType="{x:Type local:Components.Pages.HomePanels.WorkbenchPanel}" />
+                    </BlazorWebView.RootComponents>
+                </BlazorWebView>
+                <WebView x:Name="AiStudioWebView" Source="https://aistudio.google.com/" IsVisible="False" />
             </Grid>
         </Grid>
+
     </Grid>
 </ContentPage>

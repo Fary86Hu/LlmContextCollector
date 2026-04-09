@@ -35,21 +35,13 @@
 
 ::deep .panel-left {
     flex: var(--left-flex);
-    min-width: 250px;
+    min-width: 200px;
 }
 
 ::deep .panel-middle {
     flex: var(--middle-flex);
     min-width: 300px;
     border-left: 1px solid var(--border-color);
-    border-right: 1px solid var(--border-color);
-}
-
-::deep .panel-right {
-    flex: var(--right-flex);
-    min-width: 300px;
-    display: flex;
-    flex-direction: column;
 }
 
 .vertical-splitter {

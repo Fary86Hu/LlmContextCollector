@@ -1,20 +1,11 @@
 using LlmContextCollector.Models;
 using LlmContextCollector.Services;
-using Microsoft.Maui.ApplicationModel.DataTransfer;
-using System.Text.Json;
-using System.Linq;
 
 namespace LlmContextCollector
 {
     public partial class MainPage : ContentPage
     {
-        private BrowserService? _browserService;
         private AppState? _appState;
-        private ContextProcessingService? _contextProcessingService;
-        private IClipboard? _clipboard;
-        private IImageClipboardService? _imageClipboardService;
-
-        private string? _lastLoadedUrl;
 
         public MainPage()
         {
@@ -27,379 +18,48 @@ namespace LlmContextCollector
             var services = this.Handler?.MauiContext?.Services;
             if (services != null)
             {
-                _browserService = services.GetService<BrowserService>();
                 _appState = services.GetService<AppState>();
-                _contextProcessingService = services.GetService<ContextProcessingService>();
-                _clipboard = services.GetService<IClipboard>();
-                _imageClipboardService = services.GetService<IImageClipboardService>();
-
-                if (_browserService != null)
-                {
-                    _browserService.OnOpenBrowser += BrowserService_OnOpenBrowser;
-                    _browserService.OnCloseBrowser += BrowserService_OnCloseBrowser;
-                    _browserService.OnExtractContent += BrowserService_OnExtractContent;
-                }
-
-                if (_appState != null)
-                {
-                    _appState.PropertyChanged += AppState_PropertyChanged;
-                    _appState.AttachedImages.CollectionChanged += AttachedImages_CollectionChanged;
-                    
-                    PromptCheckBox.IsChecked = _appState.IncludePromptInCopy;
-                    SystemPromptCheckBox.IsChecked = _appState.IncludeSystemPromptInCopy;
-                    FileContextCheckBox.IsChecked = _appState.IncludeFilesInCopy;
-                    TreeContextCheckBox.IsChecked = _appState.IncludeProjectTreeInCopy;
-
-                    PromptCheckBox.CheckedChanged += (s, args) => _appState.IncludePromptInCopy = args.Value;
-                    SystemPromptCheckBox.CheckedChanged += (s, args) => _appState.IncludeSystemPromptInCopy = args.Value;
-                    FileContextCheckBox.CheckedChanged += (s, args) => _appState.IncludeFilesInCopy = args.Value;
-                    TreeContextCheckBox.CheckedChanged += (s, args) => _appState.IncludeProjectTreeInCopy = args.Value;
-
-                    UpdatePromptPicker();
-                    UpdateDocsPicker();
-                    UpdateImagesButton();
-                }
             }
         }
 
-        private void AttachedImages_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        private void OnTabClicked(object sender, EventArgs e)
         {
-            MainThread.BeginInvokeOnMainThread(UpdateImagesButton);
-        }
-
-        private void UpdateImagesButton()
-        {
-            if (_appState == null) return;
-            var count = _appState.AttachedImages.Count;
-            CopyImagesButton.IsVisible = count > 0;
-            CopyImagesButton.Text = $"Képek ({count}) 📋";
-        }
-
-        private async void CopyImagesButton_Clicked(object sender, EventArgs e)
-        {
-            if (_appState == null || _imageClipboardService == null) return;
-            var paths = _appState.AttachedImages.Select(x => x.FilePath).ToList();
-            if (paths.Any())
-            {
-                await _imageClipboardService.CopyImagesToClipboardAsync(paths);
-                
-                var originalText = CopyImagesButton.Text;
-                CopyImagesButton.Text = "Másolva! ✓";
-                CopyImagesButton.BackgroundColor = Microsoft.Maui.Graphics.Colors.Green;
-                
-                await Task.Delay(2000);
-                
-                CopyImagesButton.Text = originalText;
-                CopyImagesButton.BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#17a2b8");
-            }
-        }
-
-        private void AppState_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(AppState.PromptTemplates) || e.PropertyName == nameof(AppState.ActiveGlobalPromptId))
-            {
-                MainThread.BeginInvokeOnMainThread(UpdatePromptPicker);
-            }
-            else if (e.PropertyName == nameof(AppState.AttachableDocuments))
-            {
-                MainThread.BeginInvokeOnMainThread(UpdateDocsPicker);
-            }
-            else if (e.PropertyName == nameof(AppState.IncludePromptInCopy))
-            {
-                MainThread.BeginInvokeOnMainThread(() => PromptCheckBox.IsChecked = _appState!.IncludePromptInCopy);
-            }
-            else if (e.PropertyName == nameof(AppState.IncludeSystemPromptInCopy))
-            {
-                MainThread.BeginInvokeOnMainThread(() => SystemPromptCheckBox.IsChecked = _appState!.IncludeSystemPromptInCopy);
-            }
-            else if (e.PropertyName == nameof(AppState.IncludeFilesInCopy))
-            {
-                MainThread.BeginInvokeOnMainThread(() => FileContextCheckBox.IsChecked = _appState!.IncludeFilesInCopy);
-            }
-            else if (e.PropertyName == nameof(AppState.IncludeProjectTreeInCopy))
-            {
-                MainThread.BeginInvokeOnMainThread(() => TreeContextCheckBox.IsChecked = _appState!.IncludeProjectTreeInCopy);
-            }
-        }
-
-        private void UpdateDocsPicker()
-        {
-            if (_appState == null) return;
-            DocsListView.ItemsSource = null;
-            DocsListView.ItemsSource = _appState.AttachableDocuments;
-            SelectedDocsLabel.Text = $"Dokumentumok ({_appState.AttachableDocuments.Count(d => d.IsSelected)})";
-        }
-
-        private async void DocCheckBox_CheckedChanged(object sender, CheckedChangedEventArgs e)
-        {
-            if (sender is CheckBox cb && cb.BindingContext is AttachableDocument doc && _appState != null)
-            {
-                doc.IsSelected = e.Value;
-                SelectedDocsLabel.Text = $"Dokumentumok ({_appState.AttachableDocuments.Count(d => d.IsSelected)})";
-                
-                // Save settings using the service
-                var services = this.Handler?.MauiContext?.Services;
-                var projectSettingsService = services?.GetService<LlmContextCollector.Services.ProjectSettingsService>();
-                if (projectSettingsService != null && !string.IsNullOrEmpty(_appState.ProjectRoot))
-                {
-                    await projectSettingsService.SaveSettingsForProjectAsync(_appState.ProjectRoot);
-                }
-            }
-        }
-
-        private void ToggleDocsPicker_Tapped(object? sender, EventArgs e)
-        {
-            DocsDropdown.IsVisible = !DocsDropdown.IsVisible;
-            if (DocsDropdown.IsVisible) PickerDropdown.IsVisible = false;
-        }
-
-        private void UpdatePromptPicker()
-        {
-            if (_appState == null || _appState.PromptTemplates == null) return;
-
-            // Csak a valid sablonokat mutatjuk (kiszűrjük az üreseket)
-            var templates = _appState.PromptTemplates
-                .Where(p => p != null && !string.IsNullOrWhiteSpace(p.Title))
-                .ToList();
-
-            if (templates.Count == 0) return;
-
-            TemplatesListView.ItemsSource = templates;
+            var btn = (Button)sender;
+            if (btn.CommandParameter == null) return;
             
-            var selected = templates.FirstOrDefault(p => p.Id == _appState.ActiveGlobalPromptId) 
-                           ?? templates.FirstOrDefault();
+            var target = btn.CommandParameter.ToString();
 
-            if (selected != null)
+            // UI Frissítés (Gombok színe)
+            TabChatBtn.TextColor = target == "Chat" ? Color.FromArgb("#0090ff") : Color.FromArgb("#9e9e9e");
+            TabStudioBtn.TextColor = target == "Studio" ? Color.FromArgb("#0090ff") : Color.FromArgb("#9e9e9e");
+            TabLogsBtn.TextColor = target == "Logs" ? Color.FromArgb("#0090ff") : Color.FromArgb("#9e9e9e");
+
+            // Panelek láthatósága
+            AiBlazorView.IsVisible = (target == "Chat" || target == "Logs");
+            AiStudioWebView.IsVisible = (target == "Studio");
+
+            // Belső Blazor fül szinkronizálása
+            if (AiBlazorView.IsVisible && _appState != null)
             {
-                SelectedTemplateLabel.Text = selected.Title;
-                TemplatesListView.SelectedItem = selected;
+                _appState.ActiveTab = target == "Chat" ? WorkbenchTab.Chat : WorkbenchTab.AgentLog;
             }
         }
 
-        private void TogglePicker_Tapped(object? sender, EventArgs e)
+        private void OnSplitterPanUpdated(object sender, PanUpdatedEventArgs e)
         {
-            PickerDropdown.IsVisible = !PickerDropdown.IsVisible;
-            if (PickerDropdown.IsVisible) DocsDropdown.IsVisible = false;
-        }
-
-        private void TemplatesListView_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-        {
-            if (e.CurrentSelection.FirstOrDefault() is PromptTemplate selected && _appState != null)
+            switch (e.StatusType)
             {
-                SelectedTemplateLabel.Text = selected.Title;
-                if (_appState.ActiveGlobalPromptId != selected.Id)
-                {
-                    _appState.ActiveGlobalPromptId = selected.Id;
-                }
-                PickerDropdown.IsVisible = false;
-            }
-        }
+                case GestureStatus.Running:
+                    var totalWidth = MainRootGrid.Width;
+                    if (totalWidth <= 0) return;
 
-        private async void CopyTemplateItem_Clicked(object? sender, EventArgs e)
-        {
-            if (sender is Button btn && btn.BindingContext is PromptTemplate selected && _clipboard != null)
-            {
-                await _clipboard.SetTextAsync(selected.Content);
-                
-                PickerDropdown.IsVisible = false;
-
-                var originalText = btn.Text;
-                btn.Text = "✓";
-                await Task.Delay(1000);
-                btn.Text = originalText;
-            }
-        }
-
-        private void BrowserService_OnOpenBrowser(string url)
-        {
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                if (_lastLoadedUrl != url)
-                {
-                    InternalBrowser.Source = url;
-                    _lastLoadedUrl = url;
-                }
-                
-                if (_appState != null)
-                {
-                    PromptEditor.Text = _appState.PromptText;
-                    UpdateDocsPicker();
-                }
-
-                BrowserOverlay.IsVisible = true;
-                PickerDropdown.IsVisible = false;
-                DocsDropdown.IsVisible = false;
-            });
-        }
-
-        private void BrowserService_OnCloseBrowser()
-        {
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                BrowserOverlay.IsVisible = false;
-                PickerDropdown.IsVisible = false;
-                DocsDropdown.IsVisible = false;
-            });
-        }
-
-        private async Task<string> BrowserService_OnExtractContent()
-        {
-            try
-            {
-                string script = @"
-            (function() {
-                try {
-                    var all =[];
-                    function w(r) {
-                        var n = r.querySelectorAll('*');
-                        for (var i = 0; i < n.length; i++) {
-                            var e = n[i];
-                            if (e.tagName && e.tagName.toLowerCase() === 'ms-autosize-textarea') { all.push(e); }
-                            if (e.shadowRoot) { w(e.shadowRoot); }
-                        }
-                    }
-                    w(document);
+                    var newWidth = BlazorColumn.Width.Value * totalWidth + e.TotalX;
+                    var newFlex = Math.Clamp(newWidth / totalWidth, 0.1, 0.9);
                     
-                    if (all.length === 0) return JSON.stringify({ status: 'NOT_FOUND', count: 0 });
-                    
-                    var last = all[all.length - 1];
-                    var txt = last.getAttribute('data-value');
-                    
-                    if (!txt && last.querySelector('textarea')) {
-                        txt = last.querySelector('textarea').value;
-                    }
-                    
-                    return JSON.stringify({ status: 'OK', count: all.length, content: txt });
-                } catch (err) {
-                    return JSON.stringify({ status: 'ERROR', msg: err.toString() });
-                }
-            })();
-        ";
-
-                var result = await InternalBrowser.EvaluateJavaScriptAsync(script);
-
-                if (result == null) return "KRITIKUS HIBA: A JS kód szintaktikai hiba miatt nem futott le.";
-
-                try
-                {
-                    var jsonString = System.Text.Json.JsonSerializer.Deserialize<string>(result);
-
-                    if (jsonString == null) return "Üres JSON válasz.";
-
-                    using (var doc = System.Text.Json.JsonDocument.Parse(jsonString))
-                    {
-                        var root = doc.RootElement;
-                        var status = root.GetProperty("status").GetString();
-
-                        if (status == "OK")
-                        {
-                            var content = root.GetProperty("content").GetString();
-                            return content ?? "Az elem megvan, de a tartalom üres.";
-                        }
-                        else if (status == "ERROR")
-                        {
-                            return $"JS HIBA: {root.GetProperty("msg").GetString()}";
-                        }
-                        else
-                        {
-                            var count = root.GetProperty("count").GetInt32();
-                            return $"NEM TALÁLHATÓ. (Találatok száma: {count}). Ellenőrizd, hogy betöltött-e az oldal.";
-                        }
-                    }
-                }
-                catch (Exception parseEx)
-                {
-                    return $"JSON PARSE HIBA: {parseEx.Message} | Nyers: {result}";
-                }
+                    BlazorColumn.Width = new GridLength(newFlex, GridUnitType.Star);
+                    AiColumn.Width = new GridLength(1 - newFlex, GridUnitType.Star);
+                    break;
             }
-            catch (Exception ex)
-            {
-                return $"C# KIVÉTEL: {ex.Message}";
-            }
-        }
-
-        private void CloseBrowser_Clicked(object sender, EventArgs e)
-        {
-            _browserService?.CloseBrowser();
-        }
-
-        private async void ExtractBrowser_Clicked(object sender, EventArgs e)
-        {
-            if (_browserService != null && _clipboard != null)
-            {
-                _browserService.CloseBrowser();
-                
-                var content = await _clipboard.GetTextAsync();
-                
-                if (!string.IsNullOrEmpty(content))
-                {
-                    _browserService.TriggerDirectContent(content);
-                }
-            }
-        }
-
-        private async void CopyContext_Clicked(object sender, EventArgs e)
-        {
-            if (_appState == null || _contextProcessingService == null || _clipboard == null)
-            {
-                return;
-            }
-
-            _appState.PromptText = PromptEditor.Text ?? string.Empty;
-
-            try
-            {
-                var sortedFiles = _appState.SelectedFilesForContext.OrderBy(x => x).ToList();
-                var content = await _contextProcessingService.BuildContextForClipboardAsync(
-                    includePrompt: _appState.IncludePromptInCopy,
-                    includeSystemPrompt: _appState.IncludeSystemPromptInCopy,
-                    includeFiles: _appState.IncludeFilesInCopy,
-                    sortedFilePaths: sortedFiles);
-
-                if (string.IsNullOrWhiteSpace(content))
-                {
-                    return;
-                }
-
-                await _clipboard.SetTextAsync(content);
-                
-                var originalText = CopyButton.Text;
-                CopyButton.Text = "Másolva! ✓";
-                CopyButton.BackgroundColor = Microsoft.Maui.Graphics.Colors.Green;
-                
-                await Task.Delay(2000);
-                
-                CopyButton.Text = originalText;
-                CopyButton.BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#0078d4");
-            }
-            catch (Exception)
-            {
-                CopyButton.Text = "Hiba!";
-                CopyButton.BackgroundColor = Microsoft.Maui.Graphics.Colors.Red;
-                await Task.Delay(2000);
-                CopyButton.Text = "Másolás";
-                CopyButton.BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#0078d4");
-            }
-        }
-
-        private void PromptLabel_Tapped(object sender, EventArgs e)
-        {
-            PromptCheckBox.IsChecked = !PromptCheckBox.IsChecked;
-        }
-
-        private void SystemLabel_Tapped(object sender, EventArgs e)
-        {
-            SystemPromptCheckBox.IsChecked = !SystemPromptCheckBox.IsChecked;
-        }
-
-        private void FilesLabel_Tapped(object sender, EventArgs e)
-        {
-            FileContextCheckBox.IsChecked = !FileContextCheckBox.IsChecked;
-        }
-
-        private void TreeLabel_Tapped(object sender, EventArgs e)
-        {
-            TreeContextCheckBox.IsChecked = !TreeContextCheckBox.IsChecked;
         }
     }
 }

@@ -27,7 +27,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         [Inject] private ContextProcessingService ContextProcessingService { get; set; } = null!;
         [Inject] private ReferenceFinderService ReferenceFinderService { get; set; } = null!;
         [Inject] private OllamaService OllamaService { get; set; } = null!;
-        [Inject] private BrowserService BrowserService { get; set; } = null!;
         [Inject] private LocalizationService LocalizationService { get; set; } = null!;
         [Inject] private AzureDevOpsService SettingsStore { get; set; } = null!;
         [Inject] private BuildManagerService BuildManagerService { get; set; } = null!;
@@ -358,8 +357,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             await Task.Delay(2000); _copyButtonText = "Másolás"; StateHasChanged();
         }
 
-        private async Task OpenAiStudioBrowser() => BrowserService.OpenBrowser("https://aistudio.google.com/");
-
         public async Task RouteResponseAsync(string response)
         {
             if (Regex.IsMatch(response, @"\[Q\d+\]")) { _clarificationDialogText = response; _isClarificationDialogVisible = true; StateHasChanged(); }
@@ -373,23 +370,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         private async Task ProcessGitDiffAsync() => await OnShowDiffDialog.InvokeAsync(await GitWorkflowService.PrepareGitDiffForReviewAsync(AppState.PromptText));
         private async Task ProcessChangesFromClipboardAsync() { var t = await Clipboard.GetTextAsync(); if (!string.IsNullOrEmpty(t)) await RouteResponseAsync(t); }
-
-        private async Task ProcessWithLocalAiAsync(bool isAgent)
-        {
-            if (isAgent)
-            {
-                AppState.ShowLoading("Ügynök dolgozik...");
-                try
-                {
-                    var sys = await PromptService.GetSystemPromptAsync();
-                    var ctx = await ContextProcessingService.BuildContextForClipboardAsync(false, false, true, AppState.SelectedFilesForContext);
-                    var res = await ProviderFactory.GetProvider(AppState.AgentModelId).GenerateAsync($"{sys}\nCTX:\n{ctx}\nTASK:\n{AppState.PromptText}", AppState.AttachedImages);
-                    await RouteResponseAsync(res);
-                }
-                catch (Exception ex) { await JSRuntime.InvokeVoidAsync("alert", ex.Message); }
-                finally { AppState.HideLoading(); }
-            }
-        }
 
         private async Task HandleGenerateRefinedPrompt(string qa)
         {
