@@ -12,6 +12,7 @@ namespace LlmContextCollector.Components.Dialogs
     public partial class DiffDialog : ComponentBase, IDisposable
     {
         [Inject] private AcceptedResponseHistoryService AcceptedResponseHistoryService { get; set; } = null!;
+        [Inject] private ContextProcessingService ContextProcessingService { get; set; } = null!;
 
         [Parameter] public bool IsVisible { get; set; }
         [Parameter] public string GlobalExplanation { get; set; } = string.Empty;
@@ -49,6 +50,7 @@ namespace LlmContextCollector.Components.Dialogs
         private DiffUtility.DiffLineItem? _contextMenuTargetLine;
         private double _leftPaneWidthPercent = 35.0;
         private bool _isResizingPane = false;
+        private bool _includeOriginalPromptInSuggestions = true;
         private double _windowWidth = 0;
         private CancellationTokenSource? _diffCts;
         
@@ -262,7 +264,12 @@ namespace LlmContextCollector.Components.Dialogs
             AppState.StatusText = "Javaslatok generálása...";
             try 
             { 
-                var promptToUse = !string.IsNullOrWhiteSpace(OriginalPrompt) ? OriginalPrompt : AppState.DiffOriginalPrompt;
+                string? promptToUse = null;
+                if (_includeOriginalPromptInSuggestions)
+                {
+                    promptToUse = !string.IsNullOrWhiteSpace(OriginalPrompt) ? OriginalPrompt : AppState.DiffOriginalPrompt;
+                }
+
                 var (b, c) = await GitSuggestionService.GetSuggestionsAsync(_localDiffResults, _globalExplanationText, promptToUse); 
                 
                 if (b == "suggestion-not-found")
@@ -339,6 +346,63 @@ namespace LlmContextCollector.Components.Dialogs
         private void CloseManualMerge()
         {
             _isManualMergeMode = false;
+        }
+
+        private async Task ProcessFixFromClipboardAsync()
+        {
+            var clipboardText = await Clipboard.GetTextAsync();
+            if (string.IsNullOrWhiteSpace(clipboardText))
+            {
+                AppState.StatusText = "A vágólap üres.";
+                return;
+            }
+
+            try
+            {
+                var fixArgs = await ContextProcessingService.ProcessChangesFromClipboardAsync(clipboardText);
+                if (!fixArgs.DiffResults.Any())
+                {
+                    AppState.StatusText = "Nem található feldolgozható módosítás a vágólapon.";
+                    return;
+                }
+
+                int updatedCount = 0;
+                int addedCount = 0;
+
+                foreach (var fix in fixArgs.DiffResults)
+                {
+                    var existing = _localDiffResults.FirstOrDefault(r => r.Path.Equals(fix.Path, StringComparison.OrdinalIgnoreCase));
+                    if (existing != null)
+                    {
+                        existing.NewContent = fix.NewContent;
+                        existing.PatchFailed = fix.PatchFailed;
+                        existing.FailedPatchContent = fix.FailedPatchContent;
+                        existing.Status = fix.Status;
+                        existing.Explanation = (existing.Explanation + "\n[JAVÍTVA]: " + fix.Explanation).Trim();
+                        existing.IsSelectedForAccept = true;
+                        updatedCount++;
+                    }
+                    else
+                    {
+                        _localDiffResults.Add(fix);
+                        addedCount++;
+                    }
+                }
+
+                if (updatedCount > 0 || addedCount > 0)
+                {
+                    AppState.StatusText = $"Javítás alkalmazva: {updatedCount} fájl frissítve, {addedCount} új hozzáadva.";
+                    if (_selectedResult != null)
+                    {
+                        var refreshed = _localDiffResults.FirstOrDefault(r => r.Path == _selectedResult.Path);
+                        if (refreshed != null) await SelectResult(refreshed);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppState.StatusText = $"Hiba a javítás feldolgozásakor: {ex.Message}";
+            }
         }
 
         private async Task CopyFixPromptToClipboard()

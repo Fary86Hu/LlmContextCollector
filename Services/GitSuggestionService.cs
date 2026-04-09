@@ -65,7 +65,8 @@ namespace LlmContextCollector.Services
                 sb.AppendLine();
             }
 
-            sb.AppendLine("Based on the original instruction and the resulting changes, please suggest a git branch name and a conventional commit message.");
+            sb.AppendLine("IMPORTANT: The actual code changes provided below are the primary source of truth for the work performed. The original prompt is provided only as a guide or context. Prioritize the code changes over the prompt when generating suggestions.");
+            sb.AppendLine("Based on the provided context and the resulting changes, please suggest a git branch name and a conventional commit message.");
             sb.AppendLine("The input is structured to show the code hierarchy (e.g. Namespace > Class > Method) for context.");
             sb.AppendLine("For CSS files, only the file status is provided.");
             sb.AppendLine("Format:");

@@ -108,7 +108,12 @@
 
                     <div class="suggestion-box">
                         <div class="suggestion-header">
-                            <strong>@(_hasSuggestions ? "Javaslatok:" : "Git Műveletek")</strong>
+                            <div style="display:flex; flex-direction:column; gap:2px;">
+                                <strong>@(_hasSuggestions ? "Javaslatok:" : "Git Műveletek")</strong>
+                                <label style="font-size: 10px; font-weight: normal; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                                    <input type="checkbox" @bind="_includeOriginalPromptInSuggestions" style="width: auto; height: auto;" /> Eredeti prompt küldése
+                                </label>
+                            </div>
                             <button class="refresh-btn" @onclick="RefreshSuggestionsAsync" title="Javaslatok újragenerálása" disabled="@_isRefreshingSuggestions">
                                 @if (_isRefreshingSuggestions)
                                 {
@@ -254,6 +259,7 @@
                 {
                     @if (_localDiffResults.Any(r => r.PatchFailed))
                     {
+                        <button class="secondary" style="background-color: #2a9d8f; color: white; border: none;" @onclick="ProcessFixFromClipboardAsync" title="A vágólapon lévő javított blokkok beolvasása és összefésülése a jelenlegi listával">✨ Javítás Feldolgozása (Vágólapról)</button>
                         <button class="primary" style="background-color: #e67e22; border-color: #d35400;" @onclick="CopyFixPromptToClipboard" title="Összeállít egy visszakérdezést az LLM-nek a hibás blokkokról">⚠️ Hibajavító Prompt Másolása</button>
                     }
 
