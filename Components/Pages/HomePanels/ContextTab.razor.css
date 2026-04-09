@@ -103,9 +103,10 @@
 .attached-images-strip {
     display: flex;
     gap: 10px;
-    padding: 5px;
-    background-color: var(--input-bg-color);
+    padding: 6px;
+    background-color: var(--toolbar-bg);
     border: 1px solid var(--border-color);
+    border-top: none;
     overflow-x: auto;
     align-items: center;
     height: 60px;
@@ -287,7 +288,7 @@
 .copy-group {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
     background-color: var(--toolbar-bg);
     padding: 4px 10px;
     border-radius: 4px;
@@ -414,4 +415,36 @@
 
 .custom-dropdown-item:hover .copy-item-btn {
     opacity: 1;
+}
+
+::deep .highlight {
+    background-color: #ffd54f;
+    color: #000;
+    border-radius: 2px;
+}
+
+::deep .highlight.current {
+    background-color: #ff9800;
+    box-shadow: 0 0 3px rgba(0,0,0,0.5);
+}
+
+::deep .ref-badge {
+    cursor: pointer;
+    padding: 0 2px;
+    border-bottom: 1px dashed var(--accent-color);
+    transition: background-color 0.2s;
+}
+
+::deep .ref-badge:hover {
+    background-color: var(--hover-bg-color);
+}
+
+::deep .ref-badge.ref-present {
+    color: var(--accent-color);
+    font-weight: bold;
+}
+
+::deep .ref-badge.ref-missing {
+    color: var(--text-color-light);
+    opacity: 0.8;
 }

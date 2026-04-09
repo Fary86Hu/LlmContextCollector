@@ -6,6 +6,7 @@ namespace LlmContextCollector
     public partial class MainPage : ContentPage
     {
         private AppState? _appState;
+        private double _startFlex = 0.7;
 
         public MainPage()
         {
@@ -49,11 +50,14 @@ namespace LlmContextCollector
         {
             switch (e.StatusType)
             {
+                case GestureStatus.Started:
+                    _startFlex = BlazorColumn.Width.Value;
+                    break;
                 case GestureStatus.Running:
                     var totalWidth = MainRootGrid.Width;
                     if (totalWidth <= 0) return;
 
-                    var newWidth = BlazorColumn.Width.Value * totalWidth + e.TotalX;
+                    var newWidth = (_startFlex * totalWidth) + e.TotalX;
                     var newFlex = Math.Clamp(newWidth / totalWidth, 0.1, 0.9);
                     
                     BlazorColumn.Width = new GridLength(newFlex, GridUnitType.Star);

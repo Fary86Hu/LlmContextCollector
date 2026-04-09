@@ -19,7 +19,7 @@
     <Grid x:Name="MainRootGrid">
         <Grid.ColumnDefinitions>
             <ColumnDefinition x:Name="BlazorColumn" Width="0.7*" />
-            <ColumnDefinition Width="5" />
+            <ColumnDefinition Width="8" />
             <ColumnDefinition x:Name="AiColumn" Width="0.3*" />
         </Grid.ColumnDefinitions>
 
@@ -31,7 +31,19 @@
         </BlazorWebView>
 
         <!-- OSZLOP 1: Natív Splitter -->
-        <BoxView Grid.Column="1" BackgroundColor="#454545" WidthRequest="5" HorizontalOptions="Center">
+        <BoxView Grid.Column="1" BackgroundColor="#555555" HorizontalOptions="Fill">
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroupList>
+                    <VisualStateGroup x:Name="CommonStates">
+                        <VisualState x:Name="Normal" />
+                        <VisualState x:Name="PointerOver">
+                            <VisualState.Setters>
+                                <Setter Property="BackgroundColor" Value="#0090ff" />
+                            </VisualState.Setters>
+                        </VisualState>
+                    </VisualStateGroup>
+                </VisualStateGroupList>
+            </VisualStateManager.VisualStateGroups>
             <BoxView.GestureRecognizers>
                 <PanGestureRecognizer PanUpdated="OnSplitterPanUpdated" />
             </BoxView.GestureRecognizers>

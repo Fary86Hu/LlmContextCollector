@@ -687,6 +687,12 @@ namespace LlmContextCollector.Components.Pages
         }
 
 
+        private async Task ProcessGitDiffAsync()
+        {
+            var args = await GitWorkflowService.PrepareGitDiffForReviewAsync(AppState.PromptText);
+            ShowDiffDialog(args);
+        }
+
         private void ShowDiffDialog(DiffResultArgs args)
         {
             AppState.DiffGlobalExplanation = args.GlobalExplanation;

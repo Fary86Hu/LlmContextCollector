@@ -47,5 +47,45 @@ namespace LlmContextCollector.WinUI.Services
                 }
             });
         }
+
+        public async Task<string?> GetImageFromClipboardAsync()
+        {
+            return await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                try
+                {
+                    var dataPackageView = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                    
+                    if (dataPackageView.Contains(StandardDataFormats.Bitmap))
+                    {
+                        var streamRef = await dataPackageView.GetBitmapAsync();
+                        using var stream = await streamRef.OpenReadAsync();
+                        using var memoryStream = new MemoryStream();
+                        await stream.AsStreamForRead().CopyToAsync(memoryStream);
+                        var bytes = memoryStream.ToArray();
+                        return $"data:image/png;base64,{Convert.ToBase64String(bytes)}";
+                    }
+
+                    if (dataPackageView.Contains(StandardDataFormats.StorageItems))
+                    {
+                        var items = await dataPackageView.GetStorageItemsAsync();
+                        if (items.Count > 0 && items[0] is StorageFile storageFile)
+                        {
+                            var ext = storageFile.FileType.ToLower();
+                            if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp")
+                            {
+                                using var stream = await storageFile.OpenReadAsync();
+                                using var memoryStream = new MemoryStream();
+                                await stream.AsStreamForRead().CopyToAsync(memoryStream);
+                                var mime = (ext == ".png") ? "image/png" : "image/jpeg";
+                                return $"data:{mime};base64,{Convert.ToBase64String(memoryStream.ToArray())}";
+                            }
+                        }
+                    }
+                }
+                catch { }
+                return null;
+            });
+        }
     }
 }

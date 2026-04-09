@@ -43,7 +43,10 @@
 
             <div class="prompt-main-area">
                 <div class="prompt-container">
-                    <textarea class="prompt-editor" placeholder="Írja ide a promptot..." @bind="AppState.PromptText" @bind:event="oninput"></textarea>
+                    <textarea class="prompt-editor" 
+                              placeholder="Írja ide a promptot..." 
+                              @bind="AppState.PromptText" 
+                              @bind:event="oninput"></textarea>
                     <div class="prompt-editor-button-group">
                         <button class="prompt-editor-btn" @onclick="PickImagesAsync" title="Képek csatolása">🖼️</button>
                         @if (!string.IsNullOrWhiteSpace(AppState.PromptText) || AppState.AttachedImages.Any())
@@ -55,9 +58,6 @@
                 @if (AppState.AttachedImages.Any())
                 {
                     <div class="attached-images-strip">
-                        <div class="attached-images-info">
-                            <button class="icon-btn-small" @onclick="CopyImagesAsync" title="Képek vágólapra másolása (Ctrl+B)">📋 (Ctrl+B)</button>
-                        </div>
                         @foreach (var img in AppState.AttachedImages)
                         {
                             <div class="image-thumbnail" title="@img.FileName">
@@ -195,11 +195,11 @@
                         </div>
                     }
                 </div>
-                <button class="copy-button primary" @onclick="CopyToClipboard">@_copyButtonText</button>
+                <button class="copy-button primary" @onclick="CopyToClipboard" style="min-width: 100px;">@_copyButtonText</button>
+                <button class="copy-button secondary" @onclick="CopyImagesAsync" disabled="@(!AppState.AttachedImages.Any())" title="Csatolt képek másolása vágólapra">Másolás (🖼️)</button>
             </div>
 
             <div class="other-actions">
-                <button @onclick="ProcessGitDiffAsync">Git Diff</button>
                 <button class="copy-button" @onclick="ProcessChangesFromClipboardAsync">Feldolgoz</button>
             </div>
         </div>

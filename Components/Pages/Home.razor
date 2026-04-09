@@ -9,6 +9,7 @@
                        OnLoadHistoryEntry="LoadHistoryEntry"
                        OnShowTreeContextMenu="ShowTreeContextMenu"
                        OnNodeClick="HandleNodeClick"
+                       OnShowDiffDialog="() => ProcessGitDiffAsync()"
                        OnAzureDevOpsAttach="() => _isAzureDevOpsDialogVisible = true" />
 
         <div class="vertical-splitter" @onmousedown="@(e => StartResize(e, "LeftMiddle"))"></div>

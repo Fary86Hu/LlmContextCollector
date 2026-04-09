@@ -296,18 +296,39 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private void ClearSelectionList() { AppState.SelectedFilesForContext.Clear(); AppState.SaveContextListState(); }
         private void ClearPrompt() { AppState.PromptText = string.Empty; AppState.AttachedImages.Clear(); }
 
-        [JSInvokable] public async Task OnCtrlB_Pressed() => await CopyImagesAsync();
+
+
         [JSInvokable]
         public async Task OnImagePastedAsync(string base64)
         {
-            var bytes = Convert.FromBase64String(base64.Split(',')[1]);
-            var path = Path.Combine(FileSystem.CacheDirectory, $"Pasted_{DateTime.Now:HHmmss}.png");
-            await File.WriteAllBytesAsync(path, bytes);
-            AppState.AttachedImages.Add(new AttachedImage { FilePath = path, FileName = Path.GetFileName(path), Base64Thumbnail = base64 });
-            StateHasChanged();
+            try
+            {
+                var bytes = Convert.FromBase64String(base64.Split(',')[1]);
+                var cacheDir = Path.Combine(FileSystem.CacheDirectory, "pasted_images");
+                if (!Directory.Exists(cacheDir)) Directory.CreateDirectory(cacheDir);
+
+                var fileName = $"Pasted_{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid().ToString().Substring(0, 4)}.png";
+                var path = Path.Combine(cacheDir, fileName);
+                
+                await File.WriteAllBytesAsync(path, bytes);
+                AppState.AttachedImages.Add(new AttachedImage { FilePath = path, FileName = fileName, Base64Thumbnail = base64 });
+                AppState.StatusText = "Kép beillesztve.";
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                AppState.StatusText = $"Hiba a kép beillesztésekor: {ex.Message}";
+            }
         }
 
-        private async Task CopyImagesAsync() { if (AppState.AttachedImages.Any()) await ImageClipboardService.CopyImagesToClipboardAsync(AppState.AttachedImages.Select(x => x.FilePath)); }
+        private async Task CopyImagesAsync() 
+        { 
+            if (AppState.AttachedImages.Any()) 
+            {
+                await ImageClipboardService.CopyImagesToClipboardAsync(AppState.AttachedImages.Select(x => x.FilePath));
+                AppState.StatusText = $"{AppState.AttachedImages.Count} kép a vágólapra másolva.";
+            }
+        }
         private async Task PickImagesAsync()
         {
             var results = await FilePicker.Default.PickMultipleAsync(PickOptions.Images);
@@ -368,7 +389,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             }
         }
 
-        private async Task ProcessGitDiffAsync() => await OnShowDiffDialog.InvokeAsync(await GitWorkflowService.PrepareGitDiffForReviewAsync(AppState.PromptText));
+
         private async Task ProcessChangesFromClipboardAsync() { var t = await Clipboard.GetTextAsync(); if (!string.IsNullOrEmpty(t)) await RouteResponseAsync(t); }
 
         private async Task HandleGenerateRefinedPrompt(string qa)
@@ -402,18 +423,31 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         {
             if (string.IsNullOrEmpty(_previewContent)) { _previewContentMarkup = new MarkupString(""); return; }
             var encoded = HttpUtility.HtmlEncode(_previewContent);
+            
             if (_showReferences)
             {
-                var highlighted = Regex.Replace(encoded, @"\b[A-Z][a-zA-Z0-9_]*\b", m => _projectTypeMap.ContainsKey(m.Value) ? $"<span class=\"ref-badge {(AppState.SelectedFilesForContext.Contains(_projectTypeMap[m.Value]) ? "ref-present" : "ref-missing")}\" data-type-name=\"{m.Value}\">{m.Value}</span>" : m.Value);
+                var highlighted = Regex.Replace(encoded, @"\b[A-Z][a-zA-Z0-9_]*\b", m => 
+                    _projectTypeMap.TryGetValue(m.Value, out var relPath) 
+                    ? $"<span class=\"ref-badge {(AppState.SelectedFilesForContext.Contains(relPath) ? "ref-present" : "ref-missing")}\" data-type-name=\"{m.Value}\">{m.Value}</span>" 
+                    : m.Value);
                 _previewContentMarkup = new MarkupString(highlighted);
             }
             else if (!string.IsNullOrEmpty(_previewSearchTerm))
             {
-                int count = 0; _totalPreviewMatches = Regex.Matches(encoded, Regex.Escape(_previewSearchTerm), RegexOptions.IgnoreCase).Count;
-                var highlighted = Regex.Replace(encoded, Regex.Escape(_previewSearchTerm), m => $"<span id=\"preview-match-{count++}\" class=\"highlight {(count - 1 == _currentPreviewMatchIndex - 1 ? "current" : "")}\">{m.Value}</span>", RegexOptions.IgnoreCase);
+                int count = 0; 
+                _totalPreviewMatches = Regex.Matches(encoded, Regex.Escape(_previewSearchTerm), RegexOptions.IgnoreCase).Count;
+                var highlighted = Regex.Replace(encoded, Regex.Escape(_previewSearchTerm), m => 
+                {
+                    var isCurrent = (count == _currentPreviewMatchIndex - 1);
+                    return $"<span id=\"preview-match-{count++}\" class=\"highlight {(isCurrent ? "current" : "")}\">{m.Value}</span>";
+                }, RegexOptions.IgnoreCase);
                 _previewContentMarkup = new MarkupString(highlighted);
             }
-            else _previewContentMarkup = new MarkupString(encoded);
+            else 
+            {
+                _totalPreviewMatches = 0;
+                _previewContentMarkup = new MarkupString(encoded);
+            }
         }
 
         private async Task FindNextInPreview() { if (_totalPreviewMatches > 0) { _currentPreviewMatchIndex = (_currentPreviewMatchIndex % _totalPreviewMatches) + 1; UpdatePreviewMarkup(); await ScrollToCurrentPreviewMatch(); } }

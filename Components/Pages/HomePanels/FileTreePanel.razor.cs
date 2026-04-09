@@ -38,6 +38,9 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         [Parameter]
         public EventCallback OnAzureDevOpsAttach { get; set; }
 
+        [Parameter]
+        public EventCallback OnShowDiffDialog { get; set; }
+
 
 
         private Timer? _searchTimer;

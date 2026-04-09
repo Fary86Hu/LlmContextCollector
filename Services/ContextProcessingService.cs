@@ -252,8 +252,11 @@ namespace LlmContextCollector.Services
 
         private string ApplyPatches(string originalContent, string patchContent)
         {
+            // Normalizáljuk a bemenetet: minden \r\n legyen \n
             string result = originalContent.Replace("\r\n", "\n");
-            string[] parts = patchContent.Split(new[] { "<<<<<<< SEARCH" }, StringSplitOptions.None);
+            string normalizedPatch = patchContent.Replace("\r\n", "\n");
+
+            string[] parts = normalizedPatch.Split(new[] { "<<<<<<< SEARCH" }, StringSplitOptions.None);
 
             for (int i = 1; i < parts.Length; i++)
             {
@@ -262,20 +265,35 @@ namespace LlmContextCollector.Services
 
                 if (splitBlock.Length < 2) continue;
 
-                string searchBlock = splitBlock[0].TrimStart('\r', '\n').TrimEnd('\r', '\n').Replace("\r\n", "\n");
+                // A blokkok belsejében is normalizálunk és levágjuk a felesleges kezdő/záró üres sorokat
+                string searchBlock = splitBlock[0].TrimStart('\n').TrimEnd('\n');
                 string restOfBlock = string.Join("=======", splitBlock.Skip(1));
 
                 string[] replaceSplit = restOfBlock.Split(new[] { ">>>>>>> REPLACE" }, StringSplitOptions.None);
                 if (replaceSplit.Length < 1) continue;
 
-                string replaceBlock = replaceSplit[0].TrimStart('\r', '\n').TrimEnd('\r', '\n').Replace("\r\n", "\n");
+                string replaceBlock = replaceSplit[0].TrimStart('\n').TrimEnd('\n');
 
                 int index = result.IndexOf(searchBlock);
+                
                 if (index == -1)
                 {
+                    // Ha nem találjuk, megpróbáljuk teljesen whitespace-mentesen a széleit
                     string trimmedSearch = searchBlock.Trim();
                     index = result.IndexOf(trimmedSearch);
-                    if (index == -1) throw new Exception($"SEARCH blokk nem található (#{i})");
+                    
+                    if (index == -1) 
+                    {
+                        // Utolsó esély: hátha csak a behúzás (indentáció) tér el a keresett blokk elején
+                        var lines = searchBlock.Split('\n');
+                        if (lines.Length > 0)
+                        {
+                            var firstLine = lines[0].Trim();
+                            var potentialIndex = result.IndexOf(firstLine);
+                            // Itt lehetne tovább finomítani, de egyelőre dobjunk hibát
+                        }
+                        throw new Exception($"SEARCH blokk nem található (#{i}). Kérlek ellenőrizd a karakterhelyes egyezést!");
+                    }
                     result = result.Remove(index, trimmedSearch.Length).Insert(index, replaceBlock);
                 }
                 else
@@ -283,6 +301,8 @@ namespace LlmContextCollector.Services
                     result = result.Remove(index, searchBlock.Length).Insert(index, replaceBlock);
                 }
             }
+            
+            // A végén visszaalakíthatjuk Windows formátumra, ha szükséges, de a legtöbb szerkesztő kezeli a \n-t
             return result;
         }
     }
