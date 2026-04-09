@@ -52,9 +52,8 @@
         <!-- OSZLOP 2: Natív AI Workspace -->
         <Grid Grid.Column="2" RowDefinitions="Auto, *">
             <HorizontalStackLayout Grid.Row="0" BackgroundColor="#3c3c3c" Padding="5" Spacing="2">
-                <Button x:Name="TabChatBtn" Text="Chat" Clicked="OnTabClicked" Style="{StaticResource TabBtn}" CommandParameter="Chat" />
                 <Button x:Name="TabStudioBtn" Text="AI Studio" Clicked="OnTabClicked" Style="{StaticResource TabBtn}" CommandParameter="Studio" />
-                <Button x:Name="TabLogsBtn" Text="Logs" Clicked="OnTabClicked" Style="{StaticResource TabBtn}" CommandParameter="Logs" />
+                <Button x:Name="TabChatBtn" Text="Chat" Clicked="OnTabClicked" Style="{StaticResource TabBtn}" CommandParameter="Chat" />
             </HorizontalStackLayout>
 
             <Grid Grid.Row="1">

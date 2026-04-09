@@ -30,16 +30,12 @@ namespace LlmContextCollector
             
             var target = btn.CommandParameter.ToString();
 
-            // UI Frissítés (Gombok színe)
             TabChatBtn.TextColor = target == "Chat" ? Color.FromArgb("#0090ff") : Color.FromArgb("#9e9e9e");
             TabStudioBtn.TextColor = target == "Studio" ? Color.FromArgb("#0090ff") : Color.FromArgb("#9e9e9e");
-            TabLogsBtn.TextColor = target == "Logs" ? Color.FromArgb("#0090ff") : Color.FromArgb("#9e9e9e");
 
-            // Panelek láthatósága
             AiBlazorView.IsVisible = (target == "Chat" || target == "Logs");
             AiStudioWebView.IsVisible = (target == "Studio");
 
-            // Belső Blazor fül szinkronizálása
             if (AiBlazorView.IsVisible && _appState != null)
             {
                 _appState.ActiveTab = target == "Chat" ? WorkbenchTab.Chat : WorkbenchTab.AgentLog;

@@ -6,37 +6,36 @@
     <div class="right-top-section">
         <div class="prompt-layout-horizontal">
             <div class="prompt-sidebar">
-                <div class="sidebar-group">
+                <div class="sidebar-section">
                     <button class="primary sidebar-btn" @onclick="OnAddSelectedToContext">>> Hozzáadás</button>
-                    <button class="sidebar-btn" @onclick="OnExcludeSelectedFromTree">Kizárás</button>
-                    <button class="sidebar-btn" @onclick="OnRequestRemoveSelected">Eltávolítás</button>
-                </div>
-
-                <div class="sidebar-group">
-                    <div class="ref-row">
-                        <div class="ref-input-col">
-                            <label>Ref. mélység:</label>
-                            <input type="number" min="0" max="5" @bind="AppState.ReferenceSearchDepth" />
-                        </div>
-                        <label class="checkbox-label ref-check-col">
-                            <input type="checkbox" @bind="AppState.IncludeReferencingFiles" /> Hivatkozók
-                        </label>
+                    <div class="btn-split-row">
+                        <button class="sidebar-btn-half" @onclick="OnExcludeSelectedFromTree" title="Kizárás a fából">Kizárás</button>
+                        <button class="sidebar-btn-half" @onclick="OnRequestRemoveSelected" title="Eltávolítás a listából">Törlés</button>
                     </div>
                 </div>
 
-                <div class="sidebar-group ado-sidebar-group">
-                    <label>ADO ID:</label>
-                    <div class="ado-input-row">
-                        <input type="number" placeholder="ID..." @bind="_adoWorkItemIdToLoad" @onkeyup="HandleAdoKeyup" />
-                        <button @onclick="LoadAdoWorkItemAsync" title="Work Item betöltése">⏎</button>
+                <div class="sidebar-section">
+                    <div class="sidebar-row">
+                        <label>Ref. Mélység:</label>
+                        <input type="number" class="compact-input" min="0" max="5" @bind="AppState.ReferenceSearchDepth" />
+                    </div>
+                    <label class="checkbox-row" title="Visszahivatkozó fájlok keresése">
+                        <input type="checkbox" @bind="AppState.IncludeReferencingFiles" /> Hivatkozók keresése
+                    </label>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="input-group">
+                        <input type="number" placeholder="Work item ID..." @bind="_adoWorkItemIdToLoad" @onkeyup="HandleAdoKeyup" />
+                        <button class="icon-btn-group" @onclick="LoadAdoWorkItemAsync" title="Betöltés">⏎</button>
                     </div>
                 </div>
 
-                <div class="sidebar-group system-controls-group">
-                    <button class="sidebar-btn" @onclick="OnShowPromptManager">Sablonok szerkesztése</button>
-                    <div class="icon-actions-row">
-                        <button class="sidebar-btn" @onclick="() => AppState.IsAiInspectorVisible = true" title="Rendszernapló és AI Inspector">📜 Napló</button>
-                        <button class="sidebar-btn" @onclick="OnShowSettingsDialog" title="Beállítások">⚙️</button>
+                <div class="sidebar-section system-section">
+                    <button class="sidebar-btn secondary-btn" @onclick="OnShowPromptManager">Prompt Sablonok</button>
+                    <div class="btn-split-row">
+                        <button class="sidebar-btn-half icon-text-btn" @onclick="() => AppState.IsAiInspectorVisible = true" title="Napló">📜 Log</button>
+                        <button class="sidebar-btn-half icon-text-btn" @onclick="OnShowSettingsDialog" title="Beállítások">⚙️ Beáll.</button>
                     </div>
                 </div>
             </div>
