@@ -28,14 +28,29 @@ namespace LlmContextCollector.AI
             _logService = logService;
         }
 
-        public async Task<string> GenerateAsync(string prompt, CancellationToken ct = default)
+        public async Task<string> GenerateAsync(string prompt, IEnumerable<AttachedImage>? images = null, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(_config.ApiUrl)) throw new InvalidOperationException("API URL nincs megadva.");
+
+            object content;
+            if (images == null || !images.Any())
+            {
+                content = prompt;
+            }
+            else
+            {
+                var contentList = new List<object> { new { type = "text", text = prompt } };
+                foreach (var img in images)
+                {
+                    contentList.Add(new { type = "image_url", image_url = new { url = img.Base64Thumbnail } });
+                }
+                content = contentList.ToArray();
+            }
 
             var payload = new 
             {
                 model = _config.ModelName,
-                messages = new[] { new { role = "user", content = prompt } },
+                messages = new[] { new { role = "user", content = content } },
                 max_tokens = _config.MaxOutputTokens == 0 ? 4096 : _config.MaxOutputTokens,
                 temperature = 0.2
             };

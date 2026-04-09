@@ -43,7 +43,13 @@
                     @foreach (var msg in _messages.Where(m => m.Role != "system"))
                     {
                         <div class="chat-message @(msg.Role)">
-                            <strong>@(msg.Role == "user" ? "Te" : "AI"):</strong>
+                            <div class="message-header">
+                                <strong>@(msg.Role == "user" ? "Te" : "AI"):</strong>
+                                @if (msg.Role == "assistant" && !_isGenerating)
+                                {
+                                    <button class="btn-small apply-btn" @onclick="() => ApplyMessage(msg.Content)" title="Válasz feldolgozása és alkalmazása a projektre">Módosítások alkalmazása</button>
+                                }
+                            </div>
                             <div class="message-content">@((MarkupString)GetFormattedResponse(msg.Content, false))</div>
                         </div>
                     }
@@ -105,6 +111,17 @@
 
     [Parameter]
     public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnApplyResponse { get; set; }
+
+    private async Task ApplyMessage(string content)
+    {
+        if (OnApplyResponse.HasDelegate)
+        {
+            await OnApplyResponse.InvokeAsync(content);
+        }
+    }
 
     public class ChatMessage
     {
@@ -281,7 +298,7 @@
                     fullPromptSb.AppendLine();
                 }
 
-                _currentResponse = await provider.GenerateAsync(fullPromptSb.ToString(), _cts.Token);
+                _currentResponse = await provider.GenerateAsync(fullPromptSb.ToString(), null, _cts.Token);
                 _messages.Add(new ChatMessage { Role = "assistant", Content = _currentResponse });
             }
 

@@ -29,7 +29,7 @@ namespace LlmContextCollector.Services
             var prompt = BuildPrompt(diffs, globalExplanation, originalPrompt);
             
             var provider = _providerFactory.GetProvider(_appState.GitSuggestionModelId);
-            var llmResponse = await provider.GenerateAsync(prompt, ct);
+            var llmResponse = await provider.GenerateAsync(prompt, null, ct);
             return ParseResponse(llmResponse);
         }
 

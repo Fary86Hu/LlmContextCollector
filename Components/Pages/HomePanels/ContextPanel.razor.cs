@@ -48,6 +48,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         [Inject]
         private BuildManagerService BuildManagerService { get; set; } = null!;
 
+        [Inject]
+        private AiProviderFactory ProviderFactory { get; set; } = null!;
 
         [Parameter]
         public EventCallback<MouseEventArgs> OnShowListContextMenu { get; set; }
@@ -933,7 +935,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         [Parameter] public EventCallback<DiffResultArgs> OnRequestLocalizationPath { get; set; }
 
-        private async Task RouteResponseAsync(string responseContent)
+        public async Task RouteResponseAsync(string responseContent)
         {
             if (IsQuestionResponse(responseContent))
             {
@@ -1048,22 +1050,54 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         [Parameter]
         public EventCallback<LocalAiContextArgs> OnShowLocalAiChat { get; set; }
 
-        private async Task ProcessWithLocalAiAsync()
+        private async Task ProcessWithLocalAiAsync(bool isDirectAgentCall)
         {
             try
             {
                 var sortedPaths = _sortedFiles.Select(f => f.RelativePath);
-                
                 var prompt = AppState.PromptText;
                 var system = await PromptService.GetSystemPromptAsync();
                 var files = await ContextProcessingService.BuildContextForClipboardAsync(false, false, true, sortedPaths);
 
-                await OnShowLocalAiChat.InvokeAsync(new LocalAiContextArgs(prompt, system, files));
+                if (isDirectAgentCall)
+                {
+                    if (string.IsNullOrWhiteSpace(prompt))
+                    {
+                        await JSRuntime.InvokeVoidAsync("alert", "Kérjük, írjon be egy promptot az ügynök hívásához!");
+                        return;
+                    }
+
+                    AppState.ShowLoading("Az Ügynök dolgozik...");
+                    try
+                    {
+                        var provider = ProviderFactory.GetProvider(AppState.AgentModelId);
+                        
+                        var sb = new StringBuilder();
+                        sb.AppendLine(system);
+                        sb.AppendLine("\nKONTEXTUS:\n" + files);
+                        sb.AppendLine("\nFELADAT:\n" + prompt);
+
+                        var response = await provider.GenerateAsync(sb.ToString(), AppState.AttachedImages);
+                        await RouteResponseAsync(response);
+                    }
+                    catch (Exception ex)
+                    {
+                        await JSRuntime.InvokeVoidAsync("alert", $"API hiba: {ex.Message}");
+                    }
+                    finally
+                    {
+                        AppState.HideLoading();
+                    }
+                }
+                else
+                {
+                    await OnShowLocalAiChat.InvokeAsync(new LocalAiContextArgs(prompt, system, files));
+                }
             }
             catch (Exception ex)
             {
-                await JSRuntime.InvokeVoidAsync("alert", $"Hiba a lokális AI hívása előkészítésekor: {ex.Message}");
-                AppState.StatusText = "Hiba a lokális AI hívásakor.";
+                await JSRuntime.InvokeVoidAsync("alert", $"Hiba az AI hívás előkészítésekor: {ex.Message}");
+                AppState.StatusText = "Hiba az AI hívásakor.";
             }
         }
 

@@ -34,6 +34,16 @@
                             </select>
                         </div>
                         <div class="form-group" style="margin-top: 10px;">
+                            <label>Ügynök (Implementáció):</label>
+                            <select @bind="AppState.AgentModelId">
+                                <option value="@Guid.Empty">Lokális Ollama (Alapértelmezett)</option>
+                                @foreach (var model in AppState.AiModels)
+                                {
+                                    <option value="@model.Id">@model.FriendlyName</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-top: 10px;">
                             <label>Git (Commit & Branch):</label>
                             <select @bind="AppState.GitSuggestionModelId">
                                 <option value="@Guid.Empty">Lokális Ollama (Alapértelmezett)</option>
@@ -191,6 +201,7 @@
             AiModels = AppState.AiModels.ToList(),
             GitSuggestionModelId = AppState.GitSuggestionModelId,
             ChatModelId = AppState.ChatModelId,
+            AgentModelId = AppState.AgentModelId,
             OllamaApiUrl = AppState.OllamaApiUrl,
             OllamaModel = AppState.OllamaModel,
             OllamaShowThinking = AppState.OllamaShowThinking,

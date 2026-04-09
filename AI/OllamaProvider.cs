@@ -18,13 +18,24 @@ namespace LlmContextCollector.AI
             _logService = logService;
         }
 
-        public async Task<string> GenerateAsync(string prompt, CancellationToken ct = default)
+        public async Task<string> GenerateAsync(string prompt, IEnumerable<AttachedImage>? images = null, CancellationToken ct = default)
         {
             var baseUrl = _config.ApiUrl.TrimEnd('/');
+            
+            var userMessage = new 
+            { 
+                role = "user", 
+                content = prompt,
+                images = images?.Select(img => {
+                    var parts = img.Base64Thumbnail.Split(',');
+                    return parts.Length > 1 ? parts[1] : parts[0];
+                }).ToArray()
+            };
+
             var requestBody = new
             {
                 model = _config.ModelName,
-                messages = new[] { new { role = "user", content = prompt } },
+                messages = new[] { userMessage },
                 stream = false,
                 options = new { num_ctx = 32768 }
             };

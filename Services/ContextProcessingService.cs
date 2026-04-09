@@ -210,8 +210,22 @@ namespace LlmContextCollector.Services
                             fileData.Explanation += $"\n[HIBA: {ex.Message}]";
                             patchFailed = true;
                             failedPatchContent = finalNewContent;
-                            finalNewContent = oldContent; // Keep old content so they can edit it
+                            finalNewContent = oldContent;
                         }
+                    }
+                }
+                else if (status == DiffStatus.Modified)
+                {
+                    if (finalNewContent.Contains("<<<<<<< SEARCH"))
+                    {
+                        status = DiffStatus.Error;
+                        patchFailed = true;
+                        failedPatchContent = finalNewContent;
+                        fileData.Explanation += "\n[HIBA: A fájl nem található a lemezen, ezért a SEARCH/REPLACE módosítás nem alkalmazható.]";
+                    }
+                    else
+                    {
+                        status = DiffStatus.NewFromModified;
                     }
                 }
                 else if (status == DiffStatus.Modified) status = DiffStatus.NewFromModified;

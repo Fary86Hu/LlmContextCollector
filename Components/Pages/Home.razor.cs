@@ -543,6 +543,7 @@ namespace LlmContextCollector.Components.Pages
             
             AppState.GitSuggestionModelId = settings.GitSuggestionModelId;
             AppState.ChatModelId = settings.ChatModelId;
+            AppState.AgentModelId = settings.AgentModelId;
 
             AppState.OllamaApiUrl = settings.OllamaApiUrl ?? "http://localhost:11434/v1/";
             AppState.OllamaModel = settings.OllamaModel ?? "qwen2.5:7b-instruct";
@@ -591,6 +592,12 @@ namespace LlmContextCollector.Components.Pages
         {
             _isLocalAiChatVisible = false;
             StateHasChanged();
+        }
+
+        private async Task HandleChatApplyResponse(string content)
+        {
+            _isLocalAiChatVisible = false;
+            await _contextPanelRef!.RouteResponseAsync(content);
         }
 
         private void HandleRequestLocPath(DiffResultArgs args)

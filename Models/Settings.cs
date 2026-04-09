@@ -11,6 +11,7 @@ namespace LlmContextCollector.Models
         
         public Guid GitSuggestionModelId { get; set; } = Guid.Empty;
         public Guid ChatModelId { get; set; } = Guid.Empty;
+        public Guid AgentModelId { get; set; } = Guid.Empty;
 
         public string OllamaApiUrl { get; set; } = "http://localhost:11434/v1/";
         public string OllamaModel { get; set; } = "qwen2.5:7b-instruct";

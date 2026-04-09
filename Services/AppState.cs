@@ -224,6 +224,13 @@ namespace LlmContextCollector.Services
             set => SetField(ref _chatModelId, value);
         }
 
+        private Guid _agentModelId = Guid.Empty;
+        public Guid AgentModelId
+        {
+            get => _agentModelId;
+            set => SetField(ref _agentModelId, value);
+        }
+
         private string _ollamaApiUrl = "http://localhost:11434/v1/";
         public string OllamaApiUrl
         {

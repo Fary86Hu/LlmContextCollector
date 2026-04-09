@@ -21,23 +21,27 @@ namespace LlmContextCollector.AI
             _logService = logService;
         }
 
-        public async Task<string> GenerateAsync(string prompt, CancellationToken ct = default)
+        public async Task<string> GenerateAsync(string prompt, IEnumerable<AttachedImage>? images = null, CancellationToken ct = default)
         {
             var apiKey = (_config.ApiKey ?? string.Empty).Trim();
-            var modelName = string.IsNullOrWhiteSpace(_config.ModelName) ? "gemini-3-flash" : _config.ModelName.Trim();
+            var modelName = string.IsNullOrWhiteSpace(_config.ModelName) ? "gemini-2.0-flash" : _config.ModelName.Trim();
 
-            // 2026-os stabil végpont
             var url = $"https://generativelanguage.googleapis.com/v1/models/{modelName}:generateContent?key={apiKey}";
+
+            var parts = new List<object> { new { text = prompt } };
+            if (images != null)
+            {
+                foreach (var img in images)
+                {
+                    var base64Parts = img.Base64Thumbnail.Split(',');
+                    var mime = base64Parts[0].Split(':')[1].Split(';')[0];
+                    parts.Add(new { inline_data = new { mime_type = mime, data = base64Parts[1] } });
+                }
+            }
 
             var requestBody = new
             {
-                contents = new[]
-                {
-                    new
-                    {
-                        parts = new[] { new { text = prompt } }
-                    }
-                },
+                contents = new[] { new { parts = parts.ToArray() } },
                 generationConfig = new
                 {
                     maxOutputTokens = _config.MaxOutputTokens <= 0 ? 8192 : _config.MaxOutputTokens,

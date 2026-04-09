@@ -89,7 +89,8 @@
                    PromptText="@_localAiPrompt"
                    SystemPrompt="@_localAiSystem"
                    FilesContext="@_localAiFiles"
-                   OnClose="OnLocalAiChatClose" />
+                   OnClose="OnLocalAiChatClose"
+                   OnApplyResponse="HandleChatApplyResponse" />
 
 <ExclusionsDialog IsVisible="_isExclusionsDialogVisible" 
                   OnClose="OnExclusionsDialogClose" 
