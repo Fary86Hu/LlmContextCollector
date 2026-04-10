@@ -1,6 +1,7 @@
 using LlmContextCollector.Components.Pages.HomePanels;
 using LlmContextCollector.Models;
 using Microsoft.JSInterop;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace LlmContextCollector.Services
@@ -82,36 +83,52 @@ namespace LlmContextCollector.Services
         {
             if (string.IsNullOrEmpty(_appState.ProjectRoot) || !_appState.IsGitRepository) return;
 
-            var devBranch = await GetDevelopmentBranchNameAsync();
-            var (success, output, _) = await _gitService.RunGitCommandAsync(new[] { "diff", "--name-only", $"{devBranch}...HEAD" });
-            
-            if (!success) return;
+            _appState.StatusText = "Módosított fájlok keresése...";
 
-            var modifiedFiles = output.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
-                                      .Select(f => f.Trim().Replace('\\', '/'))
-                                      .ToList();
-
-            if (!modifiedFiles.Any())
+            try
             {
-                _appState.StatusText = "Nincs változtatott fájl a branch nyitása óta.";
-                return;
-            }
+                var uncommitted = await GetDiffsAsync(DiffMode.Uncommitted);
+                var inBranch = await GetDiffsAsync(DiffMode.SinceBranchCreation);
 
-            int addedCount = 0;
-            foreach (var file in modifiedFiles)
-            {
-                var originalPath = $"[ORIGINAL]{file}";
-                if (!_appState.SelectedFilesForContext.Contains(originalPath))
+                var allModifiedPaths = uncommitted.Concat(inBranch)
+                    .Where(d => d.Status != DiffStatus.New)
+                    .Select(d => d.Path)
+                    .Distinct()
+                    .ToList();
+
+                if (!allModifiedPaths.Any())
                 {
-                    _appState.SelectedFilesForContext.Add(originalPath);
-                    addedCount++;
+                    _appState.StatusText = "Nincs módosított fájl (vagy csak új fájlok vannak).";
+                    return;
+                }
+
+                int addedCount = 0;
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    foreach (var path in allModifiedPaths)
+                    {
+                        var originalPath = $"[ORIGINAL]{path}";
+                        if (!_appState.SelectedFilesForContext.Contains(originalPath))
+                        {
+                            _appState.SelectedFilesForContext.Add(originalPath);
+                            addedCount++;
+                        }
+                    }
+                });
+
+                if (addedCount > 0)
+                {
+                    _appState.SaveContextListState();
+                    _appState.StatusText = $"{addedCount} fájl eredeti verziója hozzáadva.";
+                }
+                else
+                {
+                    _appState.StatusText = "Minden módosított fájl eredetije már szerepel a listában.";
                 }
             }
-
-            if (addedCount > 0)
+            catch (Exception ex)
             {
-                _appState.SaveContextListState();
-                _appState.StatusText = $"{addedCount} fájl eredeti verziója hozzáadva a listához.";
+                _appState.StatusText = $"Git hiba: {ex.Message}";
             }
         }
 

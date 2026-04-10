@@ -238,6 +238,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             long currentChars = 0;
             if (string.IsNullOrEmpty(AppState.ProjectRoot)) return;
 
+            string? devBranch = null;
+
             foreach (var fileRelPath in AppState.SelectedFilesForContext)
             {
                 if (fileRelPath.StartsWith("[ORIGINAL]"))
@@ -245,7 +247,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                     if (_originalSizeCache.TryGetValue(fileRelPath, out long sz)) currentChars += sz;
                     else
                     {
-                        var content = await GitService.GetFileContentAtBranchAsync(await GitWorkflowService.GetDevelopmentBranchNameAsync(), fileRelPath.Substring(10));
+                        devBranch ??= await GitWorkflowService.GetDevelopmentBranchNameAsync();
+                        var content = await GitService.GetFileContentAtBranchAsync(devBranch, fileRelPath.Substring(10));
                         _originalSizeCache[fileRelPath] = content.Length;
                         currentChars += content.Length;
                     }
@@ -256,6 +259,9 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                     if (File.Exists(fullPath)) currentChars += new FileInfo(fullPath).Length;
                 }
             }
+
+            UpdateSortedFiles();
+            SortFiles();
             _charCount = currentChars;
             _tokenCount = _charCount / 4;
             await InvokeAsync(StateHasChanged);
