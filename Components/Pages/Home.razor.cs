@@ -314,13 +314,22 @@ namespace LlmContextCollector.Components.Pages
 
         #region Context Menus & Exclude
 
-        private void ShowTreeContextMenu(MouseEventArgs e)
+        private async Task HandleTreeContextMenu((FileNode? Node, MouseEventArgs Args) payload)
         {
+            var node = payload.Node;
+            var e = payload.Args;
+
+            if (node != null && !node.IsSelectedInTree)
+            {
+                await HandleNodeClick((node, e));
+            }
+
             var selectedNodes = new List<FileNode>();
             Utils.FileTreeHelper.FindSelectedNodes(AppState.FileTree, selectedNodes);
+
             if (selectedNodes.Any())
             {
-                _selectedNodeForMenu = selectedNodes.LastOrDefault();
+                _selectedNodeForMenu = node ?? selectedNodes.LastOrDefault();
                 _showTreeContextMenu = true;
                 _showListContextMenu = false;
                 _contextMenuX = e.ClientX;

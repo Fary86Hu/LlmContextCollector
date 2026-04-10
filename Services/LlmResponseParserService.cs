@@ -21,15 +21,17 @@ namespace LlmContextCollector.Services
         {
             var parsedFilesDict = new Dictionary<string, ParsedFile>(StringComparer.OrdinalIgnoreCase);
 
-            var headerRegex = new Regex(@"^(?<type>Új Fájl|Fájl|Törölt Fájl|Átnevezett Fájl):\s*(?<path>[^\r\n]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
-            var matches = headerRegex.Matches(text);
+            text = text.Replace("\r\n", "\n").Replace("\r", "\n");
+
+            var headerRegex = new Regex(@"^(?:Új Fájl|Fájl|Törölt Fájl|Átnevezett Fájl):\s*(?<path>[^\r\n]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
+            var headerMatches = headerRegex.Matches(text);
 
             string globalExplanation = "";
             string nextFileExplanation = "";
 
-            if (matches.Count > 0)
+            if (headerMatches.Count > 0)
             {
-                var preamble = text.Substring(0, matches[0].Index);
+                var preamble = text.Substring(0, headerMatches[0].Index);
                 (globalExplanation, nextFileExplanation) = ExtractExplanationAndLog(preamble);
             }
             else
@@ -37,10 +39,10 @@ namespace LlmContextCollector.Services
                 globalExplanation = text.Trim();
             }
 
-            for (int i = 0; i < matches.Count; i++)
+            for (int i = 0; i < headerMatches.Count; i++)
             {
-                var match = matches[i];
-                var typeStr = match.Groups["type"].Value;
+                var match = headerMatches[i];
+                var fullLine = match.Value;
                 var rawPath = match.Groups["path"].Value.Trim().Replace('\\', '/');
 
                 var path = rawPath.StartsWith("./") ? rawPath.Substring(2) : rawPath;
@@ -49,15 +51,9 @@ namespace LlmContextCollector.Services
                 var status = DiffStatus.Modified;
                 string? oldPath = null;
 
-                if (typeStr.StartsWith("Új", StringComparison.OrdinalIgnoreCase))
-                {
-                    status = DiffStatus.New;
-                }
-                else if (typeStr.StartsWith("Törölt", StringComparison.OrdinalIgnoreCase))
-                {
-                    status = DiffStatus.Deleted;
-                }
-                else if (typeStr.StartsWith("Átnevezett", StringComparison.OrdinalIgnoreCase))
+                if (fullLine.StartsWith("Új", StringComparison.OrdinalIgnoreCase)) status = DiffStatus.New;
+                else if (fullLine.StartsWith("Törölt", StringComparison.OrdinalIgnoreCase)) status = DiffStatus.Deleted;
+                else if (fullLine.StartsWith("Átnevezett", StringComparison.OrdinalIgnoreCase))
                 {
                     status = DiffStatus.Renamed;
                     var pathParts = rawPath.Split(new[] { "->" }, StringSplitOptions.None);
@@ -69,20 +65,19 @@ namespace LlmContextCollector.Services
                 }
 
                 int contentStart = match.Index + match.Length;
-                int contentEnd = (i == matches.Count - 1) ? text.Length : matches[i + 1].Index;
+                int contentEnd = (i == headerMatches.Count - 1) ? text.Length : headerMatches[i + 1].Index;
 
                 string rawBlock = text.Substring(contentStart, contentEnd - contentStart);
-                var (codePart, nextLog) = ExtractExplanationAndLog(rawBlock);
+                var (codePart, fileLog) = ExtractExplanationAndLog(rawBlock);
                 string cleanCode = status == DiffStatus.Deleted ? string.Empty : RemoveMarkdownFences(codePart);
+
+                string combinedExplanation = (nextFileExplanation + "\n" + fileLog).Trim();
 
                 if (parsedFilesDict.TryGetValue(path, out var existing))
                 {
-                    if (!existing.NewContent.Contains(cleanCode))
-                    {
-                        existing.NewContent = (existing.NewContent + "\n" + cleanCode).Trim();
-                    }
-                    if (!string.IsNullOrWhiteSpace(nextFileExplanation))
-                        existing.Explanation = (existing.Explanation + "\n" + nextFileExplanation).Trim();
+                    existing.NewContent = (existing.NewContent + "\n" + cleanCode);
+                    if (!string.IsNullOrWhiteSpace(combinedExplanation))
+                        existing.Explanation = (existing.Explanation + "\n" + combinedExplanation).Trim();
                 }
                 else
                 {
@@ -92,11 +87,11 @@ namespace LlmContextCollector.Services
                         OldPath = oldPath,
                         NewContent = cleanCode,
                         Status = status,
-                        Explanation = nextFileExplanation
+                        Explanation = combinedExplanation
                     };
                 }
 
-                nextFileExplanation = nextLog;
+                nextFileExplanation = "";
             }
 
             return (globalExplanation, parsedFilesDict.Values.ToList());
@@ -113,22 +108,24 @@ namespace LlmContextCollector.Services
             if (logStart != -1 && logEnd != -1 && logEnd > logStart)
             {
                 string log = text.Substring(logStart + logStartMarker.Length, logEnd - (logStart + logStartMarker.Length)).Trim();
-                string content = text.Substring(0, logStart).Trim();
+                string content = text.Substring(0, logStart);
                 return (content, log);
             }
 
-            return (text.Trim(), "");
+            return (text, "");
         }
 
         private string RemoveMarkdownFences(string code)
         {
-            code = code.Trim();
+            code = code.Trim('\n', '\r');
+
             if (code.StartsWith("```"))
             {
                 int firstNewLine = code.IndexOf('\n');
                 if (firstNewLine != -1)
                 {
                     code = code.Substring(firstNewLine + 1);
+
                     int lastFence = code.LastIndexOf("```");
                     if (lastFence != -1)
                     {
@@ -136,7 +133,8 @@ namespace LlmContextCollector.Services
                     }
                 }
             }
-            return code.Trim();
+
+            return code.TrimEnd('\n', '\r', ' ', '\t');
         }
     }
 }

@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 
 namespace LlmContextCollector.Services
 {
@@ -168,7 +169,7 @@ namespace LlmContextCollector.Services
         {
             var (explanation, parsedFiles) = _llmResponseParserService.ParseResponse(clipboardText);
 
-            var locRegex = new System.Text.RegularExpressions.Regex(@"<data name=""[^""]+"" xml:space=""preserve"">[\s\S]*?</data>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var locRegex = new Regex(@"<data name=""[^""]+"" xml:space=""preserve"">[\s\S]*?</data>", RegexOptions.IgnoreCase);
             var locMatches = locRegex.Matches(clipboardText);
             var localizationFragment = string.Join("\n", locMatches.Select(m => m.Value));
 
@@ -248,33 +249,34 @@ namespace LlmContextCollector.Services
 
         private string ApplyPatches(string originalContent, string patchContent)
         {
-            string result = originalContent.Replace("\r\n", "\n");
-            string normalizedPatch = patchContent.Replace("\r\n", "\n");
+            string result = originalContent.Replace("\r\n", "\n").Replace("\r", "\n");
+            string normalizedPatch = patchContent.Replace("\r\n", "\n").Replace("\r", "\n");
 
-            string[] parts = normalizedPatch.Split(new[] { "<<<<<<< SEARCH" }, StringSplitOptions.None);
+            var blocks = Regex.Split(normalizedPatch, @"(?m)^<<<<<<< SEARCH\s*\n");
 
-            for (int i = 1; i < parts.Length; i++)
+            for (int i = 1; i < blocks.Length; i++)
             {
-                string block = parts[i];
-                string[] splitBlock = block.Split(new[] { "=======" }, StringSplitOptions.None);
-                if (splitBlock.Length < 2) continue;
+                string block = blocks[i];
 
-                string searchBlockRaw = splitBlock[0].TrimStart('\n').TrimEnd('\n');
-                string restOfBlock = string.Join("=======", splitBlock.Skip(1));
-                string[] replaceSplit = restOfBlock.Split(new[] { ">>>>>>> REPLACE" }, StringSplitOptions.None);
-                if (replaceSplit.Length < 1) continue;
+                var midMatch = Regex.Match(block, @"(?m)^\s*=======\s*\n");
+                var endMatch = Regex.Match(block, @"(?m)^\s*>>>>>>> REPLACE\s*(\n|$)");
 
-                string replaceBlock = replaceSplit[0].TrimStart('\n').TrimEnd('\n');
+                if (!midMatch.Success || !endMatch.Success) continue;
 
-                int index = FindRobustMatch(result, searchBlockRaw);
+                string searchBlock = block.Substring(0, midMatch.Index);
+                string replaceBlock = block.Substring(midMatch.Index + midMatch.Length, endMatch.Index - (midMatch.Index + midMatch.Length));
+
+                if (searchBlock.EndsWith("\n")) searchBlock = searchBlock.Substring(0, searchBlock.Length - 1);
+                if (replaceBlock.EndsWith("\n")) replaceBlock = replaceBlock.Substring(0, replaceBlock.Length - 1);
+
+                int index = FindRobustMatch(result, searchBlock);
 
                 if (index == -1)
                 {
-                    throw new Exception($"SEARCH blokk nem található (#{i}). A tartalom vagy az indentáció eltér a fájlban lévőtől.");
+                    throw new Exception($"SEARCH blokk nem található (#{i}). Ellenőrizze a fájl tartalmát és a behúzásokat.");
                 }
 
-                int matchLength = GetMatchLength(result, index, searchBlockRaw);
-                result = result.Remove(index, matchLength).Insert(index, replaceBlock);
+                result = result.Remove(index, searchBlock.Length).Insert(index, replaceBlock);
             }
 
             return result;
@@ -304,28 +306,13 @@ namespace LlmContextCollector.Services
 
                 if (match)
                 {
-                    return contentLines.Take(i).Sum(s => s.Length + 1);
+                    int charPos = 0;
+                    for (int k = 0; k < i; k++) charPos += contentLines[k].Length + 1;
+                    return charPos;
                 }
             }
 
             return -1;
-        }
-
-        private int GetMatchLength(string content, int startIndex, string searchBlock)
-        {
-            var searchLinesCount = searchBlock.Split('\n').Length;
-            int currentPos = startIndex;
-            int linesFound = 0;
-
-            while (linesFound < searchLinesCount && currentPos < content.Length)
-            {
-                if (content[currentPos] == '\n') linesFound++;
-                currentPos++;
-            }
-
-            if (linesFound < searchLinesCount && currentPos == content.Length) return content.Length - startIndex;
-
-            return currentPos - startIndex - (linesFound > searchLinesCount ? 1 : 0);
         }
     }
 }

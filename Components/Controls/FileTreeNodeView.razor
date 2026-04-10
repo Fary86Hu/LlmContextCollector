@@ -1,6 +1,11 @@
 @if (Node != null && Node.IsVisible)
 {
-    <div id="@ElementId" class="tree-node @(Node.IsSelectedInTree ? "selected" : "")" style="@($"padding-left: {Level * 20}px")" @onclick="(e) => OnNodeClick.InvokeAsync((Node, e))">
+    <div id="@ElementId" 
+         class="tree-node @(Node.IsSelectedInTree ? "selected" : "")" 
+         style="@($"padding-left: {Level * 20}px")" 
+         @onclick="(e) => OnNodeClick.InvokeAsync((Node, e))"
+         @oncontextmenu="(e) => OnNodeContextMenu.InvokeAsync((Node, e))"
+         @oncontextmenu:preventDefault>
         <span @onclick="ToggleExpand" @onclick:stopPropagation class="node-expander">
             @if (Node.IsDirectory)
             {
@@ -25,7 +30,7 @@
     {
         foreach (var child in Node.Children)
         {
-            <FileTreeNodeView Node="child" Level="Level + 1" OnNodeClick="OnNodeClick" />
+            <FileTreeNodeView Node="child" Level="Level + 1" OnNodeClick="OnNodeClick" OnNodeContextMenu="OnNodeContextMenu" />
         }
     }
 }
@@ -39,6 +44,9 @@
 
     [Parameter]
     public EventCallback<(FileNode Node, MouseEventArgs Args)> OnNodeClick { get; set; }
+
+    [Parameter]
+    public EventCallback<(FileNode Node, MouseEventArgs Args)> OnNodeContextMenu { get; set; }
 
     private string ElementId => "filenode-" + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(Node.FullPath))
         .Replace("=", "")

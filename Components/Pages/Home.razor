@@ -7,7 +7,7 @@
 
         <FileTreePanel OnRequestApplyFiltersAndReload="() => ApplyFiltersAndReload(true)"
                        OnLoadHistoryEntry="LoadHistoryEntry"
-                       OnShowTreeContextMenu="ShowTreeContextMenu"
+                       OnShowTreeContextMenu="HandleTreeContextMenu"
                        OnNodeClick="HandleNodeClick"
                        OnShowDiffDialog="() => ProcessGitDiffAsync()"
                        OnAzureDevOpsAttach="() => _isAzureDevOpsDialogVisible = true" />

@@ -30,7 +30,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         public EventCallback<HistoryEntry> OnLoadHistoryEntry { get; set; }
 
         [Parameter]
-        public EventCallback<MouseEventArgs> OnShowTreeContextMenu { get; set; }
+        public EventCallback<(FileNode? Node, MouseEventArgs Args)> OnShowTreeContextMenu { get; set; }
 
         [Parameter]
         public EventCallback<(FileNode Node, MouseEventArgs Args)> OnNodeClick { get; set; }

@@ -39,12 +39,12 @@
         <button @onclick="() => FindNext(false)" class="icon-btn" disabled="@(string.IsNullOrWhiteSpace(AppState.SearchTerm))" title="Következő találat">▼</button>
         <button @onclick="ClearSearch" class="icon-btn clear-btn" title="Törlés">&times;</button>
     </div>
-    <div class="tree-view-container" @oncontextmenu="e => OnShowTreeContextMenu.InvokeAsync(e)" @oncontextmenu:preventDefault>
+    <div class="tree-view-container" @oncontextmenu="e => OnShowTreeContextMenu.InvokeAsync((null, e))" @oncontextmenu:preventDefault>
         @if (AppState.FileTree.Any())
         {
             foreach (var node in AppState.FileTree)
             {
-                <FileTreeNodeView Node="node" OnNodeClick="HandleNodeClick" />
+                <FileTreeNodeView Node="node" OnNodeClick="HandleNodeClick" OnNodeContextMenu="e => OnShowTreeContextMenu.InvokeAsync(e)" />
             }
         }
         else
