@@ -25,6 +25,7 @@ namespace LlmContextCollector.Models
         Accepted,
         Error,
         NewFromModified,
-        Renamed
+        Renamed,
+        AlreadyApplied
     }
 }

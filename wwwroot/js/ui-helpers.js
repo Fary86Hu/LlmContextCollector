@@ -1,3 +1,23 @@
+function selectTextInTextarea(elementId, term) {
+    const textarea = document.getElementById(elementId);
+    if (!textarea || !term) return;
+
+    const text = textarea.value;
+    const index = text.toLowerCase().indexOf(term.toLowerCase());
+
+    if (index !== -1) {
+        textarea.focus();
+        textarea.setSelectionRange(index, index + term.length);
+
+        // Görgetés a találathoz
+        const fullHeight = textarea.scrollHeight;
+        const totalChars = text.length;
+        const targetPos = (index / totalChars) * fullHeight;
+        
+        textarea.scrollTop = targetPos - (textarea.offsetHeight / 2);
+    }
+}
+
 window.scrollToBottom = (elementId) => {
     const element = document.getElementById(elementId);
     if (element) {

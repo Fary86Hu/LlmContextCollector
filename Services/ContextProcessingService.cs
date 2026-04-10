@@ -204,16 +204,29 @@ namespace LlmContextCollector.Services
                     oldContent = await File.ReadAllTextAsync(sourceFullPath);
                     if ((status == DiffStatus.Modified || status == DiffStatus.Renamed) && finalNewContent.Contains("<<<<<<< SEARCH"))
                     {
-                        try
+                        var patchSummary = ApplyPatches(oldContent, finalNewContent);
+                        finalNewContent = patchSummary.UpdatedContent;
+
+                        var errors = patchSummary.BlockResults.Where(r => !r.Success).ToList();
+                        var alreadyPresent = patchSummary.BlockResults.Where(r => r.AlreadyPresent).ToList();
+                        var applied = patchSummary.BlockResults.Where(r => r.Success && !r.AlreadyPresent).ToList();
+
+                        if (errors.Any())
                         {
-                            finalNewContent = ApplyPatches(oldContent, finalNewContent);
-                        }
-                        catch (Exception ex)
-                        {
-                            fileData.Explanation += $"\n[HIBA: {ex.Message}]";
+                            status = DiffStatus.Error;
                             patchFailed = true;
-                            failedPatchContent = finalNewContent;
-                            finalNewContent = oldContent;
+                            failedPatchContent = fileData.NewContent; // Az eredeti SEARCH/REPLACE blokkokat őrizzük meg a javításhoz
+                            fileData.Explanation += "\n" + string.Join("\n", errors.Select(e => "[HIBA: " + e.ErrorMessage + "]"));
+                            finalNewContent = oldContent; // Hiba esetén ne rontsuk el a fájlt félkész patchekkel
+                        }
+                        else if (applied.Count == 0 && alreadyPresent.Any())
+                        {
+                            status = DiffStatus.AlreadyApplied;
+                            fileData.Explanation = (fileData.Explanation + "\n[INFO: Minden módosítás szerepel már a fájlban.]").Trim();
+                        }
+                        else if (alreadyPresent.Any())
+                        {
+                            fileData.Explanation = (fileData.Explanation + $"\n[INFO: {alreadyPresent.Count} blokk már korábban alkalmazva lett, {applied.Count} blokk frissítve.]").Trim();
                         }
                     }
                 }
@@ -247,17 +260,20 @@ namespace LlmContextCollector.Services
             return new DiffResultArgs(explanation, diffResults, clipboardText, originalPrompt: "", localizationData: localizationFragment);
         }
 
-        private string ApplyPatches(string originalContent, string patchContent)
+        private record BlockResult(bool Success, bool AlreadyPresent, string ErrorMessage = "");
+        private record PatchSummary(string UpdatedContent, List<BlockResult> BlockResults);
+
+        private PatchSummary ApplyPatches(string originalContent, string patchContent)
         {
             string result = originalContent.Replace("\r\n", "\n").Replace("\r", "\n");
             string normalizedPatch = patchContent.Replace("\r\n", "\n").Replace("\r", "\n");
 
             var blocks = Regex.Split(normalizedPatch, @"(?m)^<<<<<<< SEARCH\s*\n");
+            var blockResults = new List<BlockResult>();
 
             for (int i = 1; i < blocks.Length; i++)
             {
                 string block = blocks[i];
-
                 var midMatch = Regex.Match(block, @"(?m)^\s*=======\s*\n");
                 var endMatch = Regex.Match(block, @"(?m)^\s*>>>>>>> REPLACE\s*(\n|$)");
 
@@ -271,15 +287,26 @@ namespace LlmContextCollector.Services
 
                 int index = FindRobustMatch(result, searchBlock);
 
-                if (index == -1)
+                if (index != -1)
                 {
-                    throw new Exception($"SEARCH blokk nem található (#{i}). Ellenőrizze a fájl tartalmát és a behúzásokat.");
+                    result = result.Remove(index, searchBlock.Length).Insert(index, replaceBlock);
+                    blockResults.Add(new BlockResult(true, false));
                 }
-
-                result = result.Remove(index, searchBlock.Length).Insert(index, replaceBlock);
+                else
+                {
+                    // Ha a SEARCH nincs meg, megnézzük a REPLACE-t
+                    if (FindRobustMatch(result, replaceBlock) != -1)
+                    {
+                        blockResults.Add(new BlockResult(true, true));
+                    }
+                    else
+                    {
+                        blockResults.Add(new BlockResult(false, false, $"A(z) {i}. SEARCH blokk nem található, és a REPLACE tartalom sincs a fájlban."));
+                    }
+                }
             }
 
-            return result;
+            return new PatchSummary(result, blockResults);
         }
 
         private int FindRobustMatch(string content, string searchBlock)

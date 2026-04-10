@@ -56,6 +56,10 @@ namespace LlmContextCollector.Components.Dialogs
         
         private bool _isManualMergeMode = false;
         private string _manualMergeNewContent = string.Empty;
+        private string _mergeSearchTerm = string.Empty;
+        private List<string> _failedPatchLines = new();
+        private int _currentFailedLineIndex = -1;
+        private MarkupString _highlightedFailedPatch;
 
         private record DiffMarkerInfo(string Type, double TopPercent);
 
@@ -324,8 +328,52 @@ namespace LlmContextCollector.Components.Dialogs
         private void OpenManualMerge(DiffResult result)
         {
             _selectedResult = result;
-            _manualMergeNewContent = result.NewContent; 
+            _manualMergeNewContent = result.NewContent;
             _isManualMergeMode = true;
+            _mergeSearchTerm = "";
+            _currentFailedLineIndex = -1;
+
+            // Kiszűrjük a SEARCH/REPLACE markereket a navigációhoz
+            _failedPatchLines = result.FailedPatchContent
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(l => !l.Contains("<<<<<<< SEARCH") && !l.Contains("=======") && !l.Contains(">>>>>>> REPLACE"))
+                .ToList();
+            
+            UpdateMergeHighlighting();
+        }
+
+        private async Task NavigateFailedPatch(int direction)
+        {
+            if (!_failedPatchLines.Any()) return;
+
+            _currentFailedLineIndex += direction;
+            if (_currentFailedLineIndex < 0) _currentFailedLineIndex = _failedPatchLines.Count - 1;
+            if (_currentFailedLineIndex >= _failedPatchLines.Count) _currentFailedLineIndex = 0;
+
+            // Trimmeljük a kiválasztott sort (elejéről whitespace le)
+            _mergeSearchTerm = _failedPatchLines[_currentFailedLineIndex].TrimStart();
+            await UpdateMergeHighlighting();
+        }
+
+        private async Task UpdateMergeHighlighting()
+        {
+            if (_selectedResult == null) return;
+
+            if (string.IsNullOrWhiteSpace(_mergeSearchTerm))
+            {
+                _highlightedFailedPatch = new MarkupString(System.Web.HttpUtility.HtmlEncode(_selectedResult.FailedPatchContent));
+            }
+            else
+            {
+                var encoded = System.Web.HttpUtility.HtmlEncode(_selectedResult.FailedPatchContent);
+                var escapedSearch = System.Web.HttpUtility.HtmlEncode(_mergeSearchTerm);
+                var highlighted = Regex.Replace(encoded, Regex.Escape(escapedSearch), m => $"<span class=\"highlight\">{m.Value}</span>", RegexOptions.IgnoreCase);
+                _highlightedFailedPatch = new MarkupString(highlighted);
+
+                // Jobb oldali textarea kijelölése és görgetése
+                await JSRuntime.InvokeVoidAsync("selectTextInTextarea", "merge-editor-main", _mergeSearchTerm);
+                // Bal oldali nézet görgetése a találathoz (ID alapján nem tudjuk, mert több lehet, de a konténer görgethető marad)
+            }
         }
 
         private async Task SaveManualMerge()
@@ -460,7 +508,12 @@ namespace LlmContextCollector.Components.Dialogs
         private async Task CreateBranch() { if (!string.IsNullOrEmpty(_suggestedBranch)) await OnCreateBranch.InvokeAsync(_suggestedBranch); }
         private async Task Commit() { var acc = _localDiffResults.Where(r => r.IsSelectedForAccept).ToList(); if (acc.Any()) await OnCommit.InvokeAsync(new CommitAndPushArgs(_suggestedBranch, _suggestedCommit, acc)); }
         private async Task Push() => await OnPush.InvokeAsync(new CommitAndPushArgs(AppState.CurrentGitBranch, _suggestedCommit, _localDiffResults.Where(r => r.IsSelectedForAccept).ToList()));
-        private string GetStatusText(DiffResult r) => r.Status.ToString().ToUpper();
+        private string GetStatusText(DiffResult r) => r.Status switch
+        {
+            DiffStatus.AlreadyApplied => "MÁR SZEREPEL",
+            DiffStatus.NewFromModified => "ÚJ (FORRÁSBÓL)",
+            _ => r.Status.ToString().ToUpper()
+        };
         private string GetStatusClass(DiffResult r) => r.Status.ToString().ToLower();
         private async Task Close() { await OnClose.InvokeAsync(); }
         private async Task RevertSelectedHistoryChanges()

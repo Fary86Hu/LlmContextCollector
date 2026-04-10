@@ -35,7 +35,17 @@
                 {
                     <div class="manual-merge-view">
                         <div class="manual-merge-toolbar">
-                            <strong>Kézi beolvasztás: @_selectedResult.Path</strong>
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <strong>Kézi beolvasztás: @_selectedResult.Path</strong>
+                                <div style="display: flex; gap: 5px; align-items: center;">
+                                    <input type="text" placeholder="Keresés..." @bind="_mergeSearchTerm" @bind:event="oninput" @bind:after="UpdateMergeHighlighting" style="width: 250px; height: 24px; font-size: 11px;" />
+                                    <button class="icon-btn-small" @onclick="() => NavigateFailedPatch(-1)" title="Előző sor a patch-ből">▲</button>
+                                    <button class="icon-btn-small" @onclick="() => NavigateFailedPatch(1)" title="Következő sor a patch-ből">▼</button>
+                                    @if (_currentFailedLineIndex >= 0) {
+                                        <span style="font-size: 10px; color: var(--text-color-light);">Sor: @(_currentFailedLineIndex + 1)/@_failedPatchLines.Count</span>
+                                    }
+                                </div>
+                            </div>
                             <div style="display: flex; gap: 10px;">
                                 <button @onclick="CloseManualMerge">Mégsem</button>
                                 <button class="primary" @onclick="SaveManualMerge">Beolvasztás befejezése</button>
@@ -43,12 +53,14 @@
                         </div>
                         <div class="manual-merge-editors">
                             <div class="merge-editor-pane">
-                                <div class="editor-header">Sikertelen LLM Patch</div>
-                                <textarea class="merge-textarea" readonly>@_selectedResult.FailedPatchContent</textarea>
+                                <div class="editor-header">Sikertelen LLM Patch (Navigálható)</div>
+                                <div class="merge-textarea" style="overflow: auto; background-color: var(--input-disabled-bg-color);">
+                                    <pre style="margin:0; font-family: inherit; font-size: inherit; white-space: pre;">@_highlightedFailedPatch</pre>
+                                </div>
                             </div>
                             <div class="merge-editor-pane">
                                 <div class="editor-header">Végeredmény (Szerkeszthető)</div>
-                                <textarea class="merge-textarea" @bind="_manualMergeNewContent" @bind:event="oninput"></textarea>
+                                <textarea id="merge-editor-main" class="merge-textarea" @bind="_manualMergeNewContent" @bind:event="oninput"></textarea>
                             </div>
                         </div>
                     </div>

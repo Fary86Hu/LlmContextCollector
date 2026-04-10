@@ -292,6 +292,10 @@
         background-color: #4caf50;
     }
 
+    .status-badge.alreadyapplied {
+        background-color: #0078d4;
+    }
+
     .status-badge.error {
         background-color: #e76f51;
     }
