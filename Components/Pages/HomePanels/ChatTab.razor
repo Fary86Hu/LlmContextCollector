@@ -22,9 +22,19 @@
                 <input type="checkbox" @bind="AppState.OllamaShowThinking" /> Thinking
             </label>
         </div>
-        <button class="secondary btn-small" @onclick="ChatService.Clear">Chat ürítése</button>
-    </div>
-
+        <div class="chat-context-controls">
+             <label class="compact-check" title="Prompt küldése">
+                <input type="checkbox" checked="@AppState.ChatIncludePrompt" @onchange="async (e) => { AppState.ChatIncludePrompt = (bool)e.Value; await UpdateChatStats(); }" /> P
+            </label>
+            <label class="compact-check" title="System Prompt küldése">
+                <input type="checkbox" checked="@AppState.ChatIncludeSystem" @onchange="async (e) => { AppState.ChatIncludeSystem = (bool)e.Value; await UpdateChatStats(); }" /> S
+            </label>
+            <label class="compact-check @(AppState.IsContextDirty ? "dirty-pulse" : "")" title="Fájl kontextus küldése">
+                <input type="checkbox" checked="@AppState.ChatIncludeFiles" @onchange="async (e) => { AppState.ChatIncludeFiles = (bool)e.Value; await UpdateChatStats(); }" /> F
+                @if (AppState.IsContextDirty) { <span class="dirty-dot">●</span> }
+            </label>
+            <button class="secondary btn-small" @onclick="ChatService.Clear" title="Beszélgetés törlése">Ürítés</button>
+        </div>    </div>
     <div class="chat-messages-area" id="chat-tab-messages">
         @foreach (var msg in ChatService.Messages.Where(m => m.Role != "system"))
         {
@@ -49,12 +59,18 @@
     </div>
 
     <div class="chat-input-area">
-        <textarea id="chat-tab-input"
-                  class="chat-input" 
-                  @bind="_currentInput" 
-                  @bind:event="oninput" 
-                  @onkeydown="HandleKeyDown" 
-                  placeholder="Írj egy üzenetet... (Shift+Enter új sor, Enter küldés)"></textarea>
+        <div class="chat-input-wrapper">
+            <textarea id="chat-tab-input"
+                      class="chat-input" 
+                      @bind="_currentInput" 
+                      @bind:event="oninput" 
+                      @onkeydown="HandleKeyDown" 
+                      placeholder="Írj egy üzenetet... (Shift+Enter új sor, Enter küldés)"></textarea>
+            <div class="chat-stats-bar">
+                <span>@AppState.ChatCharCount.ToString("N0") karakter</span>
+                <span>~@AppState.ChatTokenCount.ToString("N0") token</span>
+            </div>
+        </div>
         <div class="input-actions">
             @if (ChatService.IsGenerating)
             {
@@ -70,50 +86,68 @@
 
 @code {
     [Parameter] public EventCallback<string> OnApplyResponse { get; set; }
-    private string _currentInput = string.Empty;
 
-    protected override void OnInitialized()
+    private string _currentInput = string.Empty;
+    protected override async Task OnInitializedAsync()
     {
         AppState.PropertyChanged += HandleAppStateChanged;
+        await ChatService.LoadHistoryAsync();
     }
-
     private async void HandleAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(AppState.ProjectRoot))
+        {
+            await ChatService.LoadHistoryAsync();
+        }
         if (e.PropertyName == nameof(AppState.OllamaShowThinking) || e.PropertyName == "CurrentResponseSnippet" || e.PropertyName == "Messages")
         {
             await InvokeAsync(StateHasChanged);
             await ScrollToBottom();
         }
     }
-
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter" && !e.ShiftKey)
         {
             await SendMessage();
         }
+        else
+        {
+            await UpdateChatStats();
+        }
     }
+    private async Task UpdateChatStats()
+    {
+        // Kiszámoljuk a teljes kontextus hosszát a beállított flagek alapján
+        var fullContext = await ContextProcessingService.BuildContextForClipboardAsync(
+            AppState.ChatIncludePrompt, 
+            AppState.ChatIncludeSystem, 
+            AppState.ChatIncludeFiles, 
+            AppState.SelectedFilesForContext);
 
-    private async Task SendMessage()
+        var totalChars = _currentInput.Length + (string.IsNullOrEmpty(fullContext) ? 0 : fullContext.Length);
+        
+        AppState.ChatCharCount = totalChars;
+        AppState.ChatTokenCount = totalChars / 4;
+        StateHasChanged();
+    }    private async Task SendMessage()
     {
         if (string.IsNullOrWhiteSpace(_currentInput) || ChatService.IsGenerating) return;
-
         var input = _currentInput;
         _currentInput = string.Empty;
-
+        
         var system = await PromptService.GetSystemPromptAsync();
         var files = await ContextProcessingService.BuildContextForClipboardAsync(false, false, true, AppState.SelectedFilesForContext);
-
-        await ChatService.SendMessageAsync(input, system, files);
-    }
-
-    private string GetFormattedResponse(string rawText, bool isGenerating)
+        
+        await ChatService.SendMessageAsync(input, system, files, forceRefreshContext: AppState.IsContextDirty);
+        await UpdateChatStats();
+    }    private string GetFormattedResponse(string rawText, bool isGenerating)
     {
         if (string.IsNullOrWhiteSpace(rawText)) return isGenerating ? "<span class=\"cursor-blink\">|</span>" : string.Empty;
-        string displayHtml;
+
+        string text = rawText;
         if (!AppState.OllamaShowThinking)
         {
-            var text = rawText;
             while (text.Contains("<think>"))
             {
                 int start = text.IndexOf("<think>");
@@ -121,20 +155,19 @@
                 if (end != -1) text = text.Remove(start, (end + 8) - start);
                 else text = text.Substring(0, start);
             }
-            displayHtml = System.Web.HttpUtility.HtmlEncode(text).Replace("\n", "<br />");
         }
-        else
-        {
-            var text = rawText.Replace("<think>", "___T_S___").Replace("</think>", "___T_E___");
-            displayHtml = System.Web.HttpUtility.HtmlEncode(text)
-                .Replace("___T_S___", "<div class=\"thinking-block\">")
-                .Replace("___T_E___", "</div>")
-                .Replace("\n", "<br />");
-        }
+        var escaped = System.Web.HttpUtility.HtmlEncode(text);
+
+        escaped = System.Text.RegularExpressions.Regex.Replace(escaped, "```([\\s\\S]*?)```", m =>
+            $"<pre class=\"chat-code-block\"><code>{m.Groups[1].Value.Trim()}</code></pre>");
+
+        escaped = System.Text.RegularExpressions.Regex.Replace(escaped, "\\*\\*(.*?)\\*\\*", "<strong>$1</strong>");
+        escaped = escaped.Replace("&lt;think&gt;", "<div class=\"thinking-block\">").Replace("&lt;/think&gt;", "</div>");
+        var displayHtml = escaped.Replace("\n", "<br />");
         if (isGenerating) displayHtml += "<span class=\"cursor-blink\">|</span>";
+
         return displayHtml;
     }
-
     private async Task ScrollToBottom()
     {
         if (AppState.ActiveTab == WorkbenchTab.Chat)
@@ -142,6 +175,5 @@
             try { await JSRuntime.InvokeVoidAsync("scrollToBottom", "chat-tab-messages"); } catch { }
         }
     }
-
     public void Dispose() => AppState.PropertyChanged -= HandleAppStateChanged;
 }

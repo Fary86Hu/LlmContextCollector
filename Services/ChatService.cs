@@ -2,6 +2,7 @@ using LlmContextCollector.AI;
 using LlmContextCollector.Models;
 using System.Collections.ObjectModel;
 using System.Text;
+using System.Text.Json;
 
 namespace LlmContextCollector.Services
 {
@@ -10,6 +11,7 @@ namespace LlmContextCollector.Services
         private readonly AppState _appState;
         private readonly OllamaService _ollamaService;
         private readonly AiProviderFactory _providerFactory;
+        private readonly JsonStorageService _storage;
 
         public ObservableCollection<ChatMessage> Messages { get; } = new();
         public bool IsGenerating { get; private set; }
@@ -17,31 +19,64 @@ namespace LlmContextCollector.Services
 
         private CancellationTokenSource? _cts;
 
-        public ChatService(AppState appState, OllamaService ollamaService, AiProviderFactory providerFactory)
+        public ChatService(AppState appState, OllamaService ollamaService, AiProviderFactory providerFactory, JsonStorageService storage)
         {
             _appState = appState;
             _ollamaService = ollamaService;
             _providerFactory = providerFactory;
+            _storage = storage;
         }
 
-        public async Task SendMessageAsync(string input, string systemPrompt, string filesContext)
+        private string GetStorageKey()
+        {
+            if (string.IsNullOrEmpty(_appState.ProjectRoot)) return "global_chat.json";
+            var hash = Convert.ToBase64String(Encoding.UTF8.GetBytes(_appState.ProjectRoot)).Replace("=", "").Replace("/", "_").Replace("+", "-");
+            return $"chat_history_{hash}.json";
+        }
+
+        public async Task LoadHistoryAsync()
+        {
+            Messages.Clear();
+            var history = await _storage.ReadFromFileAsync<List<ChatMessage>>(GetStorageKey());
+            if (history != null)
+            {
+                foreach (var msg in history) Messages.Add(msg);
+            }
+            _appState.NotifyStateChanged(nameof(Messages));
+        }
+
+        public async Task SaveHistoryAsync()
+        {
+            await _storage.WriteToFileAsync(GetStorageKey(), Messages.ToList());
+        }
+
+        public async Task SendMessageAsync(string input, string systemPrompt, string filesContext, bool forceRefreshContext = false)
         {
             if (string.IsNullOrWhiteSpace(input) || IsGenerating) return;
 
-            if (!Messages.Any())
+            bool shouldAddContext = !Messages.Any() || forceRefreshContext;
+
+            if (shouldAddContext)
             {
                 var sb = new StringBuilder();
-                sb.AppendLine("A feladatod kizárólag a feladat előkészítése. Segíts átgondolni a problémát, tisztázni a követelményeket. Tegyél fel kérdéseket.");
+                if (forceRefreshContext) sb.AppendLine("[KONTEXTUS FRISSÍTVE]");
+                else sb.AppendLine("A feladatod kizárólag a feladat előkészítése. Segíts átgondolni a problémát, tisztázni a követelményeket. Tegyél fel kérdéseket.");
+                
                 sb.AppendLine("\nKONTEXTUS:");
-                if (!string.IsNullOrWhiteSpace(systemPrompt)) sb.AppendLine($"\n--- Rendszerutasítások ---\n{systemPrompt}");
-                if (!string.IsNullOrWhiteSpace(_appState.PromptText)) sb.AppendLine($"\n--- Felhasználói Prompt ---\n{_appState.PromptText}");
-                if (!string.IsNullOrWhiteSpace(filesContext)) sb.AppendLine($"\n--- Fájlok tartalma ---\n{filesContext}");
+                if (_appState.ChatIncludeSystem && !string.IsNullOrWhiteSpace(systemPrompt)) 
+                    sb.AppendLine($"\n--- Rendszerutasítások ---\n{systemPrompt}");
+                
+                if (_appState.ChatIncludePrompt && !string.IsNullOrWhiteSpace(_appState.PromptText)) 
+                    sb.AppendLine($"\n--- Felhasználói Prompt ---\n{_appState.PromptText}");
+                
+                if (_appState.ChatIncludeFiles && !string.IsNullOrWhiteSpace(filesContext)) 
+                    sb.AppendLine($"\n--- Fájlok tartalma ---\n{filesContext}");
 
                 Messages.Add(new ChatMessage { Role = "system", Content = sb.ToString() });
+                _appState.IsContextDirty = false;
             }
 
-            Messages.Add(new ChatMessage { Role = "user", Content = input });
-            IsGenerating = true;
+            Messages.Add(new ChatMessage { Role = "user", Content = input });            IsGenerating = true;
             CurrentResponseSnippet = string.Empty;
             _cts = new CancellationTokenSource();
 
@@ -72,6 +107,7 @@ namespace LlmContextCollector.Services
                     var response = await provider.GenerateAsync(fullPromptSb.ToString(), null, _cts.Token);
                     Messages.Add(new ChatMessage { Role = "assistant", Content = response });
                 }
+                await SaveHistoryAsync();
             }
             catch (OperationCanceledException)
             {
@@ -93,16 +129,11 @@ namespace LlmContextCollector.Services
 
         public void Abort() => _cts?.Cancel();
 
-        public void Clear()
+        public async Task Clear()
         {
             Messages.Clear();
+            await SaveHistoryAsync();
             _appState.NotifyStateChanged(nameof(Messages));
-        }
-
-        public class ChatMessage
-        {
-            public string Role { get; set; } = string.Empty;
-            public string Content { get; set; } = string.Empty;
         }
     }
 }

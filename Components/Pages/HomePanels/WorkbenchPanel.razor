@@ -1,11 +1,12 @@
 @using LlmContextCollector.Models
 @using LlmContextCollector.Services
+@using System.ComponentModel
 @inject AppState AppState
 @inject BrowserService BrowserService
+@inject IJSRuntime JSRuntime
 @implements IDisposable
 
-<div class="panel panel-right workbench-container">
-    <div class="workbench-header">
+<div class="panel panel-right workbench-container">    <div class="workbench-header">
         <div class="workbench-tabs">
             <div class="workbench-tab @(AppState.ActiveTab == WorkbenchTab.Chat ? "active" : "")" 
                  @onclick="() => AppState.ActiveTab = WorkbenchTab.Chat">
@@ -49,10 +50,35 @@
     protected override void OnInitialized()
     {
         BrowserService.OnContentExtracted += HandleBrowserContentExtracted;
+        AppState.PropertyChanged += HandleAppStateChanged;
     }
 
-    private async Task HandleBrowserContentExtracted(string content)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            await ApplyTheme();
+        }
+    }
+
+    private async void HandleAppStateChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppState.Theme))
+        {
+            await InvokeAsync(ApplyTheme);
+        }
+    }
+
+    private async Task ApplyTheme()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("setTheme", AppState.Theme);
+        }
+        catch { }
+    }
+
+    private async Task HandleBrowserContentExtracted(string content)    {
         if (string.IsNullOrWhiteSpace(content)) return;
         
         // BEZÁRJUK a böngésző overlay-t a MAUI rétegben
@@ -97,5 +123,6 @@
     public void Dispose()
     {
         BrowserService.OnContentExtracted -= HandleBrowserContentExtracted;
+        AppState.PropertyChanged -= HandleAppStateChanged;
     }
 }

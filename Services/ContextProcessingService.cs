@@ -1,9 +1,5 @@
 using LlmContextCollector.Components.Pages.HomePanels;
 using LlmContextCollector.Models;
-using System.Text;
-
-using LlmContextCollector.Components.Pages.HomePanels;
-using LlmContextCollector.Models;
 using System;
 using System.IO;
 using System.Linq;
@@ -252,7 +248,6 @@ namespace LlmContextCollector.Services
 
         private string ApplyPatches(string originalContent, string patchContent)
         {
-            // Normalizáljuk a bemenetet: minden \r\n legyen \n
             string result = originalContent.Replace("\r\n", "\n");
             string normalizedPatch = patchContent.Replace("\r\n", "\n");
 
@@ -262,48 +257,75 @@ namespace LlmContextCollector.Services
             {
                 string block = parts[i];
                 string[] splitBlock = block.Split(new[] { "=======" }, StringSplitOptions.None);
-
                 if (splitBlock.Length < 2) continue;
 
-                // A blokkok belsejében is normalizálunk és levágjuk a felesleges kezdő/záró üres sorokat
-                string searchBlock = splitBlock[0].TrimStart('\n').TrimEnd('\n');
+                string searchBlockRaw = splitBlock[0].TrimStart('\n').TrimEnd('\n');
                 string restOfBlock = string.Join("=======", splitBlock.Skip(1));
-
                 string[] replaceSplit = restOfBlock.Split(new[] { ">>>>>>> REPLACE" }, StringSplitOptions.None);
                 if (replaceSplit.Length < 1) continue;
 
                 string replaceBlock = replaceSplit[0].TrimStart('\n').TrimEnd('\n');
 
-                int index = result.IndexOf(searchBlock);
-                
+                int index = FindRobustMatch(result, searchBlockRaw);
+
                 if (index == -1)
                 {
-                    // Ha nem találjuk, megpróbáljuk teljesen whitespace-mentesen a széleit
-                    string trimmedSearch = searchBlock.Trim();
-                    index = result.IndexOf(trimmedSearch);
-                    
-                    if (index == -1) 
-                    {
-                        // Utolsó esély: hátha csak a behúzás (indentáció) tér el a keresett blokk elején
-                        var lines = searchBlock.Split('\n');
-                        if (lines.Length > 0)
-                        {
-                            var firstLine = lines[0].Trim();
-                            var potentialIndex = result.IndexOf(firstLine);
-                            // Itt lehetne tovább finomítani, de egyelőre dobjunk hibát
-                        }
-                        throw new Exception($"SEARCH blokk nem található (#{i}). Kérlek ellenőrizd a karakterhelyes egyezést!");
-                    }
-                    result = result.Remove(index, trimmedSearch.Length).Insert(index, replaceBlock);
+                    throw new Exception($"SEARCH blokk nem található (#{i}). A tartalom vagy az indentáció eltér a fájlban lévőtől.");
                 }
-                else
+
+                int matchLength = GetMatchLength(result, index, searchBlockRaw);
+                result = result.Remove(index, matchLength).Insert(index, replaceBlock);
+            }
+
+            return result;
+        }
+
+        private int FindRobustMatch(string content, string searchBlock)
+        {
+            int idx = content.IndexOf(searchBlock);
+            if (idx != -1) return idx;
+
+            var contentLines = content.Split('\n');
+            var searchLines = searchBlock.Split('\n');
+
+            if (searchLines.Length == 0) return -1;
+
+            for (int i = 0; i <= contentLines.Length - searchLines.Length; i++)
+            {
+                bool match = true;
+                for (int j = 0; j < searchLines.Length; j++)
                 {
-                    result = result.Remove(index, searchBlock.Length).Insert(index, replaceBlock);
+                    if (contentLines[i + j].TrimEnd() != searchLines[j].TrimEnd())
+                    {
+                        match = false;
+                        break;
+                    }
+                }
+
+                if (match)
+                {
+                    return contentLines.Take(i).Sum(s => s.Length + 1);
                 }
             }
-            
-            // A végén visszaalakíthatjuk Windows formátumra, ha szükséges, de a legtöbb szerkesztő kezeli a \n-t
-            return result;
+
+            return -1;
+        }
+
+        private int GetMatchLength(string content, int startIndex, string searchBlock)
+        {
+            var searchLinesCount = searchBlock.Split('\n').Length;
+            int currentPos = startIndex;
+            int linesFound = 0;
+
+            while (linesFound < searchLinesCount && currentPos < content.Length)
+            {
+                if (content[currentPos] == '\n') linesFound++;
+                currentPos++;
+            }
+
+            if (linesFound < searchLinesCount && currentPos == content.Length) return content.Length - startIndex;
+
+            return currentPos - startIndex - (linesFound > searchLinesCount ? 1 : 0);
         }
     }
 }

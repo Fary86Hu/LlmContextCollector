@@ -17,8 +17,8 @@ namespace LlmContextCollector.Services
         public AppState(PromptService promptService)
         {
             _promptService = promptService;
+            SelectedFilesForContext.CollectionChanged += (s, e) => IsContextDirty = true;
         }
-
         private string _projectRoot = string.Empty;
         public string ProjectRoot
         {
@@ -44,8 +44,14 @@ namespace LlmContextCollector.Services
         public List<FileNode> FileTree => _fileTree;
         public ObservableCollection<string> SelectedFilesForContext { get; } = new();
 
-        public Dictionary<string, bool> ExtensionFilters { get; } = new()
+        private bool _isContextDirty = false;
+        public bool IsContextDirty
         {
+            get => _isContextDirty;
+            set => SetField(ref _isContextDirty, value);
+        }
+
+        public Dictionary<string, bool> ExtensionFilters { get; } = new()        {
             { ".razor", true }, { ".cs", true }, { ".js", true }, { ".css", true },
             { ".html", true }, { ".cshtml", true }, { ".json", true }, { ".xml", true },
             { ".txt", true }, { ".md", true }
@@ -386,8 +392,22 @@ namespace LlmContextCollector.Services
         private WorkbenchTab _activeTab = WorkbenchTab.Context;
         public WorkbenchTab ActiveTab { get => _activeTab; set => SetField(ref _activeTab, value); }
 
-        public void SaveContextListState()
-        {
+        private long _chatCharCount = 0;
+        public long ChatCharCount { get => _chatCharCount; set => SetField(ref _chatCharCount, value); }
+
+        private long _chatTokenCount = 0;
+        public long ChatTokenCount { get => _chatTokenCount; set => SetField(ref _chatTokenCount, value); }
+
+        private bool _chatIncludeFiles = true;
+        public bool ChatIncludeFiles { get => _chatIncludeFiles; set => SetField(ref _chatIncludeFiles, value); }
+
+        private bool _chatIncludeSystem = true;
+        public bool ChatIncludeSystem { get => _chatIncludeSystem; set => SetField(ref _chatIncludeSystem, value); }
+
+        private bool _chatIncludePrompt = true;
+        public bool ChatIncludePrompt { get => _chatIncludePrompt; set => SetField(ref _chatIncludePrompt, value); }
+
+        public void SaveContextListState()        {
             var currentState = SelectedFilesForContext.ToList();
             if (_contextListHistoryIndex < _contextListHistory.Count - 1)
             {
