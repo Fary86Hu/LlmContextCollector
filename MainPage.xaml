@@ -24,7 +24,7 @@
         </Grid.ColumnDefinitions>
 
         <!-- OSZLOP 0: Fő Blazor UI (FileTree + Context) -->
-        <BlazorWebView Grid.Column="0" HostPage="wwwroot/index.html">
+        <BlazorWebView Grid.Column="0" HostPage="wwwroot/index.html" VerticalOptions="Fill">
             <BlazorWebView.RootComponents>
                 <RootComponent Selector="#app" ComponentType="{x:Type local:Components.Routes}" />
             </BlazorWebView.RootComponents>
@@ -57,12 +57,12 @@
             </HorizontalStackLayout>
 
             <Grid Grid.Row="1">
-                <BlazorWebView x:Name="AiBlazorView" HostPage="wwwroot/index.html" IsVisible="True">
+                <BlazorWebView x:Name="AiBlazorView" HostPage="wwwroot/index.html" IsVisible="True" VerticalOptions="Fill">
                     <BlazorWebView.RootComponents>
                         <RootComponent Selector="#app" ComponentType="{x:Type local:Components.Pages.HomePanels.WorkbenchPanel}" />
                     </BlazorWebView.RootComponents>
                 </BlazorWebView>
-                <WebView x:Name="AiStudioWebView" Source="https://aistudio.google.com/" IsVisible="False" />
+                <WebView x:Name="AiStudioWebView" Source="https://aistudio.google.com/" IsVisible="False" VerticalOptions="Fill" />
             </Grid>
         </Grid>
 

@@ -491,6 +491,9 @@ namespace LlmContextCollector.Components.Dialogs
         private async Task DeleteLine()
         {
             if (_selectedResult == null || _contextMenuTargetLine == null || _contextMenuTargetLine.NewIndex == null) return;
+
+            double scrollPos = 0;
+            try { scrollPos = await JSRuntime.InvokeAsync<double>("getScrollPosition", "diff-view-container"); } catch { }
             
             var lines = _selectedResult.NewContent.Replace("\r\n", "\n").Split('\n').ToList();
             int index = _contextMenuTargetLine.NewIndex.Value;
@@ -500,7 +503,11 @@ namespace LlmContextCollector.Components.Dialogs
                 lines.RemoveAt(index);
                 _selectedResult.NewContent = string.Join("\n", lines);
                 _showContextMenu = false;
+                
                 await OnContentChanged();
+
+                await Task.Yield();
+                try { await JSRuntime.InvokeVoidAsync("setScrollPosition", "diff-view-container", scrollPos); } catch { }
             }
         }
 

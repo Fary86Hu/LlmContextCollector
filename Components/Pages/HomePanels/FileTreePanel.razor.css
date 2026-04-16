@@ -5,7 +5,8 @@
 }
 
 .tree-view-container {
-    flex-grow: 1;
+    flex: 1;
+    min-height: 0;
     overflow: auto;
     padding: 5px;
 }

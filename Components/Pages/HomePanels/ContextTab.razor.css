@@ -7,6 +7,7 @@
     min-height: 0;
     overflow: hidden;
     background-color: var(--bg-color);
+    position: relative;
 }
 
 .right-top-section {
@@ -14,6 +15,7 @@
     min-height: 100px;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .prompt-layout-horizontal {
@@ -21,6 +23,7 @@
     gap: 10px;
     flex: 1;
     min-height: 0;
+    overflow: hidden;
 }
 
 .prompt-sidebar {
@@ -143,12 +146,14 @@
     flex-direction: column;
     flex: 1;
     min-width: 0;
+    overflow: hidden;
 }
 
 .prompt-container {
     position: relative;
     flex: 1;
     display: flex;
+    min-height: 0;
 }
 
 .prompt-editor {
@@ -366,6 +371,7 @@
     padding-top: 8px;
     border-top: 1px solid var(--border-color);
     flex-shrink: 0;
+    min-height: min-content;
 }
 
 .main-actions {
@@ -373,6 +379,7 @@
     justify-content: space-between;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
 }
 
 .copy-group {
@@ -402,6 +409,7 @@
 .other-actions {
     display: flex;
     gap: 4px;
+    flex-shrink: 0;
 }
 
     .other-actions button {
@@ -516,25 +524,4 @@
 ::deep .highlight.current {
     background-color: #ff9800;
     box-shadow: 0 0 3px rgba(0,0,0,0.5);
-}
-
-::deep .ref-badge {
-    cursor: pointer;
-    padding: 0 2px;
-    border-bottom: 1px dashed var(--accent-color);
-    transition: background-color 0.2s;
-}
-
-::deep .ref-badge:hover {
-    background-color: var(--hover-bg-color);
-}
-
-::deep .ref-badge.ref-present {
-    color: var(--accent-color);
-    font-weight: bold;
-}
-
-::deep .ref-badge.ref-missing {
-    color: var(--text-color-light);
-    opacity: 0.8;
 }

@@ -287,13 +287,12 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             _currentSearchIndex = -1;
             _lastSearchTerm = AppState.SearchTerm;
 
-            if (_isFiltered)
-            {
-                FileTreeFilterService.ClearFileTreeFilter();
-                _isFiltered = false;
-            }
+            FileTreeFilterService.ClearFileTreeFilter();
+            _isFiltered = false;
 
             await ReselectNode(selectedNodePath);
+            AppState.NotifyStateChanged(nameof(AppState.FileTree));
+            StateHasChanged();
         }
         
         private string? GetSelectedNodePath()

@@ -131,14 +131,13 @@
         <div class="preview-header">
             <h4>Fájl Előnézet</h4>
             <div class="preview-search-controls">
-                <div class="ref-toggle"><input type="checkbox" id="chk-refs" checked="@_showReferences" @onchange="ToggleReferences" /><label for="chk-refs">Ref.</label></div>
-                <input type="text" placeholder="Keresés..." @bind="_previewSearchTerm" @bind:event="oninput" @onkeyup="HandlePreviewSearchKeyup" disabled="@_showReferences" />
+                <input type="text" placeholder="Keresés..." @bind="_previewSearchTerm" @bind:event="oninput" @onkeyup="HandlePreviewSearchKeyup" />
                 @if (_totalPreviewMatches > 0)
                 {
                     <span class="preview-match-counter">@_currentPreviewMatchIndex/@_totalPreviewMatches</span>
                 }
-                <button @onclick="FindPreviousInPreview" disabled="@(_totalPreviewMatches == 0 || _showReferences)">▲</button>
-                <button @onclick="FindNextInPreview" disabled="@(_totalPreviewMatches == 0 || _showReferences)">▼</button>
+                <button @onclick="FindPreviousInPreview" disabled="@(_totalPreviewMatches == 0)">▲</button>
+                <button @onclick="FindNextInPreview" disabled="@(_totalPreviewMatches == 0)">▼</button>
                 <button @onclick="ClearPreviewSearch" class="clear-btn">&times;</button>
             </div>
         </div>
@@ -199,6 +198,7 @@
             </div>
 
             <div class="other-actions">
+                <button class="copy-button secondary" @onclick="HandleGitDiffClick" title="Git változások ellenőrzése">Git Diff</button>
                 <button class="copy-button" @onclick="ProcessChangesFromClipboardAsync">Feldolgoz</button>
             </div>
         </div>

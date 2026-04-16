@@ -58,8 +58,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private int _currentPreviewMatchIndex = 0;
         private int _totalPreviewMatches = 0;
         private bool _isInitialPreviewSearch = true;
-        private bool _showReferences = false;
-        private Dictionary<string, string> _projectTypeMap = new(StringComparer.OrdinalIgnoreCase);
         private DotNetObjectReference<ContextTab>? _objRef;
         private string _copyButtonText = "Másolás";
         private bool _isBottomDropdownOpen = false;
@@ -106,7 +104,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             _ = UpdateCountsAsync();
             UpdateSortedFiles();
             SortFiles();
-            if (_showReferences) UpdatePreviewMarkup();
             InvokeAsync(StateHasChanged);
         }
 
@@ -369,6 +366,15 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 AppState.PromptText = res.Text + "\n\n" + AppState.PromptText;
                 foreach (var img in res.Images) AppState.AttachedImages.Add(img);
                 _adoWorkItemIdToLoad = null;
+
+                if (res.FailedImagesCount > 0)
+                {
+                    AppState.StatusText = $"Work item lekérve, de {res.FailedImagesCount} kép letöltése sikertelen volt, lásd a naplót!";
+                }
+                else
+                {
+                    AppState.StatusText = "Work item sikeresen lekérve.";
+                }
             }
             finally { AppState.HideLoading(); }
         }
@@ -396,6 +402,12 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         }
 
 
+        private async Task HandleGitDiffClick()
+        {
+            var args = await GitWorkflowService.PrepareGitDiffForReviewAsync(AppState.PromptText);
+            await OnShowDiffDialog.InvokeAsync(args);
+        }
+
         private async Task ProcessChangesFromClipboardAsync() { var t = await Clipboard.GetTextAsync(); if (!string.IsNullOrEmpty(t)) await RouteResponseAsync(t); }
 
         private async Task HandleGenerateRefinedPrompt(string qa)
@@ -414,31 +426,13 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private void ClearContextSearch() { _contextSearchTerm = ""; UpdateSortedFiles(); SortFiles(); }
 
         public async Task SearchInPreview(string term) { _previewSearchTerm = term; _isInitialPreviewSearch = true; UpdatePreviewMarkup(); await ScrollToCurrentPreviewMatch(); }
-        private async Task ToggleReferences(ChangeEventArgs e) { _showReferences = (bool)e.Value!; if (_showReferences) await BuildProjectFileMap(); UpdatePreviewMarkup(); }
-
-        private async Task BuildProjectFileMap()
-        {
-            _projectTypeMap.Clear();
-            void Scan(IEnumerable<FileNode> nodes) { foreach (var n in nodes) { if (n.IsDirectory) Scan(n.Children); else { var type = Path.GetFileNameWithoutExtension(n.Name); if (!_projectTypeMap.ContainsKey(type)) _projectTypeMap[type] = Path.GetRelativePath(AppState.ProjectRoot, n.FullPath).Replace('\\', '/'); } } }
-            Scan(AppState.FileTree);
-        }
-
-        [JSInvokable] public void OnReferenceClicked(string type) { if (_projectTypeMap.TryGetValue(type, out var path)) { if (AppState.SelectedFilesForContext.Contains(path)) AppState.SelectedFilesForContext.Remove(path); else AppState.SelectedFilesForContext.Add(path); AppState.SaveContextListState(); } }
 
         private void UpdatePreviewMarkup()
         {
             if (string.IsNullOrEmpty(_previewContent)) { _previewContentMarkup = new MarkupString(""); return; }
             var encoded = HttpUtility.HtmlEncode(_previewContent);
             
-            if (_showReferences)
-            {
-                var highlighted = Regex.Replace(encoded, @"\b[A-Z][a-zA-Z0-9_]*\b", m => 
-                    _projectTypeMap.TryGetValue(m.Value, out var relPath) 
-                    ? $"<span class=\"ref-badge {(AppState.SelectedFilesForContext.Contains(relPath) ? "ref-present" : "ref-missing")}\" data-type-name=\"{m.Value}\">{m.Value}</span>" 
-                    : m.Value);
-                _previewContentMarkup = new MarkupString(highlighted);
-            }
-            else if (!string.IsNullOrEmpty(_previewSearchTerm))
+            if (!string.IsNullOrEmpty(_previewSearchTerm))
             {
                 int count = 0; 
                 _totalPreviewMatches = Regex.Matches(encoded, Regex.Escape(_previewSearchTerm), RegexOptions.IgnoreCase).Count;

@@ -89,7 +89,7 @@ namespace LlmContextCollector.Services
             _appState.AdoDocsExist = newExist;
         }
 
-        public async Task<(string Text, List<AttachedImage> Images)> GetFormattedWorkItemAsync(int workItemId, int startIndex)
+        public async Task<(string Text, List<AttachedImage> Images, int FailedImagesCount)> GetFormattedWorkItemAsync(int workItemId, int startIndex)
         {
             _logService.LogInfo("ADO", $"Work Item {workItemId} lekérése indítva...");
 
@@ -108,6 +108,10 @@ namespace LlmContextCollector.Services
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
                 Convert.ToBase64String(Encoding.ASCII.GetBytes($":{pat}")));
 
+            var attachmentClient = _httpClientFactory.CreateClient("AzureDevOpsAttachment");
+            attachmentClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                Convert.ToBase64String(Encoding.ASCII.GetBytes($":{pat}")));
+
             var url = $"{orgUrl}/{encodedProject}/_apis/wit/workitems/{workItemId}?$expand=all&api-version=6.0";
             var response = await client.GetAsync(url);
             if (!response.IsSuccessStatusCode)
@@ -119,7 +123,7 @@ namespace LlmContextCollector.Services
             if (workItem == null)
             {
                 _logService.LogWarning("ADO", $"Work Item {workItemId} nem található vagy üres.");
-                return (string.Empty, new List<AttachedImage>());
+                return (string.Empty, new List<AttachedImage>(), 0);
             }
 
             // 1. Kommentek lekérése
@@ -180,7 +184,9 @@ namespace LlmContextCollector.Services
             // 3. LETÖLTÉS A MEGHATÁROZOTT SORRENDBEN
             var urlToAttachedImageMap = new Dictionary<string, AttachedImage>();
             var urlToIndexMap = new Dictionary<string, int>();
+            var failedImageIndexes = new HashSet<int>();
             var finalImagesToReturn = new List<AttachedImage>();
+            int failedImagesCount = 0;
 
             for (int i = 0; i < orderedImageUrls.Count; i++)
             {
@@ -194,13 +200,18 @@ namespace LlmContextCollector.Services
                 if (string.IsNullOrEmpty(urlId)) urlId = Guid.NewGuid().ToString("N").Substring(0, 8);
 
                 var uniqueFileNameForStorage = $"{workItemId}_{urlId}_{originalName}";
-                
-                var downloaded = await DownloadAttachmentAsync(client, currentUrl, uniqueFileNameForStorage, workItemId);
+
+                var downloaded = await DownloadAttachmentAsync(attachmentClient, currentUrl, uniqueFileNameForStorage, workItemId);
                 if (downloaded != null)
                 {
                     // A FileName a UI-ban maradjon meg, de a sorrend a lényeg
                     urlToAttachedImageMap[currentUrl] = downloaded;
                     finalImagesToReturn.Add(downloaded);
+                }
+                else
+                {
+                    failedImageIndexes.Add(index);
+                    failedImagesCount++;
                 }
             }
 
@@ -212,7 +223,7 @@ namespace LlmContextCollector.Services
                 foreach (var comment in commentsData.Comments.OrderBy(c => c.CreatedDate))
                 {
                     commentsText.AppendLine($"[{comment.CreatedDate:yyyy-MM-dd HH:mm}] {comment.CreatedBy?.DisplayName}:");
-                    commentsText.AppendLine(ProcessHtmlWithImageMarkers(comment.Text, urlToIndexMap));
+                    commentsText.AppendLine(ProcessHtmlWithImageMarkers(comment.Text, urlToIndexMap, failedImageIndexes));
                     commentsText.AppendLine("---");
                 }
             }
@@ -224,20 +235,20 @@ namespace LlmContextCollector.Services
             sb.AppendLine($"Állapot: {GetFieldAsString(workItem, "System.State")}");
 
             sb.AppendLine("\nLeírás:");
-            sb.AppendLine(ProcessHtmlWithImageMarkers(GetFieldAsString(workItem, "System.Description"), urlToIndexMap));
+            sb.AppendLine(ProcessHtmlWithImageMarkers(GetFieldAsString(workItem, "System.Description"), urlToIndexMap, failedImageIndexes));
 
             var reproSteps = GetFieldAsString(workItem, "Microsoft.VSTS.TCM.ReproSteps");
             if (!string.IsNullOrWhiteSpace(reproSteps))
             {
                 sb.AppendLine("\nRepro lépések:");
-                sb.AppendLine(ProcessHtmlWithImageMarkers(reproSteps, urlToIndexMap));
+                sb.AppendLine(ProcessHtmlWithImageMarkers(reproSteps, urlToIndexMap, failedImageIndexes));
             }
 
             var ac = GetFieldAsString(workItem, "Microsoft.VSTS.Common.AcceptanceCriteria");
             if (!string.IsNullOrWhiteSpace(ac))
             {
                 sb.AppendLine("\nElfogadási kritériumok:");
-                sb.AppendLine(ProcessHtmlWithImageMarkers(ac, urlToIndexMap));
+                sb.AppendLine(ProcessHtmlWithImageMarkers(ac, urlToIndexMap, failedImageIndexes));
             }
 
             if (commentsText.Length > 0)
@@ -245,22 +256,39 @@ namespace LlmContextCollector.Services
                 sb.AppendLine(commentsText.ToString());
             }
 
-            return (sb.ToString(), finalImagesToReturn);
+            return (sb.ToString(), finalImagesToReturn, failedImagesCount);
         }
 
         private async Task<AttachedImage?> DownloadAttachmentAsync(HttpClient client, string url, string fileName, int workItemId)
         {
+            HttpResponseMessage? resp = null;
             try
             {
                 _logService.LogInfo("ADO", $"Letöltés indítása: {fileName}");
-                using var resp = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-                if (!resp.IsSuccessStatusCode) 
+                resp = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+
+                if (resp.StatusCode == System.Net.HttpStatusCode.Found ||
+                    resp.StatusCode == System.Net.HttpStatusCode.MovedPermanently ||
+                    resp.StatusCode == System.Net.HttpStatusCode.Redirect ||
+                    resp.StatusCode == System.Net.HttpStatusCode.TemporaryRedirect)
+                {
+                    var redirectUrl = resp.Headers.Location;
+                    if (redirectUrl != null)
+                    {
+                        var absoluteRedirectUrl = redirectUrl.IsAbsoluteUri ? redirectUrl : new Uri(new Uri(url), redirectUrl);
+                        _logService.LogInfo("ADO", $"Átirányítás követése (Auth nélkül): {absoluteRedirectUrl}");
+                        using var noAuthClient = _httpClientFactory.CreateClient();
+                        resp.Dispose();
+                        resp = await noAuthClient.GetAsync(absoluteRedirectUrl, HttpCompletionOption.ResponseHeadersRead);
+                    }
+                }
+
+                if (!resp.IsSuccessStatusCode)
                 {
                     _logService.LogError("ADO", $"Hiba a letöltéskor ({resp.StatusCode}): {fileName}");
                     return null;
                 }
 
-                // Tartalomtípus ellenőrzése a fejlécből
                 var contentType = resp.Content.Headers.ContentType?.MediaType;
                 if (contentType == null || !contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
                 {
@@ -270,8 +298,8 @@ namespace LlmContextCollector.Services
 
                 var contentLength = resp.Content.Headers.ContentLength ?? 0;
                 _logService.LogInfo("ADO", $"Fájl mérete: {contentLength} byte. ({fileName})");
-                
-                if (contentLength > 30 * 1024 * 1024) 
+
+                if (contentLength > 30 * 1024 * 1024)
                 {
                     _logService.LogWarning("ADO", $"Túl nagy fájl (>30MB), letöltés megszakítva: {fileName}");
                     return null;
@@ -279,7 +307,7 @@ namespace LlmContextCollector.Services
 
                 var bytes = await resp.Content.ReadAsByteArrayAsync();
                 _logService.LogInfo("ADO", $"Sikeresen letöltve: {bytes.Length} byte. ({fileName})");
-                
+
                 var ext = Path.GetExtension(fileName).TrimStart('.').ToLower();
                 if (string.IsNullOrEmpty(ext)) ext = "png";
                 var mime = (ext == "png") ? "image/png" : "image/jpeg";
@@ -306,7 +334,15 @@ namespace LlmContextCollector.Services
                     Base64Thumbnail = base64Thumb
                 };
             }
-            catch { return null; }
+            catch (Exception ex)
+            {
+                _logService.LogError("ADO", $"Kivétel a letöltéskor: {ex.Message}");
+                return null;
+            }
+            finally
+            {
+                resp?.Dispose();
+            }
         }
 
         private List<string> ExtractImageUrlsFromHtml(string html)
@@ -327,7 +363,7 @@ namespace LlmContextCollector.Services
             return urls;
         }
 
-        private string ProcessHtmlWithImageMarkers(string html, Dictionary<string, int> urlToIndexMap)
+        private string ProcessHtmlWithImageMarkers(string html, Dictionary<string, int> urlToIndexMap, HashSet<int> failedImageIndexes)
         {
             if (string.IsNullOrWhiteSpace(html)) return string.Empty;
 
@@ -346,6 +382,8 @@ namespace LlmContextCollector.Services
                 }
 
                 if (index == -1) return " [KÉP: ismeretlen] ";
+
+                if (failedImageIndexes.Contains(index)) return $" [KÉP: {index} - LETÖLTÉS SIKERTELEN] ";
 
                 return $" [KÉP: {index}] ";
             }, RegexOptions.IgnoreCase);

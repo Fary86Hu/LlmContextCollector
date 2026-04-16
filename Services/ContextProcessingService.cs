@@ -268,16 +268,20 @@ namespace LlmContextCollector.Services
             string result = originalContent.Replace("\r\n", "\n").Replace("\r", "\n");
             string normalizedPatch = patchContent.Replace("\r\n", "\n").Replace("\r", "\n");
 
-            var blocks = Regex.Split(normalizedPatch, @"(?m)^<<<<<<< SEARCH\s*\n");
+            var blocks = Regex.Split(normalizedPatch, @"(?m)^[ \t]*<<<<<<< SEARCH[ \t]*\n?");
             var blockResults = new List<BlockResult>();
 
             for (int i = 1; i < blocks.Length; i++)
             {
                 string block = blocks[i];
-                var midMatch = Regex.Match(block, @"(?m)^\s*=======\s*\n");
-                var endMatch = Regex.Match(block, @"(?m)^\s*>>>>>>> REPLACE\s*(\n|$)");
+                var midMatch = Regex.Match(block, @"(?m)^[ \t]*=======[ \t]*\n?");
+                var endMatch = Regex.Match(block, @"(?m)^[ \t]*>>>>>>> REPLACE[ \t]*(\n|$)");
 
-                if (!midMatch.Success || !endMatch.Success) continue;
+                if (!midMatch.Success || !endMatch.Success) 
+                {
+                    blockResults.Add(new BlockResult(false, false, $"A(z) {i}. SEARCH blokk szintaktikailag hibás (hiányzik a ======= vagy a >>>>>>> REPLACE)."));
+                    continue;
+                }
 
                 string searchBlock = block.Substring(0, midMatch.Index);
                 string replaceBlock = block.Substring(midMatch.Index + midMatch.Length, endMatch.Index - (midMatch.Index + midMatch.Length));

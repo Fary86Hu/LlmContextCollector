@@ -117,9 +117,9 @@ namespace LlmContextCollector.Services
                 foreach (var node in nodes)
                 {
                     node.IsVisible = true;
-                    node.IsExpanded = false;
                     node.IsContentMatch = false;
                     node.IsPathMatch = false;
+                    
                     if (node.IsDirectory)
                     {
                         UpdateVisibility(node.Children);
@@ -127,6 +127,7 @@ namespace LlmContextCollector.Services
                 }
             }
             UpdateVisibility(_appState.FileTree);
+            _appState.NotifyStateChanged(nameof(_appState.FileTree));
             _appState.StatusText = "Szűrés törölve, fa nézet visszaállítva.";
         }
     }

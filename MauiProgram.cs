@@ -82,6 +82,11 @@ namespace LlmContextCollector
                 c.Timeout = TimeSpan.FromSeconds(30);
             });
 
+            builder.Services.AddHttpClient("AzureDevOpsAttachment", c =>
+            {
+                c.Timeout = TimeSpan.FromSeconds(30);
+            }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+
             builder.Services.AddSingleton<AiProviderFactory>();
 
             return builder.Build();

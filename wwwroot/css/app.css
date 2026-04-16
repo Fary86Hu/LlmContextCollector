@@ -121,6 +121,7 @@ input[type="text"], input[type="number"], select, textarea {
 
 .toolbar {
     display: flex;
+    flex-wrap: wrap;
     padding: 5px;
     background-color: var(--toolbar-bg);
     border-bottom: 1px solid var(--border-color);

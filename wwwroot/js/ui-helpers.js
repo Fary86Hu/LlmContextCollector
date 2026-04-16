@@ -40,6 +40,16 @@ window.scrollToElementInContainer = (containerId, elementId) => {
     }
 };
 
+window.getScrollPosition = (elementId) => {
+    const el = document.getElementById(elementId);
+    return el ? el.scrollTop : 0;
+};
+
+window.setScrollPosition = (elementId, position) => {
+    const el = document.getElementById(elementId);
+    if (el) el.scrollTop = position;
+};
+
 window.setTheme = (theme) => {
     if (theme === 'System') {
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;

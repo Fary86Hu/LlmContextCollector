@@ -228,7 +228,7 @@
                         }
                         
                         <div class="diff-content-wrapper">
-                            <div class="diff-content unified-diff-list">
+                            <div id="diff-view-container" class="diff-content unified-diff-list">
                                 @foreach (var line in _unifiedDiffLines)
                                 {
                                     <div class="diff-row @GetDiffLineClass(line)" @oncontextmenu="(e) => ShowLineContextMenu(e, line)" @oncontextmenu:preventDefault>
