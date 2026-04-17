@@ -10,11 +10,13 @@ namespace LlmContextCollector.Services
     {
         private readonly AppState _appState;
         private readonly ReferenceFinderService _referenceFinder;
+        private readonly LocalizationService _localizationService;
 
-        public FileContextService(AppState appState, ReferenceFinderService referenceFinder)
+        public FileContextService(AppState appState, ReferenceFinderService referenceFinder, LocalizationService localizationService)
         {
             _appState = appState;
             _referenceFinder = referenceFinder;
+            _localizationService = localizationService;
         }
 
         public async Task AddSelectedTreeNodesToContextAsync()
@@ -91,6 +93,19 @@ namespace LlmContextCollector.Services
                     var newReferencingCount = foundReferencing.Count(r => !currentFiles.Contains(r));
                     if (newReferencingCount > 0) statusMessageParts.Add($"{newReferencingCount} hivatkozó fájl");
                     currentFiles.UnionWith(foundReferencing);
+                }
+
+                if (_appState.SearchLocalizations && filesFromSelection.Any() && !string.IsNullOrEmpty(_appState.LocalizationResourcePath))
+                {
+                    var locResults = await _localizationService.ScanLocalizationsInFilesAsync(filesFromSelection.ToList(), projectRootPath, _appState.LocalizationResourcePath);
+                    if (locResults.Any())
+                    {
+                        if (!currentFiles.Contains("[LOCALIZATIONS]"))
+                        {
+                            currentFiles.Add("[LOCALIZATIONS]");
+                        }
+                        statusMessageParts.Add($"{locResults.Count} lokalizáció");
+                    }
                 }
 
                 var addedCount = currentFiles.Count - initialCount;

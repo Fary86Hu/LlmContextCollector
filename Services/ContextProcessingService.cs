@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace LlmContextCollector.Services
 {
@@ -16,16 +17,44 @@ namespace LlmContextCollector.Services
         private readonly LlmResponseParserService _llmResponseParserService;
         private readonly GitService _gitService;
         private readonly GitWorkflowService _gitWorkflowService;
+        private readonly LocalizationService _localizationService;
         private const string AdoFilePrefix = "[ADO]";
         private const string OriginalFilePrefix = "[ORIGINAL]";
 
-        public ContextProcessingService(AppState appState, PromptService promptService, LlmResponseParserService llmResponseParserService, GitService gitService, GitWorkflowService gitWorkflowService)
+        public ContextProcessingService(
+            AppState appState, 
+            PromptService promptService, 
+            LlmResponseParserService llmResponseParserService, 
+            GitService gitService, 
+            GitWorkflowService gitWorkflowService,
+            LocalizationService localizationService)
         {
             _appState = appState;
             _promptService = promptService;
             _llmResponseParserService = llmResponseParserService;
             _gitService = gitService;
             _gitWorkflowService = gitWorkflowService;
+            _localizationService = localizationService;
+        }
+
+        public async Task<string> GetAggregatedLocalizationsAsync(IEnumerable<string> contextFiles)
+        {
+            if (string.IsNullOrEmpty(_appState.LocalizationResourcePath)) return "Nincs beállítva lokalizációs fájl.";
+
+            var filesToScan = contextFiles.Where(f => f != "[LOCALIZATIONS]").ToList();
+            var locResults = await _localizationService.ScanLocalizationsInFilesAsync(filesToScan, _appState.ProjectRoot, _appState.LocalizationResourcePath);
+
+            if (!locResults.Any()) return "Nem található használt lokalizációs kulcs a kijelölt fájlokban.";
+
+            var sb = new StringBuilder();
+            sb.AppendLine("// --- PROJECT LOCALIZATIONS ---");
+            foreach (var loc in locResults)
+            {
+                var key = loc.Path.Replace("[LOC] ", "");
+                sb.AppendLine($"  <data name=\"{key}\" xml:space=\"preserve\"><value>{loc.NewContent}</value></data>");
+            }
+            sb.AppendLine("// --- END LOCALIZATIONS ---");
+            return sb.ToString();
         }
 
         public async Task<string> BuildContextForClipboardAsync(bool includePrompt, bool includeSystemPrompt, bool includeFiles, IEnumerable<string> sortedFilePaths)
@@ -70,8 +99,18 @@ namespace LlmContextCollector.Services
             if (includeFiles && _appState.SelectedFilesForContext.Any())
             {
                 if (sb.Length > 0) sb.AppendLine("\n\n// --- Kód Kontextus alább --- \n");
+
+                if (_appState.SelectedFilesForContext.Contains("[LOCALIZATIONS]"))
+                {
+                    var locContent = await GetAggregatedLocalizationsAsync(_appState.SelectedFilesForContext);
+                    sb.AppendLine(locContent);
+                    sb.AppendLine();
+                }
+
                 foreach (var fileRelPath in sortedFilePaths)
                 {
+                    if (fileRelPath == "[LOCALIZATIONS]") continue;
+
                     string fullPath;
                     string header;
 
@@ -109,6 +148,15 @@ namespace LlmContextCollector.Services
                             sb.AppendLine(header);
                             sb.AppendLine(await File.ReadAllTextAsync(fullPath));
                             sb.AppendLine();
+                        }
+                    }
+                    else if (fileRelPath.StartsWith("[LOC] ") && !string.IsNullOrEmpty(_appState.LocalizationResourcePath))
+                    {
+                        var key = fileRelPath.Substring(6);
+                        var value = await GetSingleResxValueAsync(_appState.LocalizationResourcePath, key);
+                        if (value != null)
+                        {
+                            sb.AppendLine($"  <data name=\"{key}\" xml:space=\"preserve\"><value>{value}</value></data>");
                         }
                     }
                 }
@@ -325,6 +373,23 @@ namespace LlmContextCollector.Services
             }
 
             return new PatchSummary(result, blockResults);
+        }
+
+        private async Task<string?> GetSingleResxValueAsync(string resxPath, string key)
+        {
+            try
+            {
+                if (!File.Exists(resxPath)) return null;
+                XDocument doc;
+                using (var stream = File.OpenRead(resxPath))
+                {
+                    doc = await Task.Run(() => XDocument.Load(stream));
+                }
+                return doc.Root?.Elements("data")
+                    .FirstOrDefault(e => e.Attribute("name")?.Value == key)
+                    ?.Element("value")?.Value;
+            }
+            catch { return null; }
         }
 
         private int FindRobustMatch(string content, string searchBlock)

@@ -145,6 +145,13 @@ namespace LlmContextCollector.Services
             set => SetField(ref _includeReferencingFiles, value);
         }
 
+        private bool _searchLocalizations = false;
+        public bool SearchLocalizations
+        {
+            get => _searchLocalizations;
+            set => SetField(ref _searchLocalizations, value);
+        }
+
         private string _promptText = string.Empty;
         public string PromptText
         {

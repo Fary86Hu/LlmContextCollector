@@ -210,7 +210,11 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
             try
             {
-                if (fileRelPath.StartsWith("[ORIGINAL]"))
+                if (fileRelPath == "[LOCALIZATIONS]")
+                {
+                    _previewContent = await ContextProcessingService.GetAggregatedLocalizationsAsync(AppState.SelectedFilesForContext);
+                }
+                else if (fileRelPath.StartsWith("[ORIGINAL]"))
                 {
                     var purePath = fileRelPath.Substring(10);
                     var devBranch = await GitWorkflowService.GetDevelopmentBranchNameAsync();
