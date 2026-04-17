@@ -2,6 +2,7 @@
 @using LlmContextCollector.Services
 @inject AppState AppState
 @inject BuildManagerService BuildManager
+@inject ProjectSettingsService ProjectSettingsService
 @implements IDisposable
 
 <div class="project-footer">
@@ -56,6 +57,13 @@
                         </select>
                     </div>
                 }
+                <div class="command-row">
+                    <span class="label">Lokalizáció (.resx):</span>
+                    <div style="display: flex; gap: 4px; flex: 1;">
+                        <input type="text" @bind="AppState.LocalizationResourcePath" class="path-edit-input" placeholder="Tallózzon egy .resx fájlt..." />
+                        <button class="icon-btn-mini" @onclick="PickResxFile" title="Tallózás">📂</button>
+                    </div>
+                </div>
             </div>
 
             <div class="footer-filters">
@@ -168,6 +176,37 @@
     {
         AppState.Exclusions.Remove(rule);
         UpdateAppState();
+    }
+
+    private async Task PickResxFile()
+    {
+        try
+        {
+            var result = await Microsoft.Maui.Storage.FilePicker.Default.PickAsync(new Microsoft.Maui.Storage.PickOptions
+            {
+                PickerTitle = "Válassz lokalizációs resource (.resx) fájlt",
+                FileTypes = new Microsoft.Maui.Storage.FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+                {
+                    { DevicePlatform.WinUI, new[] { ".resx" } }
+                })
+            });
+
+            if (result != null)
+            {
+                AppState.LocalizationResourcePath = result.FullPath;
+                await UpdateAppStateAndSaveAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            AppState.StatusText = $"Hiba a fájlválasztáskor: {ex.Message}";
+        }
+    }
+
+    private async Task UpdateAppStateAndSaveAsync()
+    {
+        UpdateAppState();
+        await ProjectSettingsService.SaveSettingsForProjectAsync(AppState.ProjectRoot);
     }
 
     public void Dispose()

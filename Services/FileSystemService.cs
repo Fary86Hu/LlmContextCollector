@@ -6,7 +6,14 @@ namespace LlmContextCollector.Services
     public class FileSystemService
     {
         private readonly AppState _appState;
+        private readonly AppLogService _logService;
         private List<string> _simpleNameIgnores = new();
+
+        public FileSystemService(AppState appState, AppLogService logService)
+        {
+            _appState = appState;
+            _logService = logService;
+        }
         private List<string> _relativePathIgnores = new();
         private List<Regex> _wildcardRegexes = new();
 
@@ -29,6 +36,7 @@ namespace LlmContextCollector.Services
         {
             return Task.Run(() =>
             {
+                _logService.LogInfo("FileSystem", "Könyvtár szkennelés indítva", rootPath);
                 BuildIgnoreList(rootPath);
                 var rootNode = new FileNode
                 {
@@ -96,6 +104,7 @@ namespace LlmContextCollector.Services
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            _logService.LogInfo("FileSystem", "Kizárási lista összeállítva", $"{uniquePatterns.Count} egyedi minta alapján.");
             foreach (var p in uniquePatterns)
             {
                 if (p.Contains('*') || p.Contains('?'))

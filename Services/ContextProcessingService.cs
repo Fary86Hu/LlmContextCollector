@@ -169,14 +169,28 @@ namespace LlmContextCollector.Services
         {
             var (explanation, parsedFiles) = _llmResponseParserService.ParseResponse(clipboardText);
 
-            var locRegex = new Regex(@"<data name=""[^""]+"" xml:space=""preserve"">[\s\S]*?</data>", RegexOptions.IgnoreCase);
+            var locRegex = new Regex(@"<data name=""(?<name>[^""]+)"" xml:space=""preserve"">\s*<value>(?<value>[\s\S]*?)<\/value>\s*</data>", RegexOptions.IgnoreCase);
             var locMatches = locRegex.Matches(clipboardText);
             var localizationFragment = string.Join("\n", locMatches.Select(m => m.Value));
 
-            if (!parsedFiles.Any() && string.IsNullOrEmpty(localizationFragment))
+            if (!parsedFiles.Any() && !locMatches.Any())
                 return new DiffResultArgs(explanation, new List<DiffResult>(), clipboardText, string.Empty);
 
             var diffResults = new List<DiffResult>();
+
+            foreach (Match match in locMatches)
+            {
+                var name = match.Groups["name"].Value;
+                var val = match.Groups["value"].Value;
+                diffResults.Add(new DiffResult
+                {
+                    Path = $"[LOC] {name}",
+                    NewContent = val,
+                    Status = DiffStatus.New,
+                    IsSelectedForAccept = true,
+                    Explanation = "Lokalizációs bejegyzés"
+                });
+            }
             foreach (var fileData in parsedFiles)
             {
                 var targetRelPath = fileData.Path;

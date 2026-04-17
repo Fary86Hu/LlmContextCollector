@@ -10,5 +10,6 @@ namespace LlmContextCollector.Models
         public string BuildCommand { get; set; } = string.Empty;
         public string RunCommand { get; set; } = string.Empty;
         public string SelectedLaunchProfile { get; set; } = string.Empty;
+        public string LocalizationResourcePath { get; set; } = string.Empty;
     }
 }

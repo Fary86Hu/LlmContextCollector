@@ -14,20 +14,24 @@ namespace LlmContextCollector.Services
         private readonly FileSystemService _fileSystemService;
         private readonly GitService _gitService;
         private readonly AzureDevOpsService _azureDevOpsService;
+        private readonly AppLogService _logService;
         public ProjectService(
             AppState appState, 
             FileSystemService fileSystemService, 
             GitService gitService,
-            AzureDevOpsService azureDevOpsService)
+            AzureDevOpsService azureDevOpsService,
+            AppLogService logService)
         {
             _appState = appState;
             _fileSystemService = fileSystemService;
             _gitService = gitService;
             _azureDevOpsService = azureDevOpsService;
+            _logService = logService;
         }
 
         public async Task ReloadProjectAsync(bool preserveSelection)
         {
+            _logService.LogInfo("Project", "Projekt újratöltése indítva", _appState.ProjectRoot);
             if (string.IsNullOrWhiteSpace(_appState.ProjectRoot) || !Directory.Exists(_appState.ProjectRoot))
             {
                 _appState.StatusText = "Érvénytelen vagy nem létező mappa.";
@@ -75,10 +79,12 @@ namespace LlmContextCollector.Services
             }
             _appState.SaveContextListState();
             _appState.StatusText = $"Szkennelés befejezve. {allFilePaths.Count} fájl található a fa nézetben.";
+            _logService.LogInfo("Project", "Projekt újratöltése sikeres", $"Talált fájlok: {allFilePaths.Count}");
         }
 
         private async Task ScanLaunchSettingsAsync()
         {
+            _logService.LogInfo("Project", "Launch Settings keresése...");
             _appState.LaunchProfiles = new List<string>();
             var profiles = new List<string>();
             try

@@ -21,6 +21,13 @@ namespace LlmContextCollector.Services
 
     public class AppLogService
     {
+        private readonly AppState _appState;
+
+        public AppLogService(AppState appState)
+        {
+            _appState = appState;
+        }
+
         public ObservableCollection<LogEntry> Logs { get; } = new();
 
         public void LogAi(string source, string model, string prompt, string response)
@@ -37,7 +44,10 @@ namespace LlmContextCollector.Services
         }
 
         public void LogInfo(string source, string title, string content = "") 
-            => AddEntry(new LogEntry { Type = LogType.Info, Source = source, Title = title, Content = content });
+        {
+            if (!_appState.LogInformationLevel) return;
+            AddEntry(new LogEntry { Type = LogType.Info, Source = source, Title = title, Content = content });
+        }
 
         public void LogWarning(string source, string title, string content = "") 
             => AddEntry(new LogEntry { Type = LogType.Warning, Source = source, Title = title, Content = content });

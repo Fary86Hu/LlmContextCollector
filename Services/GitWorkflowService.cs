@@ -11,14 +11,16 @@ namespace LlmContextCollector.Services
         private readonly GitService _gitService;
         private readonly GitSuggestionService _suggestionService;
         private readonly AppState _appState;
+        private readonly AppLogService _logService;
 
         public enum DiffMode { Uncommitted, SinceBranchCreation, AgainstBranch }
 
-        public GitWorkflowService(GitService gitService, GitSuggestionService suggestionService, AppState appState)
+        public GitWorkflowService(GitService gitService, GitSuggestionService suggestionService, AppState appState, AppLogService logService)
         {
             _gitService = gitService;
             _suggestionService = suggestionService;
             _appState = appState;
+            _logService = logService;
         }
 
         public async Task<DiffResultArgs> PrepareGitDiffForReviewAsync(string originalPrompt = "")
@@ -229,6 +231,7 @@ namespace LlmContextCollector.Services
 
         public async Task<(int acceptedCount, int errorCount)> AcceptChangesAsync(List<DiffResult> acceptedResults)
         {
+            _logService.LogInfo("Git", "Változások alkalmazása indítva", $"{acceptedResults.Count} fájl érintett.");
             int acceptedCount = 0;
             int errorCount = 0;
             foreach (var result in acceptedResults)
@@ -284,6 +287,7 @@ namespace LlmContextCollector.Services
 
         public async Task CreateAndCheckoutBranchAsync(string branchName)
         {
+            _logService.LogInfo("Git", "Új branch létrehozása", branchName);
             await _gitService.CreateAndCheckoutBranchAsync(branchName);
             _appState.CurrentGitBranch = branchName;
             _appState.StatusText = $"Átváltva a(z) '{branchName}' branch-re.";
@@ -291,6 +295,7 @@ namespace LlmContextCollector.Services
 
         public async Task CommitChangesAsync(CommitAndPushArgs args)
         {
+            _logService.LogInfo("Git", "Commit folyamat indítása", $"Üzenet: {args.CommitMessage}");
             await AcceptChangesAsync(args.AcceptedFiles);
             _appState.StatusText = "Fájlok mentve. Fájlok stage-elése...";
             await Task.Delay(1);
@@ -306,8 +311,10 @@ namespace LlmContextCollector.Services
 
         public async Task PushChangesAsync(string branchName)
         {
+            _logService.LogInfo("Git", "Push indítása", branchName);
             await _gitService.PushAsync(branchName);
             _appState.StatusText = $"Sikeres push a(z) '{branchName}' branch-re!";
+            _logService.LogInfo("Git", "Push sikeres", branchName);
         }
 
         public async Task DiscardFileChangesAsync(DiffResult diffResult, string source = "HEAD")

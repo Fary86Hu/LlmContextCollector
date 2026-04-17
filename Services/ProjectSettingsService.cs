@@ -63,6 +63,7 @@ namespace LlmContextCollector.Services
                 }
                 
                 _appState.SelectedLaunchProfile = settings.SelectedLaunchProfile ?? string.Empty;
+                _appState.LocalizationResourcePath = settings.LocalizationResourcePath ?? string.Empty;
 
                 _appState.NotifyStateChanged(nameof(AppState.ExtensionFilters));
                 _appState.NotifyStateChanged(nameof(AppState.IgnorePatternsRaw));
@@ -92,7 +93,8 @@ namespace LlmContextCollector.Services
                 AttachableDocuments = _appState.AttachableDocuments.ToList(),
                 BuildCommand = _appState.DefaultBuildCommand,
                 RunCommand = _appState.DefaultRunCommand,
-                SelectedLaunchProfile = _appState.SelectedLaunchProfile
+                SelectedLaunchProfile = _appState.SelectedLaunchProfile,
+                LocalizationResourcePath = _appState.LocalizationResourcePath
             };
 
             _allProjectSettings![projectPath] = settings;

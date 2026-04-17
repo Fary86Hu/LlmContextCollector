@@ -25,5 +25,6 @@ namespace LlmContextCollector.Models
 
         public string BuildCommand { get; set; } = "dotnet build";
         public string RunCommand { get; set; } = "dotnet run";
+        public bool LogInformationLevel { get; set; } = false;
     }
 }

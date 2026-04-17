@@ -568,6 +568,7 @@ namespace LlmContextCollector.Components.Pages
             
             AppState.DefaultBuildCommand = settings.BuildCommand ?? "dotnet build";
             AppState.DefaultRunCommand = settings.RunCommand ?? "dotnet run";
+            AppState.LogInformationLevel = settings.LogInformationLevel;
         }
 
         private async Task OnPromptManagerClose()

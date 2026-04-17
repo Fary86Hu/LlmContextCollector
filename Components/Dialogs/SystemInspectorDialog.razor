@@ -3,6 +3,7 @@
 @implements IDisposable
 @inject AppLogService LogService
 @inject AppState AppState
+@inject IClipboard Clipboard
 
 @if (AppState.IsAiInspectorVisible)
 {
@@ -11,6 +12,7 @@
             <div class="modal-header">
                 <h3>Rendszer és AI Napló</h3>
                 <div class="header-controls">
+                    <button @onclick="CopyLogsToClipboard" class="secondary">Napló másolása</button>
                     <button @onclick="LogService.Clear" class="secondary">Napló ürítése</button>
                     <button class="close-btn" @onclick="Close">&times;</button>
                 </div>
@@ -37,35 +39,49 @@
                     @if (_selectedLog != null)
                     {
                         <div class="detail-header">
-                            <h4>@_selectedLog.Title</h4>
-                            <div class="meta-info">Forrás: @_selectedLog.Source | Idő: @_selectedLog.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</div>
+                            <div class="header-main">
+                                <span class="status-dot @(GetLogClass(_selectedLog))"></span>
+                                <h4>@_selectedLog.Title</h4>
+                            </div>
+                            <div class="meta-info">
+                                <span><strong>IDŐ:</strong> @_selectedLog.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff")</span>
+                                <span><strong>FORRÁS:</strong> @_selectedLog.Source</span>
+                            </div>
                         </div>
 
-                        @if (_selectedLog.Type == LogType.Ai)
-                        {
-                            <div class="detail-section">
-                                <strong>Modell:</strong> <span>@_selectedLog.Model</span>
-                            </div>
-                            <div class="detail-section flex-1">
-                                <strong>Prompt:</strong>
-                                <textarea readonly>@_selectedLog.Prompt</textarea>
-                            </div>
-                            <div class="detail-section flex-1">
-                                <strong>Válasz:</strong>
-                                <textarea readonly>@_selectedLog.Response</textarea>
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="detail-section flex-1">
-                                <strong>Részletek:</strong>
-                                <textarea readonly>@_selectedLog.Content</textarea>
-                            </div>
-                        }
+                        <div class="detail-scroll-area">
+                            @if (_selectedLog.Type == LogType.Ai)
+                            {
+                                <div class="detail-section">
+                                    <label>AI MODELL</label>
+                                    <div class="info-value">@_selectedLog.Model</div>
+                                </div>
+                                <div class="detail-section">
+                                    <label>FELHASZNÁLÓI PROMPT</label>
+                                    <textarea class="code-font" readonly>@_selectedLog.Prompt</textarea>
+                                </div>
+                                <div class="detail-section">
+                                    <label>MODELL VÁLASZA</label>
+                                    <textarea class="code-font" readonly>@_selectedLog.Response</textarea>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="detail-section">
+                                    <label>NAPLÓZOTT TARTALOM / HIBAÜZENET</label>
+                                    <textarea class="code-font" readonly>@_selectedLog.Content</textarea>
+                                </div>
+                            }
+                        </div>
                     }
                     else
                     {
-                        <div class="editor-placeholder">Válassz egy bejegyzést a részletekért.</div>
+                        <div class="editor-placeholder">
+                            <div class="placeholder-content">
+                                <span class="icon">🔍</span>
+                                <p>Válassz egy bejegyzést a bal oldali listából a részletek megtekintéséhez.</p>
+                            </div>
+                        </div>
                     }
                 </div>
             </div>
@@ -113,4 +129,27 @@
     }
 
     private void Close() => AppState.IsAiInspectorVisible = false;
+
+    private async Task CopyLogsToClipboard()
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var log in LogService.Logs.Reverse())
+        {
+            sb.AppendLine($"[{log.Timestamp:yyyy-MM-dd HH:mm:ss.fff}] [{log.Type}][{log.Source}] {log.Title}");
+            if (!string.IsNullOrWhiteSpace(log.Content))
+            {
+                sb.AppendLine("  Részletek:");
+                sb.AppendLine("  " + log.Content.Replace("\n", "\n  "));
+            }
+            if (log.Type == LogType.Ai)
+            {
+                sb.AppendLine($"  Modell: {log.Model}");
+                sb.AppendLine($"  Prompt: {log.Prompt}");
+                sb.AppendLine($"  Válasz: {log.Response}");
+            }
+            sb.AppendLine("--------------------------------------------------");
+        }
+        await Clipboard.SetTextAsync(sb.ToString());
+        AppState.StatusText = "Napló a vágólapra másolva.";
+    }
 }

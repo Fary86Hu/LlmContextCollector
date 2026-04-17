@@ -161,6 +161,13 @@ namespace LlmContextCollector.Services
             set => SetField(ref _theme, value);
         }
 
+        private bool _logInformationLevel = false;
+        public bool LogInformationLevel
+        {
+            get => _logInformationLevel;
+            set => SetField(ref _logInformationLevel, value);
+        }
+
         private bool _includePromptInCopy = true;
         public bool IncludePromptInCopy
         {
