@@ -19,6 +19,9 @@ namespace LlmContextCollector.Services
             _promptService = promptService;
             SelectedFilesForContext.CollectionChanged += (s, e) => IsContextDirty = true;
         }
+
+        public event Action<WorkbenchTab>? OnWorkbenchFocusRequested;
+
         private string _projectRoot = string.Empty;
         public string ProjectRoot
         {
@@ -51,7 +54,8 @@ namespace LlmContextCollector.Services
             set => SetField(ref _isContextDirty, value);
         }
 
-        public Dictionary<string, bool> ExtensionFilters { get; } = new()        {
+        public Dictionary<string, bool> ExtensionFilters { get; } = new()
+        {
             { ".razor", true }, { ".cs", true }, { ".js", true }, { ".css", true },
             { ".html", true }, { ".cshtml", true }, { ".json", true }, { ".xml", true },
             { ".txt", true }, { ".md", true }
@@ -421,7 +425,15 @@ namespace LlmContextCollector.Services
         private bool _chatIncludePrompt = true;
         public bool ChatIncludePrompt { get => _chatIncludePrompt; set => SetField(ref _chatIncludePrompt, value); }
 
-        public void SaveContextListState()        {
+        public void RequestWorkbenchFocus(WorkbenchTab tab)
+        {
+            ActiveTab = tab;
+            OnWorkbenchFocusRequested?.Invoke(tab);
+            NotifyStateChanged(nameof(ActiveTab));
+        }
+
+        public void SaveContextListState()
+        {
             var currentState = SelectedFilesForContext.ToList();
             if (_contextListHistoryIndex < _contextListHistory.Count - 1)
             {

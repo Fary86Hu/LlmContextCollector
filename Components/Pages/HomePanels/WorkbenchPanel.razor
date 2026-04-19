@@ -6,28 +6,9 @@
 @inject IJSRuntime JSRuntime
 @implements IDisposable
 
-<div class="panel panel-right workbench-container">    <div class="workbench-header">
-        <div class="workbench-tabs">
-            <div class="workbench-tab @(AppState.ActiveTab == WorkbenchTab.Chat ? "active" : "")" 
-                 @onclick="() => AppState.ActiveTab = WorkbenchTab.Chat">
-                AI Chat
-            </div>
-            <div class="workbench-tab @(AppState.ActiveTab == WorkbenchTab.AgentLog ? "active" : "")" 
-                 @onclick="() => AppState.ActiveTab = WorkbenchTab.AgentLog">
-                Agent Log
-            </div>
-        </div>
-    </div>
-
+<div class="panel panel-right workbench-container">
     <div class="workbench-content">
-        @if (AppState.ActiveTab == WorkbenchTab.Chat)
-        {
-            <ChatTab OnApplyResponse="RouteResponseAsync" />
-        }
-        else
-        {
-            <div class="editor-placeholder">Agent log hamarosan...</div>
-        }
+        <ChatTab OnApplyResponse="RouteResponseAsync" />
     </div>
 </div>
 
@@ -78,13 +59,12 @@
         catch { }
     }
 
-    private async Task HandleBrowserContentExtracted(string content)    {
+    private async Task HandleBrowserContentExtracted(string content)
+    {
         if (string.IsNullOrWhiteSpace(content)) return;
         
-        // BEZÁRJUK a böngésző overlay-t a MAUI rétegben
         BrowserService.CloseBrowser();
         
-        // Feldolgozzuk a választ
         await RouteResponseAsync(content);
     }
 
@@ -110,7 +90,7 @@
 
     public async Task RouteResponseAsync(string content)
     {
-        AppState.ActiveTab = WorkbenchTab.Context;
+        AppState.RequestWorkbenchFocus(WorkbenchTab.Context);
         await Task.Yield();
         StateHasChanged();
         await Task.Delay(100);

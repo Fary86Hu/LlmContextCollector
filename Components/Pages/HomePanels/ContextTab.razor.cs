@@ -26,7 +26,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         [Inject] private GitWorkflowService GitWorkflowService { get; set; } = null!;
         [Inject] private ContextProcessingService ContextProcessingService { get; set; } = null!;
         [Inject] private ReferenceFinderService ReferenceFinderService { get; set; } = null!;
-        [Inject] private OllamaService OllamaService { get; set; } = null!;
+        [Inject] private ChatService ChatService { get; set; } = null!;
         [Inject] private LocalizationService LocalizationService { get; set; } = null!;
         [Inject] private AzureDevOpsService SettingsStore { get; set; } = null!;
         [Inject] private BuildManagerService BuildManagerService { get; set; } = null!;
@@ -303,8 +303,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private void ClearSelectionList() { AppState.SelectedFilesForContext.Clear(); AppState.SaveContextListState(); }
         private void ClearPrompt() { AppState.PromptText = string.Empty; AppState.AttachedImages.Clear(); }
 
-
-
         [JSInvokable]
         public async Task OnImagePastedAsync(string base64)
         {
@@ -405,6 +403,21 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             }
         }
 
+        private async Task HandleKontextClick()
+        {
+            if (string.IsNullOrWhiteSpace(AppState.PromptText)) return;
+            var input = $"KERESD MEG A RELEVÁNS FÁJLOKAT AZ ALÁBBI FELADATHOZ: {AppState.PromptText}";
+            var files = await ContextProcessingService.BuildContextForClipboardAsync(false, false, true, AppState.SelectedFilesForContext);
+            await ChatService.SendMessageAsync(input, "Segíts megtalálni a releváns fájlokat a projekten belül. Csak az útvonalakat sorold fel, amik érintettek lehetnek.", files, forceRefreshContext: true, clearHistory: true);
+        }
+
+        private async Task HandleAiChatClick()
+        {
+            if (string.IsNullOrWhiteSpace(AppState.PromptText)) return;
+            var content = await ContextProcessingService.BuildContextForClipboardAsync(AppState.IncludePromptInCopy, AppState.IncludeSystemPromptInCopy, AppState.IncludeFilesInCopy, _sortedFiles.Select(f => f.RelativePath));
+            var system = await PromptService.GetSystemPromptAsync();
+            await ChatService.SendMessageAsync(AppState.PromptText, system, content, forceRefreshContext: true, clearHistory: true);
+        }
 
         private async Task HandleGitDiffClick()
         {

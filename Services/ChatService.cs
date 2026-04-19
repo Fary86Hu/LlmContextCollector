@@ -14,6 +14,8 @@ namespace LlmContextCollector.Services
         private readonly JsonStorageService _storage;
 
         public ObservableCollection<ChatMessage> Messages { get; } = new();
+        public ObservableCollection<ChatSession> Sessions { get; } = new();
+        public Guid? CurrentSessionId { get; private set; }
         public bool IsGenerating { get; private set; }
         public string CurrentResponseSnippet { get; private set; } = string.Empty;
 
@@ -27,56 +29,128 @@ namespace LlmContextCollector.Services
             _storage = storage;
         }
 
-        private string GetStorageKey()
+        private string GetProjectHash()
         {
-            if (string.IsNullOrEmpty(_appState.ProjectRoot)) return "global_chat.json";
-            var hash = Convert.ToBase64String(Encoding.UTF8.GetBytes(_appState.ProjectRoot)).Replace("=", "").Replace("/", "_").Replace("+", "-");
-            return $"chat_history_{hash}.json";
+            if (string.IsNullOrEmpty(_appState.ProjectRoot)) return "global";
+            return Convert.ToBase64String(Encoding.UTF8.GetBytes(_appState.ProjectRoot)).Replace("=", "").Replace("/", "_").Replace("+", "-");
         }
 
-        public async Task LoadHistoryAsync()
+        private string GetSessionsKey() => $"chat_sessions_{GetProjectHash()}.json";
+        private string GetMessagesKey(Guid sessionId) => $"chat_msgs_{sessionId}.json";
+
+        public async Task LoadSessionsAsync()
         {
-            Messages.Clear();
-            var history = await _storage.ReadFromFileAsync<List<ChatMessage>>(GetStorageKey());
-            if (history != null)
+            Sessions.Clear();
+            var list = await _storage.ReadFromFileAsync<List<ChatSession>>(GetSessionsKey());
+            if (list != null)
             {
-                foreach (var msg in history) Messages.Add(msg);
+                foreach (var s in list.OrderByDescending(x => x.LastModified)) Sessions.Add(s);
+            }
+            
+            if (!CurrentSessionId.HasValue && Sessions.Any())
+            {
+                await SwitchToSessionAsync(Sessions.First().Id);
+            }
+            else if (!Sessions.Any())
+            {
+                await CreateNewSessionAsync();
+            }
+        }
+
+        public async Task CreateNewSessionAsync()
+        {
+            var newSession = new ChatSession();
+            Sessions.Insert(0, newSession);
+            await SaveSessionsListAsync();
+            await SwitchToSessionAsync(newSession.Id);
+        }
+
+        public async Task SwitchToSessionAsync(Guid sessionId)
+        {
+            CurrentSessionId = sessionId;
+            Messages.Clear();
+            var msgs = await _storage.ReadFromFileAsync<List<ChatMessage>>(GetMessagesKey(sessionId));
+            if (msgs != null)
+            {
+                foreach (var m in msgs) Messages.Add(m);
             }
             _appState.NotifyStateChanged(nameof(Messages));
+            _appState.NotifyStateChanged(nameof(CurrentSessionId));
+        }
+
+        public async Task DeleteSessionAsync(Guid sessionId)
+        {
+            var session = Sessions.FirstOrDefault(s => s.Id == sessionId);
+            if (session != null)
+            {
+                Sessions.Remove(session);
+                await SaveSessionsListAsync();
+                if (CurrentSessionId == sessionId)
+                {
+                    CurrentSessionId = null;
+                    if (Sessions.Any()) await SwitchToSessionAsync(Sessions.First().Id);
+                    else await CreateNewSessionAsync();
+                }
+            }
+        }
+
+        private async Task SaveSessionsListAsync()
+        {
+            await _storage.WriteToFileAsync(GetSessionsKey(), Sessions.ToList());
+            _appState.NotifyStateChanged(nameof(Sessions));
         }
 
         public async Task SaveHistoryAsync()
         {
-            await _storage.WriteToFileAsync(GetStorageKey(), Messages.ToList());
+            if (!CurrentSessionId.HasValue) return;
+            await _storage.WriteToFileAsync(GetMessagesKey(CurrentSessionId.Value), Messages.ToList());
+            
+            var session = Sessions.FirstOrDefault(s => s.Id == CurrentSessionId.Value);
+            if (session != null)
+            {
+                session.LastModified = DateTime.Now;
+                await SaveSessionsListAsync();
+            }
         }
 
-        public async Task SendMessageAsync(string input, string systemPrompt, string filesContext, bool forceRefreshContext = false)
+        public async Task SendMessageAsync(string input, string systemPrompt, string filesContext, bool forceRefreshContext = false, bool clearHistory = false)
         {
             if (string.IsNullOrWhiteSpace(input) || IsGenerating) return;
+
+            if (clearHistory || !CurrentSessionId.HasValue)
+            {
+                await CreateNewSessionAsync();
+            }
+
+            var session = Sessions.FirstOrDefault(s => s.Id == CurrentSessionId);
+            if (session != null && session.Title == "Új beszélgetés")
+            {
+                session.Title = input.Length > 30 ? input.Substring(0, 30) + "..." : input;
+                await SaveSessionsListAsync();
+            }
 
             bool shouldAddContext = !Messages.Any() || forceRefreshContext;
 
             if (shouldAddContext)
             {
                 var sb = new StringBuilder();
-                if (forceRefreshContext) sb.AppendLine("[KONTEXTUS FRISSÍTVE]");
+                if (forceRefreshContext && Messages.Any()) sb.AppendLine("[KONTEXTUS FRISSÍTVE]");
                 else sb.AppendLine("A feladatod kizárólag a feladat előkészítése. Segíts átgondolni a problémát, tisztázni a követelményeket. Tegyél fel kérdéseket.");
                 
                 sb.AppendLine("\nKONTEXTUS:");
-                if (_appState.ChatIncludeSystem && !string.IsNullOrWhiteSpace(systemPrompt)) 
+                if (!string.IsNullOrWhiteSpace(systemPrompt)) 
                     sb.AppendLine($"\n--- Rendszerutasítások ---\n{systemPrompt}");
                 
-                if (_appState.ChatIncludePrompt && !string.IsNullOrWhiteSpace(_appState.PromptText)) 
-                    sb.AppendLine($"\n--- Felhasználói Prompt ---\n{_appState.PromptText}");
-                
-                if (_appState.ChatIncludeFiles && !string.IsNullOrWhiteSpace(filesContext)) 
+                if (!string.IsNullOrWhiteSpace(filesContext)) 
                     sb.AppendLine($"\n--- Fájlok tartalma ---\n{filesContext}");
 
                 Messages.Add(new ChatMessage { Role = "system", Content = sb.ToString() });
                 _appState.IsContextDirty = false;
             }
 
-            Messages.Add(new ChatMessage { Role = "user", Content = input });            IsGenerating = true;
+            Messages.Add(new ChatMessage { Role = "user", Content = input });
+            _appState.RequestWorkbenchFocus(WorkbenchTab.Chat);
+            IsGenerating = true;
             CurrentResponseSnippet = string.Empty;
             _cts = new CancellationTokenSource();
 

@@ -8,78 +8,81 @@
 @inject ContextProcessingService ContextProcessingService
 @implements IDisposable
 
-<div class="chat-tab-container">
-    <div class="chat-header-actions">
-        <div class="chat-model-selector">
-            <select @bind="AppState.ChatModelId">
-                <option value="@Guid.Empty">Lokális Ollama (Streaming)</option>
-                @foreach (var model in AppState.AiModels)
-                {
-                    <option value="@model.Id">@model.FriendlyName</option>
-                }
-            </select>
-            <label title="Gondolatmenet mutatása/elrejtése">
-                <input type="checkbox" @bind="AppState.OllamaShowThinking" /> Thinking
-            </label>
-        </div>
-        <div class="chat-context-controls">
-             <label class="compact-check" title="Prompt küldése">
-                <input type="checkbox" checked="@AppState.ChatIncludePrompt" @onchange="async (e) => { AppState.ChatIncludePrompt = (bool)e.Value; await UpdateChatStats(); }" /> P
-            </label>
-            <label class="compact-check" title="System Prompt küldése">
-                <input type="checkbox" checked="@AppState.ChatIncludeSystem" @onchange="async (e) => { AppState.ChatIncludeSystem = (bool)e.Value; await UpdateChatStats(); }" /> S
-            </label>
-            <label class="compact-check @(AppState.IsContextDirty ? "dirty-pulse" : "")" title="Fájl kontextus küldése">
-                <input type="checkbox" checked="@AppState.ChatIncludeFiles" @onchange="async (e) => { AppState.ChatIncludeFiles = (bool)e.Value; await UpdateChatStats(); }" /> F
-                @if (AppState.IsContextDirty) { <span class="dirty-dot">●</span> }
-            </label>
-            <button class="secondary btn-small" @onclick="ChatService.Clear" title="Beszélgetés törlése">Ürítés</button>
-        </div>    </div>
-    <div class="chat-messages-area" id="chat-tab-messages">
-        @foreach (var msg in ChatService.Messages.Where(m => m.Role != "system"))
-        {
-            <div class="chat-message @(msg.Role)">
-                <div class="message-header">
-                    <strong>@(msg.Role == "user" ? "Te" : "AI"):</strong>
-                    @if (msg.Role == "assistant" && !ChatService.IsGenerating)
-                    {
-                        <button class="apply-btn" @onclick="() => OnApplyResponse.InvokeAsync(msg.Content)">Alkalmazás</button>
-                    }
+<div class="chat-main-layout">
+    <div class="chat-sidebar">
+        <button class="primary new-chat-btn" @onclick="ChatService.CreateNewSessionAsync">+ Új Chat</button>
+        <div class="session-list">
+            @foreach (var session in ChatService.Sessions)
+            {
+                <div class="session-item @(ChatService.CurrentSessionId == session.Id ? "active" : "")" @onclick="() => ChatService.SwitchToSessionAsync(session.Id)">
+                    <span class="session-title" title="@session.Title">@session.Title</span>
+                    <button class="delete-session-btn" @onclick="() => ChatService.DeleteSessionAsync(session.Id)" @onclick:stopPropagation>🗑</button>
                 </div>
-                <div class="message-content">@((MarkupString)GetFormattedResponse(msg.Content, false))</div>
-            </div>
-        }
-        @if (ChatService.IsGenerating)
-        {
-            <div class="chat-message assistant generating">
-                <strong>AI:</strong>
-                <div class="message-content">@((MarkupString)GetFormattedResponse(ChatService.CurrentResponseSnippet, true))</div>
-            </div>
-        }
+            }
+        </div>
     </div>
 
-    <div class="chat-input-area">
-        <div class="chat-input-wrapper">
-            <textarea id="chat-tab-input"
-                      class="chat-input" 
-                      @bind="_currentInput" 
-                      @bind:event="oninput" 
-                      @onkeydown="HandleKeyDown" 
-                      placeholder="Írj egy üzenetet... (Shift+Enter új sor, Enter küldés)"></textarea>
-            <div class="chat-stats-bar">
-                <span>@AppState.ChatCharCount.ToString("N0") karakter</span>
-                <span>~@AppState.ChatTokenCount.ToString("N0") token</span>
+    <div class="chat-tab-container">
+        <div class="chat-header-actions">
+            <div class="chat-model-selector">
+                <select @bind="AppState.ChatModelId">
+                    <option value="@Guid.Empty">Lokális Ollama (Streaming)</option>
+                    @foreach (var model in AppState.AiModels)
+                    {
+                        <option value="@model.Id">@model.FriendlyName</option>
+                    }
+                </select>
+                <label title="Gondolatmenet mutatása/elrejtése">
+                    <input type="checkbox" @bind="AppState.OllamaShowThinking" /> Thinking
+                </label>
             </div>
         </div>
-        <div class="input-actions">
+        <div class="chat-messages-area" id="chat-tab-messages">
+            @foreach (var msg in ChatService.Messages.Where(m => m.Role != "system"))
+            {
+                <div class="chat-message @(msg.Role)">
+                    <div class="message-header">
+                        <strong>@(msg.Role == "user" ? "Te" : "AI"):</strong>
+                        @if (msg.Role == "assistant" && !ChatService.IsGenerating)
+                        {
+                            <button class="apply-btn" @onclick="() => OnApplyResponse.InvokeAsync(msg.Content)">Alkalmazás</button>
+                        }
+                    </div>
+                    <div class="message-content">@((MarkupString)GetFormattedResponse(msg.Content, false))</div>
+                </div>
+            }
             @if (ChatService.IsGenerating)
             {
-                <button class="abort-btn" @onclick="ChatService.Abort">Stop</button>
+                <div class="chat-message assistant generating">
+                    <strong>AI:</strong>
+                    <div class="message-content">@((MarkupString)GetFormattedResponse(ChatService.CurrentResponseSnippet, true))</div>
+                </div>
             }
-            else
-            {
-                <button class="primary send-btn" @onclick="SendMessage" disabled="@(string.IsNullOrWhiteSpace(_currentInput))">Küldés</button>
-            }
+        </div>
+
+        <div class="chat-input-area">
+            <div class="chat-input-wrapper">
+                <textarea id="chat-tab-input"
+                          class="chat-input" 
+                          @bind="_currentInput" 
+                          @bind:event="oninput" 
+                          @onkeydown="HandleKeyDown" 
+                          placeholder="Írj egy üzenetet... (Shift+Enter új sor, Enter küldés)"></textarea>
+                <div class="chat-stats-bar">
+                    <span>@AppState.ChatCharCount.ToString("N0") karakter</span>
+                    <span>~@AppState.ChatTokenCount.ToString("N0") token</span>
+                </div>
+            </div>
+            <div class="input-actions">
+                @if (ChatService.IsGenerating)
+                {
+                    <button class="abort-btn" @onclick="ChatService.Abort">Stop</button>
+                }
+                else
+                {
+                    <button class="primary send-btn" @onclick="SendMessage" disabled="@(string.IsNullOrWhiteSpace(_currentInput))">Küldés</button>
+                }
+            </div>
         </div>
     </div>
 </div>
@@ -91,15 +94,15 @@
     protected override async Task OnInitializedAsync()
     {
         AppState.PropertyChanged += HandleAppStateChanged;
-        await ChatService.LoadHistoryAsync();
+        await ChatService.LoadSessionsAsync();
     }
     private async void HandleAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(AppState.ProjectRoot))
         {
-            await ChatService.LoadHistoryAsync();
+            await ChatService.LoadSessionsAsync();
         }
-        if (e.PropertyName == nameof(AppState.OllamaShowThinking) || e.PropertyName == "CurrentResponseSnippet" || e.PropertyName == "Messages")
+        if (e.PropertyName == nameof(AppState.OllamaShowThinking) || e.PropertyName == "CurrentResponseSnippet" || e.PropertyName == "Messages" || e.PropertyName == "Sessions")
         {
             await InvokeAsync(StateHasChanged);
             await ScrollToBottom();
@@ -118,7 +121,6 @@
     }
     private async Task UpdateChatStats()
     {
-        // Kiszámoljuk a teljes kontextus hosszát a beállított flagek alapján
         var fullContext = await ContextProcessingService.BuildContextForClipboardAsync(
             AppState.ChatIncludePrompt, 
             AppState.ChatIncludeSystem, 
@@ -130,7 +132,8 @@
         AppState.ChatCharCount = totalChars;
         AppState.ChatTokenCount = totalChars / 4;
         StateHasChanged();
-    }    private async Task SendMessage()
+    }
+    private async Task SendMessage()
     {
         if (string.IsNullOrWhiteSpace(_currentInput) || ChatService.IsGenerating) return;
         var input = _currentInput;
@@ -141,7 +144,8 @@
         
         await ChatService.SendMessageAsync(input, system, files, forceRefreshContext: AppState.IsContextDirty);
         await UpdateChatStats();
-    }    private string GetFormattedResponse(string rawText, bool isGenerating)
+    }
+    private string GetFormattedResponse(string rawText, bool isGenerating)
     {
         if (string.IsNullOrWhiteSpace(rawText)) return isGenerating ? "<span class=\"cursor-blink\">|</span>" : string.Empty;
 
@@ -170,10 +174,7 @@
     }
     private async Task ScrollToBottom()
     {
-        if (AppState.ActiveTab == WorkbenchTab.Chat)
-        {
-            try { await JSRuntime.InvokeVoidAsync("scrollToBottom", "chat-tab-messages"); } catch { }
-        }
+        try { await JSRuntime.InvokeVoidAsync("scrollToBottom", "chat-tab-messages"); } catch { }
     }
     public void Dispose() => AppState.PropertyChanged -= HandleAppStateChanged;
 }

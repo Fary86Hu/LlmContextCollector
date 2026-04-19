@@ -105,8 +105,7 @@
                         <td style="text-align: right;">@fileInfo.Size.ToString("N0")</td>
                         <td class="actions-cell" @onclick:stopPropagation>
                             <button class="icon-btn-small" title="Referenciák hozzáadása" @onclick="() => OnAddReferencesClick(fileInfo.RelativePath)">🔗</button>
-@*                             <button class="icon-btn-small" title="Hivatkozó fájlok hozzáadása" @onclick="() => OnAddReferencingClick(fileInfo.RelativePath)">👈</button>
- *@                            <button class="icon-btn-small delete-btn" title="Törlés a listából" @onclick="() => OnRemoveItemClick(fileInfo.RelativePath)">🗑️</button>
+                            <button class="icon-btn-small delete-btn" title="Törlés a listából" @onclick="() => OnRemoveItemClick(fileInfo.RelativePath)">🗑️</button>
                         </td>
                     </tr>
                                         }
@@ -196,7 +195,9 @@
                         </div>
                     }
                 </div>
-                <button class="copy-button primary" @onclick="CopyToClipboard" style="min-width: 100px;">@_copyButtonText</button>
+                <button class="copy-button secondary" @onclick="HandleKontextClick" title="Releváns fájlok keresése" style="padding: 6px 10px;">🔍 Kontext</button>
+                <button class="copy-button primary" @onclick="HandleAiChatClick" style="min-width: 80px;">AI Chat</button>
+                <button class="copy-button" @onclick="CopyToClipboard" style="min-width: 80px; background-color: var(--button-bg-color); color: var(--text-color);">@_copyButtonText</button>
                 <button class="copy-button secondary" @onclick="CopyImagesAsync" disabled="@(!AppState.AttachedImages.Any())" title="Csatolt képek másolása vágólapra">Másolás (🖼️)</button>
             </div>
 
