@@ -68,21 +68,6 @@
         await RouteResponseAsync(content);
     }
 
-    public async Task UpdatePreview(string? path = null, List<string>? items = null)
-    {
-        if (_contextTab != null) await _contextTab.UpdatePreview(path, items);
-    }
-
-    public async Task ScrollToPath(string relPath)
-    {
-        if (_contextTab != null) await _contextTab.ScrollToPath(relPath);
-    }
-
-    public async Task SearchInPreview(string term)
-    {
-        if (_contextTab != null) await _contextTab.SearchInPreview(term);
-    }
-
     public void CloseCustomDropdowns()
     {
         _contextTab?.CloseCustomDropdowns();

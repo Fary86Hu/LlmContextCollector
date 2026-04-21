@@ -425,6 +425,20 @@ namespace LlmContextCollector.Services
         private bool _chatIncludePrompt = true;
         public bool ChatIncludePrompt { get => _chatIncludePrompt; set => SetField(ref _chatIncludePrompt, value); }
 
+        private string _currentPreviewPath = string.Empty;
+        public string CurrentPreviewPath
+        {
+            get => _currentPreviewPath;
+            set => SetField(ref _currentPreviewPath, value);
+        }
+
+        private string _previewSearchTerm = string.Empty;
+        public string PreviewSearchTerm
+        {
+            get => _previewSearchTerm;
+            set => SetField(ref _previewSearchTerm, value);
+        }
+
         public void RequestWorkbenchFocus(WorkbenchTab tab)
         {
             ActiveTab = tab;

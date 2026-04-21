@@ -204,27 +204,15 @@ namespace LlmContextCollector.Components.Pages
                 .Intersect(AppState.SelectedFilesForContext)
                 .ToList();
 
-            if (_workbenchPanelRef != null)
+            if (selectedNodesInTree.Count == 1 && !selectedNodesInTree[0].IsDirectory)
             {
-                if (selectedNodesInTree.Count == 1 && !selectedNodesInTree[0].IsDirectory)
-                {
-                    var relativePath = GetRelativeNodePath(selectedNodesInTree[0]);
-                    await _workbenchPanelRef.UpdatePreview(relativePath, _selectedInContextList);
-
-                    if (_selectedInContextList.Contains(relativePath))
-                    {
-                        await _workbenchPanelRef.ScrollToPath(relativePath);
-                    }
-
-                    if (e == null && AppState.SearchInContent && !string.IsNullOrWhiteSpace(AppState.SearchTerm))
-                    {
-                        await _workbenchPanelRef.SearchInPreview(AppState.SearchTerm);
-                    }
-                }
-                else
-                {
-                    await _workbenchPanelRef.UpdatePreview(null, _selectedInContextList);
-                }
+                var relativePath = GetRelativeNodePath(selectedNodesInTree[0]);
+                AppState.PreviewSearchTerm = AppState.SearchTerm;
+                AppState.CurrentPreviewPath = relativePath;
+            }
+            else
+            {
+                AppState.CurrentPreviewPath = string.Empty;
             }
 
             await InvokeAsync(StateHasChanged);
@@ -290,11 +278,7 @@ namespace LlmContextCollector.Components.Pages
                 AppState.NotifyStateChanged(nameof(AppState.FileTree));
             }
 
-            if (_contextTabRef != null)
-            {
-                var pathToPreview = selectedFiles.Count == 1 ? selectedFiles.First() : null;
-                await _contextTabRef.UpdatePreview(pathToPreview, selectedFiles);
-            }
+            AppState.CurrentPreviewPath = selectedFiles.Count == 1 ? selectedFiles.First() : string.Empty;
 
             await InvokeAsync(StateHasChanged);
         }
@@ -526,10 +510,9 @@ namespace LlmContextCollector.Components.Pages
         {
             await HistoryManagerService.ApplyHistoryEntryAsync(entry);
             _selectedInContextList = AppState.SelectedFilesForContext.ToList();
-            if (_workbenchPanelRef != null)
-            {
-                await _workbenchPanelRef.UpdatePreview(null, _selectedInContextList);
-            }
+            
+            AppState.CurrentPreviewPath = string.Empty;
+            
             StateHasChanged();
         }
 
