@@ -79,6 +79,73 @@ namespace LlmContextCollector.AI
             return finalResponse;
         }
 
+        public async IAsyncEnumerable<string> GenerateStreamAsync(string prompt, IEnumerable<AttachedImage>? images = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            var apiKey = (_config.ApiKey ?? string.Empty).Trim();
+            var modelName = string.IsNullOrWhiteSpace(_config.ModelName) ? "gemini-2.0-flash" : _config.ModelName.Trim();
+
+            var url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:streamGenerateContent?alt=sse&key={apiKey}";
+
+            var parts = new List<object> { new { text = prompt } };
+            if (images != null)
+            {
+                foreach (var img in images)
+                {
+                    var base64Parts = img.Base64Thumbnail.Split(',');
+                    var mime = base64Parts[0].Split(':')[1].Split(';')[0];
+                    parts.Add(new { inline_data = new { mime_type = mime, data = base64Parts[1] } });
+                }
+            }
+
+            var requestBody = new
+            {
+                contents = new[] { new { parts = parts.ToArray() } },
+                generationConfig = new
+                {
+                    maxOutputTokens = _config.MaxOutputTokens <= 0 ? 8192 : _config.MaxOutputTokens,
+                    temperature = 0.2
+                }
+            };
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = JsonContent.Create(requestBody)
+            };
+
+            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            response.EnsureSuccessStatusCode();
+
+            using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var reader = new StreamReader(stream);
+
+            while (!reader.EndOfStream)
+            {
+                if (ct.IsCancellationRequested) break;
+                var line = await reader.ReadLineAsync(ct);
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                if (!line.StartsWith("data: ")) continue;
+
+                var data = line.Substring(6).Trim();
+                string? part = null;
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(data);
+                    if (doc.RootElement.TryGetProperty("candidates", out var candidates) &&
+                        candidates.GetArrayLength() > 0 &&
+                        candidates[0].TryGetProperty("content", out var content) &&
+                        content.TryGetProperty("parts", out var partsArr) &&
+                        partsArr.GetArrayLength() > 0 &&
+                        partsArr[0].TryGetProperty("text", out var textProp))
+                    {
+                        part = textProp.GetString();
+                    }
+                }
+                catch { }
+
+                if (!string.IsNullOrEmpty(part)) yield return part;
+            }
+        }
+
         private class GeminiResponse
         {
             [JsonPropertyName("candidates")]

@@ -102,12 +102,18 @@
         {
             await ChatService.LoadSessionsAsync();
         }
-        if (e.PropertyName == nameof(AppState.OllamaShowThinking) || e.PropertyName == "CurrentResponseSnippet" || e.PropertyName == "Messages" || e.PropertyName == "Sessions")
+        if (e.PropertyName == nameof(AppState.OllamaShowThinking) ||
+            e.PropertyName == nameof(AppState.ChatModelId) ||
+            e.PropertyName == nameof(ChatService.IsGenerating) ||
+            e.PropertyName == "CurrentResponseSnippet" ||
+            e.PropertyName == "Messages" ||
+            e.PropertyName == "Sessions")
         {
             await InvokeAsync(StateHasChanged);
             await ScrollToBottom();
         }
     }
+
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter" && !e.ShiftKey)

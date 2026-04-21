@@ -82,6 +82,79 @@ namespace LlmContextCollector.AI
             return finalResponse;
         }
 
+        public async IAsyncEnumerable<string> GenerateStreamAsync(string prompt, IEnumerable<AttachedImage>? images = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(_config.ApiUrl)) yield break;
+
+            object content;
+            if (images == null || !images.Any())
+            {
+                content = prompt;
+            }
+            else
+            {
+                var contentList = new List<object> { new { type = "text", text = prompt } };
+                foreach (var img in images)
+                {
+                    contentList.Add(new { type = "image_url", image_url = new { url = img.Base64Thumbnail } });
+                }
+                content = contentList.ToArray();
+            }
+
+            var payload = new
+            {
+                model = _config.ModelName,
+                messages = new[] { new { role = "user", content = content } },
+                max_tokens = _config.MaxOutputTokens == 0 ? 4096 : _config.MaxOutputTokens,
+                temperature = 0.2,
+                stream = true
+            };
+
+            var requestUri = new Uri(new Uri(_config.ApiUrl.TrimEnd('/') + "/"), "chat/completions");
+            using var req = new HttpRequestMessage(HttpMethod.Post, requestUri)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(payload, JsonOpts), Encoding.UTF8, "application/json")
+            };
+
+            if (!string.IsNullOrWhiteSpace(_config.ApiKey))
+            {
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _config.ApiKey);
+            }
+
+            using var resp = await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+            resp.EnsureSuccessStatusCode();
+
+            using var stream = await resp.Content.ReadAsStreamAsync(ct);
+            using var reader = new StreamReader(stream);
+
+            while (!reader.EndOfStream)
+            {
+                if (ct.IsCancellationRequested) break;
+                var line = await reader.ReadLineAsync(ct);
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                if (!line.StartsWith("data: ")) continue;
+
+                var data = line.Substring(6).Trim();
+                if (data == "[DONE]") break;
+
+                string? part = null;
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(data);
+                    if (doc.RootElement.TryGetProperty("choices", out var choices) &&
+                        choices.GetArrayLength() > 0 &&
+                        choices[0].TryGetProperty("delta", out var delta) &&
+                        delta.TryGetProperty("content", out var contentProp))
+                    {
+                        part = contentProp.GetString();
+                    }
+                }
+                catch { }
+
+                if (!string.IsNullOrEmpty(part)) yield return part;
+            }
+        }
+
         private class ChatResponse
         {
             public Choice[]? Choices { get; set; }

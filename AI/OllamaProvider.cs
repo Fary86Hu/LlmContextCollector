@@ -50,6 +50,65 @@ namespace LlmContextCollector.AI
             return finalResponse;
         }
 
+        public async IAsyncEnumerable<string> GenerateStreamAsync(string prompt, IEnumerable<AttachedImage>? images = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            var baseUrl = _config.ApiUrl.TrimEnd('/');
+            var userMessage = new
+            {
+                role = "user",
+                content = prompt,
+                images = images?.Select(img => {
+                    var parts = img.Base64Thumbnail.Split(',');
+                    return parts.Length > 1 ? parts[1] : parts[0];
+                }).ToArray()
+            };
+
+            var requestBody = new
+            {
+                model = _config.ModelName,
+                messages = new[] { userMessage },
+                stream = true,
+                options = new { num_ctx = 65536 }
+            };
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/chat/completions")
+            {
+                Content = JsonContent.Create(requestBody)
+            };
+
+            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            response.EnsureSuccessStatusCode();
+
+            using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var reader = new StreamReader(stream);
+
+            while (!reader.EndOfStream)
+            {
+                if (ct.IsCancellationRequested) break;
+                var line = await reader.ReadLineAsync(ct);
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                var jsonData = line.StartsWith("data: ") ? line.Substring(6).Trim() : line.Trim();
+                if (jsonData == "[DONE]") break;
+
+                string? content = null;
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(jsonData);
+                    if (doc.RootElement.TryGetProperty("choices", out var choices) &&
+                        choices.GetArrayLength() > 0 &&
+                        choices[0].TryGetProperty("delta", out var delta) &&
+                        delta.TryGetProperty("content", out var contentProp))
+                    {
+                        content = contentProp.GetString();
+                    }
+                }
+                catch { }
+
+                if (!string.IsNullOrEmpty(content)) yield return content;
+            }
+        }
+
         private class OllamaResponse
         {
             public Choice[]? Choices { get; set; }

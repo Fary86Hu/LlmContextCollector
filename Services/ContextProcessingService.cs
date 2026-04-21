@@ -324,6 +324,7 @@ namespace LlmContextCollector.Services
 
         private record BlockResult(bool Success, bool AlreadyPresent, string ErrorMessage = "");
         private record PatchSummary(string UpdatedContent, List<BlockResult> BlockResults);
+        private record RobustMatchResult(int Index, string FileIndentation, string SearchIndentation);
 
         private PatchSummary ApplyPatches(string originalContent, string patchContent)
         {
@@ -351,17 +352,17 @@ namespace LlmContextCollector.Services
                 if (searchBlock.EndsWith("\n")) searchBlock = searchBlock.Substring(0, searchBlock.Length - 1);
                 if (replaceBlock.EndsWith("\n")) replaceBlock = replaceBlock.Substring(0, replaceBlock.Length - 1);
 
-                int index = FindRobustMatch(result, searchBlock);
+                var match = FindRobustMatch(result, searchBlock);
 
-                if (index != -1)
+                if (match != null)
                 {
-                    result = result.Remove(index, searchBlock.Length).Insert(index, replaceBlock);
+                    string adjustedReplace = AdjustReplaceIndentation(replaceBlock, match.FileIndentation, match.SearchIndentation);
+                    result = result.Remove(match.Index, searchBlock.Length).Insert(match.Index, adjustedReplace);
                     blockResults.Add(new BlockResult(true, false));
                 }
                 else
                 {
-                    // Ha a SEARCH nincs meg, megnézzük a REPLACE-t
-                    if (FindRobustMatch(result, replaceBlock) != -1)
+                    if (FindRobustMatch(result, replaceBlock) != null)
                     {
                         blockResults.Add(new BlockResult(true, true));
                     }
@@ -373,6 +374,34 @@ namespace LlmContextCollector.Services
             }
 
             return new PatchSummary(result, blockResults);
+        }
+
+        private string AdjustReplaceIndentation(string replaceBlock, string fileIndentation, string searchIndentation)
+        {
+            if (fileIndentation == searchIndentation) return replaceBlock;
+
+            var lines = replaceBlock.Split('\n');
+            var adjustedLines = new string[lines.Length];
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (string.IsNullOrWhiteSpace(lines[i]))
+                {
+                    adjustedLines[i] = lines[i];
+                    continue;
+                }
+
+                if (lines[i].StartsWith(searchIndentation))
+                {
+                    adjustedLines[i] = fileIndentation + lines[i].Substring(searchIndentation.Length);
+                }
+                else
+                {
+                    adjustedLines[i] = lines[i];
+                }
+            }
+
+            return string.Join("\n", adjustedLines);
         }
 
         private async Task<string?> GetSingleResxValueAsync(string resxPath, string key)
@@ -392,22 +421,27 @@ namespace LlmContextCollector.Services
             catch { return null; }
         }
 
-        private int FindRobustMatch(string content, string searchBlock)
+        private RobustMatchResult? FindRobustMatch(string content, string searchBlock)
         {
             int idx = content.IndexOf(searchBlock);
-            if (idx != -1) return idx;
+            if (idx != -1)
+            {
+                string firstLine = searchBlock.Split('\n')[0];
+                string indent = firstLine.Substring(0, firstLine.Length - firstLine.TrimStart().Length);
+                return new RobustMatchResult(idx, indent, indent);
+            }
 
             var contentLines = content.Split('\n');
             var searchLines = searchBlock.Split('\n');
 
-            if (searchLines.Length == 0) return -1;
+            if (searchLines.Length == 0) return null;
 
             for (int i = 0; i <= contentLines.Length - searchLines.Length; i++)
             {
                 bool match = true;
                 for (int j = 0; j < searchLines.Length; j++)
                 {
-                    if (contentLines[i + j].TrimEnd() != searchLines[j].TrimEnd())
+                    if (contentLines[i + j].Trim() != searchLines[j].Trim())
                     {
                         match = false;
                         break;
@@ -418,11 +452,15 @@ namespace LlmContextCollector.Services
                 {
                     int charPos = 0;
                     for (int k = 0; k < i; k++) charPos += contentLines[k].Length + 1;
-                    return charPos;
+
+                    string fileIndentation = contentLines[i].Substring(0, contentLines[i].Length - contentLines[i].TrimStart().Length);
+                    string searchIndentation = searchLines[0].Substring(0, searchLines[0].Length - searchLines[0].TrimStart().Length);
+
+                    return new RobustMatchResult(charPos, fileIndentation, searchIndentation);
                 }
             }
 
-            return -1;
+            return null;
         }
     }
 }

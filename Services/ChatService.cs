@@ -149,38 +149,35 @@ namespace LlmContextCollector.Services
             }
 
             Messages.Add(new ChatMessage { Role = "user", Content = input });
+            _appState.NotifyStateChanged(nameof(Messages));
             _appState.RequestWorkbenchFocus(WorkbenchTab.Chat);
+            
             IsGenerating = true;
+            _appState.NotifyStateChanged(nameof(IsGenerating));
+            
             CurrentResponseSnippet = string.Empty;
             _cts = new CancellationTokenSource();
 
             try
             {
-                if (_appState.ChatModelId == Guid.Empty)
+                var provider = _providerFactory.GetProvider(_appState.ChatModelId);
+                var fullPromptSb = new StringBuilder();
+                foreach (var m in Messages)
                 {
-                    var apiMessages = Messages.Select(m => new { role = m.Role, content = m.Content }).ToList<object>();
-                    var responseSb = new StringBuilder();
-
-                    await foreach (var token in _ollamaService.GetChatResponseStreamAsync(apiMessages, _cts.Token))
-                    {
-                        responseSb.Append(token);
-                        CurrentResponseSnippet = responseSb.ToString();
-                        _appState.NotifyStateChanged(nameof(CurrentResponseSnippet));
-                    }
-                    Messages.Add(new ChatMessage { Role = "assistant", Content = CurrentResponseSnippet + (_cts.IsCancellationRequested ? " [MEGSZAKÍTVA]" : "") });
+                    fullPromptSb.AppendLine($"### {m.Role.ToUpper()}:\n{m.Content}\n");
                 }
-                else
+
+                var responseSb = new StringBuilder();
+                await foreach (var token in provider.GenerateStreamAsync(fullPromptSb.ToString(), null, _cts.Token))
                 {
-                    var provider = _providerFactory.GetProvider(_appState.ChatModelId);
-                    var fullPromptSb = new StringBuilder();
-                    foreach (var m in Messages)
-                    {
-                        fullPromptSb.AppendLine($"### {m.Role.ToUpper()}:\n{m.Content}\n");
-                    }
-
-                    var response = await provider.GenerateAsync(fullPromptSb.ToString(), null, _cts.Token);
-                    Messages.Add(new ChatMessage { Role = "assistant", Content = response });
+                    responseSb.Append(token);
+                    CurrentResponseSnippet = responseSb.ToString();
+                    _appState.NotifyStateChanged(nameof(CurrentResponseSnippet));
+                    await Task.Yield();
                 }
+
+                Messages.Add(new ChatMessage { Role = "assistant", Content = CurrentResponseSnippet + (_cts.IsCancellationRequested ? " [MEGSZAKÍTVA]" : "") });
+                _appState.NotifyStateChanged(nameof(Messages));
                 await SaveHistoryAsync();
             }
             catch (OperationCanceledException)

@@ -1,6 +1,5 @@
 @using LlmContextCollector.Services
 @using System.Text
-@inject OllamaService OllamaService
 @inject IJSRuntime JSRuntime
 @inject AppState AppState
 @implements IDisposable
@@ -256,43 +255,33 @@
 
         try
         {
-            if (AppState.ChatModelId == Guid.Empty)
+            var provider = ProviderFactory.GetProvider(AppState.ChatModelId);
+            var fullPromptSb = new StringBuilder();
+            foreach (var m in _messages)
             {
-                var apiMessages = _messages.Select(m => new { role = m.Role, content = m.Content }).ToList<object>();
-                var responseSb = new StringBuilder();
-                var lastUpdate = DateTime.MinValue;
-
-                await foreach (var token in OllamaService.GetChatResponseStreamAsync(apiMessages, _cts.Token))
-                {
-                    responseSb.Append(token);
-                    _currentResponse = responseSb.ToString();
-
-                    if ((DateTime.Now - lastUpdate).TotalMilliseconds > 100)
-                    {
-                        StateHasChanged();
-                        _ = ScrollToBottom();
-                        lastUpdate = DateTime.Now;
-                        await Task.Delay(1);
-                    }
-                }
-                _messages.Add(new ChatMessage { Role = "assistant", Content = _currentResponse + (_cts.IsCancellationRequested ? " [MEGSZAKÍTVA]" : "") });
-            }
-            else
-            {
-                var provider = ProviderFactory.GetProvider(AppState.ChatModelId);
-                
-                var fullPromptSb = new StringBuilder();
-                foreach(var m in _messages)
-                {
-                    fullPromptSb.AppendLine($"### {m.Role.ToUpper()}:");
-                    fullPromptSb.AppendLine(m.Content);
-                    fullPromptSb.AppendLine();
-                }
-
-                _currentResponse = await provider.GenerateAsync(fullPromptSb.ToString(), null, _cts.Token);
-                _messages.Add(new ChatMessage { Role = "assistant", Content = _currentResponse });
+                fullPromptSb.AppendLine($"### {m.Role.ToUpper()}:");
+                fullPromptSb.AppendLine(m.Content);
+                fullPromptSb.AppendLine();
             }
 
+            var responseSb = new StringBuilder();
+            var lastUpdate = DateTime.MinValue;
+
+            await foreach (var token in provider.GenerateStreamAsync(fullPromptSb.ToString(), null, _cts.Token))
+            {
+                responseSb.Append(token);
+                _currentResponse = responseSb.ToString();
+
+                if ((DateTime.Now - lastUpdate).TotalMilliseconds > 100)
+                {
+                    StateHasChanged();
+                    _ = ScrollToBottom();
+                    lastUpdate = DateTime.Now;
+                    await Task.Delay(1);
+                }
+            }
+
+            _messages.Add(new ChatMessage { Role = "assistant", Content = _currentResponse + (_cts.IsCancellationRequested ? " [MEGSZAKÍTVA]" : "") });
             StateHasChanged();
             await ScrollToBottom();
         }
