@@ -324,7 +324,7 @@ namespace LlmContextCollector.Services
 
         private record BlockResult(bool Success, bool AlreadyPresent, string ErrorMessage = "");
         private record PatchSummary(string UpdatedContent, List<BlockResult> BlockResults);
-        private record RobustMatchResult(int Index, string FileIndentation, string SearchIndentation);
+        private record RobustMatchResult(int Index, int Length, string FileIndentation, string SearchIndentation);
 
         private PatchSummary ApplyPatches(string originalContent, string patchContent)
         {
@@ -342,22 +342,19 @@ namespace LlmContextCollector.Services
 
                 if (!midMatch.Success || !endMatch.Success) 
                 {
-                    blockResults.Add(new BlockResult(false, false, $"A(z) {i}. SEARCH blokk szintaktikailag hibás (hiányzik a ======= vagy a >>>>>>> REPLACE)."));
+                    blockResults.Add(new BlockResult(false, false, $"A(z) {i}. SEARCH blokk szintaktikailag hibás."));
                     continue;
                 }
 
-                string searchBlock = block.Substring(0, midMatch.Index);
-                string replaceBlock = block.Substring(midMatch.Index + midMatch.Length, endMatch.Index - (midMatch.Index + midMatch.Length));
-
-                if (searchBlock.EndsWith("\n")) searchBlock = searchBlock.Substring(0, searchBlock.Length - 1);
-                if (replaceBlock.EndsWith("\n")) replaceBlock = replaceBlock.Substring(0, replaceBlock.Length - 1);
+                string searchBlock = block.Substring(0, midMatch.Index).TrimEnd('\n');
+                string replaceBlock = block.Substring(midMatch.Index + midMatch.Length, endMatch.Index - (midMatch.Index + midMatch.Length)).TrimEnd('\n');
 
                 var match = FindRobustMatch(result, searchBlock);
 
                 if (match != null)
                 {
                     string adjustedReplace = AdjustReplaceIndentation(replaceBlock, match.FileIndentation, match.SearchIndentation);
-                    result = result.Remove(match.Index, searchBlock.Length).Insert(match.Index, adjustedReplace);
+                    result = result.Remove(match.Index, match.Length).Insert(match.Index, adjustedReplace);
                     blockResults.Add(new BlockResult(true, false));
                 }
                 else
@@ -368,7 +365,7 @@ namespace LlmContextCollector.Services
                     }
                     else
                     {
-                        blockResults.Add(new BlockResult(false, false, $"A(z) {i}. SEARCH blokk nem található, és a REPLACE tartalom sincs a fájlban."));
+                        blockResults.Add(new BlockResult(false, false, $"A(z) {i}. SEARCH blokk nem található."));
                     }
                 }
             }
@@ -376,10 +373,8 @@ namespace LlmContextCollector.Services
             return new PatchSummary(result, blockResults);
         }
 
-        private string AdjustReplaceIndentation(string replaceBlock, string fileIndentation, string searchIndentation)
+        private string AdjustReplaceIndentation(string replaceBlock, string fileBaseIndent, string searchBaseIndent)
         {
-            if (fileIndentation == searchIndentation) return replaceBlock;
-
             var lines = replaceBlock.Split('\n');
             var adjustedLines = new string[lines.Length];
 
@@ -387,17 +382,25 @@ namespace LlmContextCollector.Services
             {
                 if (string.IsNullOrWhiteSpace(lines[i]))
                 {
-                    adjustedLines[i] = lines[i];
+                    adjustedLines[i] = "";
                     continue;
                 }
 
-                if (lines[i].StartsWith(searchIndentation))
+                if (lines[i].StartsWith(searchBaseIndent))
                 {
-                    adjustedLines[i] = fileIndentation + lines[i].Substring(searchIndentation.Length);
+                    adjustedLines[i] = fileBaseIndent + lines[i].Substring(searchBaseIndent.Length);
                 }
                 else
                 {
-                    adjustedLines[i] = lines[i];
+                    var currentIndent = lines[i].Substring(0, lines[i].Length - lines[i].TrimStart().Length);
+                    if (currentIndent.StartsWith(searchBaseIndent))
+                    {
+                        adjustedLines[i] = fileBaseIndent + lines[i].Substring(searchBaseIndent.Length);
+                    }
+                    else
+                    {
+                        adjustedLines[i] = lines[i];
+                    }
                 }
             }
 
@@ -423,18 +426,11 @@ namespace LlmContextCollector.Services
 
         private RobustMatchResult? FindRobustMatch(string content, string searchBlock)
         {
-            int idx = content.IndexOf(searchBlock);
-            if (idx != -1)
-            {
-                string firstLine = searchBlock.Split('\n')[0];
-                string indent = firstLine.Substring(0, firstLine.Length - firstLine.TrimStart().Length);
-                return new RobustMatchResult(idx, indent, indent);
-            }
-
             var contentLines = content.Split('\n');
-            var searchLines = searchBlock.Split('\n');
+            var searchLines = searchBlock.Split('\n').Select(l => l.TrimEnd()).ToArray();
 
-            if (searchLines.Length == 0) return null;
+            if (searchLines.Length == 0 || (searchLines.Length == 1 && string.IsNullOrWhiteSpace(searchLines[0]))) 
+                return null;
 
             for (int i = 0; i <= contentLines.Length - searchLines.Length; i++)
             {
@@ -453,14 +449,24 @@ namespace LlmContextCollector.Services
                     int charPos = 0;
                     for (int k = 0; k < i; k++) charPos += contentLines[k].Length + 1;
 
-                    string fileIndentation = contentLines[i].Substring(0, contentLines[i].Length - contentLines[i].TrimStart().Length);
-                    string searchIndentation = searchLines[0].Substring(0, searchLines[0].Length - searchLines[0].TrimStart().Length);
+                    int matchedLength = 0;
+                    for (int k = 0; k < searchLines.Length; k++) matchedLength += contentLines[i + k].Length + 1;
+                    if (matchedLength > 0) matchedLength--; // Utolsó \n korrekció
 
-                    return new RobustMatchResult(charPos, fileIndentation, searchIndentation);
+                    string fileBaseIndent = GetIndentation(contentLines[i]);
+                    string searchBaseIndent = GetIndentation(searchLines[0]);
+
+                    return new RobustMatchResult(charPos, matchedLength, fileBaseIndent, searchBaseIndent);
                 }
             }
 
             return null;
+        }
+
+        private string GetIndentation(string line)
+        {
+            if (string.IsNullOrEmpty(line)) return "";
+            return line.Substring(0, line.Length - line.TrimStart().Length);
         }
     }
 }

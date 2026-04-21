@@ -518,6 +518,7 @@ namespace LlmContextCollector.Components.Pages
 
         #endregion
 
+
         #region Dialog Handling
         private async Task ApplyTheme()
         {
