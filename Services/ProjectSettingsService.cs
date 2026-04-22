@@ -60,9 +60,21 @@ namespace LlmContextCollector.Services
                 if (!string.IsNullOrWhiteSpace(settings.RunCommand))
                 {
                     _appState.DefaultRunCommand = settings.RunCommand;
-                }
-                
-                _appState.SelectedLaunchProfile = settings.SelectedLaunchProfile ?? string.Empty;
+            }
+
+            _appState.TreeSearchHistory.Clear();
+            if (settings.TreeSearchHistory != null)
+            {
+                    foreach (var item in settings.TreeSearchHistory) _appState.TreeSearchHistory.Add(item);
+            }
+
+            _appState.PreviewSearchHistory.Clear();
+            if (settings.PreviewSearchHistory != null)
+            {
+                    foreach (var item in settings.PreviewSearchHistory) _appState.PreviewSearchHistory.Add(item);
+            }
+
+            _appState.SelectedLaunchProfile = settings.SelectedLaunchProfile ?? string.Empty;
                 _appState.LocalizationResourcePath = settings.LocalizationResourcePath ?? string.Empty;
 
                 _appState.NotifyStateChanged(nameof(AppState.ExtensionFilters));
@@ -94,7 +106,9 @@ namespace LlmContextCollector.Services
                 BuildCommand = _appState.DefaultBuildCommand,
                 RunCommand = _appState.DefaultRunCommand,
                 SelectedLaunchProfile = _appState.SelectedLaunchProfile,
-                LocalizationResourcePath = _appState.LocalizationResourcePath
+                LocalizationResourcePath = _appState.LocalizationResourcePath,
+                TreeSearchHistory = _appState.TreeSearchHistory.ToList(),
+                PreviewSearchHistory = _appState.PreviewSearchHistory.ToList()
             };
 
             _allProjectSettings![projectPath] = settings;

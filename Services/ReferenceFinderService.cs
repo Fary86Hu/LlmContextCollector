@@ -5,6 +5,13 @@ namespace LlmContextCollector.Services
 {
     public class ReferenceFinderService
     {
+        private readonly AppState _appState;
+
+        public ReferenceFinderService(AppState appState)
+        {
+            _appState = appState;
+        }
+
         private static readonly Regex CSharpKeywordsRegex = new Regex(@"\b(public|private|protected|internal|static|class|struct|interface|enum|void|string|int|bool|double|float|decimal|long|short|byte|var|get|set|new|using|namespace|return|if|else|for|foreach|while|do|switch|case|default|break|continue|try|catch|finally|throw|lock|using|yield|base|this|true|false|null|async|await|partial|readonly|virtual|override|sealed|abstract|as|is|in|out|ref|params|checked|unchecked|unsafe|fixed|stackalloc)\b", RegexOptions.Compiled);
         private static readonly Regex CSharpCommonTypesRegex = new Regex(@"\b(object|string|int|bool|double|float|decimal|long|short|byte|List|Dictionary|IEnumerable|Task|IActionResult|ICollection|Exception|PageModel|ComponentBase|DbContext|WebApplication|Program|HttpContext|IServiceCollection|IConfiguration|ILogger|Activator|Attribute|EventArgs|Console|Math|DateTime|Guid|CancellationToken|TaskCompletionSource|Action|Func|Predicate|Tuple|ValueTuple)\b", RegexOptions.Compiled);
         
@@ -115,9 +122,18 @@ namespace LlmContextCollector.Services
 
                 foreach (var typeName in extendedTypeNames)
                 {
+                    if (_appState.TypeToFileMap.TryGetValue(typeName, out var indexedRelPath))
+                    {
+                        if (!allScannedFilesRel.Contains(indexedRelPath))
+                        {
+                            filesToScanNextRel.Add(indexedRelPath);
+                        }
+                        allFoundFilesRel.Add(indexedRelPath);
+                    }
+
                     var targetFileNames = new HashSet<string> { $"{typeName}.cs", $"{typeName}.razor", $"{typeName}.cshtml", $"I{typeName}.cs" };
                     var foundNodes = allProjectFiles.Where(f => targetFileNames.Contains(f.Name));
-                    
+
                     foreach (var node in foundNodes)
                     {
                         var relPath = Path.GetRelativePath(projectRoot, node.FullPath).Replace('\\', '/');
@@ -171,7 +187,7 @@ namespace LlmContextCollector.Services
             if (!searchTokens.Any()) return new List<string>();
 
             var escapedTokens = searchTokens.Select(Regex.Escape);
-            var searchRegex = new Regex($@"(?<![\w.])(?<!\b(?:string|int|bool|var|double|float|decimal|long|short|byte|char|object|dynamic|void|sbyte|uint|ushort|ulong)\s+)({string.Join("|", escapedTokens)})(?!\w)(?!\s*\{{\s*(?:get|set|init)\b)(?!\s*=>)(?!\s*[-+*/%&|^!<>]?=)", RegexOptions.Compiled);
+            var searchRegex = new Regex($@"(?<![\w])(?<!\b(?:string|int|bool|var|double|float|decimal|long|short|byte|char|object|dynamic|void|sbyte|uint|ushort|ulong)\s+)({string.Join("|", escapedTokens)})(?!\w)(?!\s*\{{\s*(?:get|set|init)\b)(?!\s*=>)(?!\s*[-+*/%&|^!<>]?=)", RegexOptions.Compiled);
 
             var allProjectFiles = new List<FileNode>();
             Utils.FileTreeHelper.GetAllFileNodes(allNodes, allProjectFiles);

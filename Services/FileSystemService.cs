@@ -9,6 +9,9 @@ namespace LlmContextCollector.Services
         private readonly AppLogService _logService;
         private List<string> _simpleNameIgnores = new();
 
+        private static readonly Regex TypeDefinitionRegex = new Regex(@"\b(class|interface|enum|struct|record)\s+(?<name>[A-Za-z0-9_]+)", RegexOptions.Compiled);
+        private static readonly Regex ExtensionMethodRegex = new Regex(@"\bstatic\s+[\w<>[\]?]+\s+(?<name>[A-Za-z0-9_]+)\s*\(\s*this\b", RegexOptions.Compiled);
+
         public FileSystemService(AppState appState, AppLogService logService)
         {
             _appState = appState;
@@ -174,6 +177,38 @@ namespace LlmContextCollector.Services
                     {
                         var fileNode = new FileNode { Name = file.Name, FullPath = file.FullName, IsDirectory = false, Parent = parentNode };
                         children.Add(fileNode);
+
+                        if (file.Extension.Equals(".cs", StringComparison.OrdinalIgnoreCase))
+                        {
+                            try
+                            {
+                                var content = File.ReadAllText(file.FullName);
+                                var relPath = Path.GetRelativePath(_appState.ProjectRoot, file.FullName).Replace('\\', '/');
+
+                                // Típusok (class, enum, stb.) indexelése
+                                var typeMatches = TypeDefinitionRegex.Matches(content);
+                                foreach (Match match in typeMatches)
+                                {
+                                    var typeName = match.Groups["name"].Value;
+                                    if (!string.IsNullOrEmpty(typeName))
+                                    {
+                                        _appState.TypeToFileMap[typeName] = relPath;
+                                    }
+                                }
+
+                                // Extension methodok indexelése
+                                var methodMatches = ExtensionMethodRegex.Matches(content);
+                                foreach (Match match in methodMatches)
+                                {
+                                    var methodName = match.Groups["name"].Value;
+                                    if (!string.IsNullOrEmpty(methodName))
+                                    {
+                                        _appState.TypeToFileMap[methodName] = relPath;
+                                    }
+                                }
+                            }
+                            catch { }
+                        }
                     }
                 }
 

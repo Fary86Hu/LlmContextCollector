@@ -47,6 +47,8 @@ namespace LlmContextCollector.Services
         public List<FileNode> FileTree => _fileTree;
         public ObservableCollection<string> SelectedFilesForContext { get; } = new();
 
+        public Dictionary<string, string> TypeToFileMap { get; } = new(StringComparer.OrdinalIgnoreCase);
+
         private bool _isContextDirty = false;
         public bool IsContextDirty
         {
@@ -233,6 +235,31 @@ namespace LlmContextCollector.Services
         }
 
         public ObservableCollection<AiModelConfig> AiModels { get; } = new();
+
+        public ObservableCollection<string> TreeSearchHistory { get; } = new();
+        public ObservableCollection<string> PreviewSearchHistory { get; } = new();
+
+        public void AddTreeSearchHistory(string term)
+        {
+            if (string.IsNullOrWhiteSpace(term)) return;
+            AddToHistory(TreeSearchHistory, term);
+            NotifyStateChanged(nameof(TreeSearchHistory));
+        }
+
+        public void AddPreviewSearchHistory(string term)
+        {
+            if (string.IsNullOrWhiteSpace(term)) return;
+            AddToHistory(PreviewSearchHistory, term);
+            NotifyStateChanged(nameof(PreviewSearchHistory));
+        }
+
+        private void AddToHistory(ObservableCollection<string> history, string term)
+        {
+            var existing = history.FirstOrDefault(x => x.Equals(term, StringComparison.OrdinalIgnoreCase));
+            if (existing != null) history.Remove(existing);
+            history.Insert(0, term);
+            while (history.Count > 10) history.RemoveAt(history.Count - 1);
+        }
 
         private Guid _gitSuggestionModelId = Guid.Empty;
         public Guid GitSuggestionModelId

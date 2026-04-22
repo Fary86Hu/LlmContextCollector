@@ -459,18 +459,29 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private async Task HandleContextSearchKeyup(KeyboardEventArgs e) { UpdateSortedFiles(); SortFiles(); }
         private void ClearContextSearch() { _contextSearchTerm = ""; UpdateSortedFiles(); SortFiles(); }
 
-        public async Task SearchInPreview(string term) { AppState.PreviewSearchTerm = term; _isInitialPreviewSearch = true; UpdatePreviewMarkup(); await ScrollToCurrentPreviewMatch(); }
+        public async Task SearchInPreview(string term) 
+        { 
+            AppState.PreviewSearchTerm = term; 
+            AppState.AddPreviewSearchHistory(term);
+            _ = ProjectSettingsService.SaveSettingsForProjectAsync(AppState.ProjectRoot);
+            _isInitialPreviewSearch = true; 
+            UpdatePreviewMarkup(); 
+            await ScrollToCurrentPreviewMatch(); 
+        }
 
         private void UpdatePreviewMarkup()
         {
             if (string.IsNullOrEmpty(_previewContent)) { _previewContentMarkup = new MarkupString(""); return; }
             var encoded = HttpUtility.HtmlEncode(_previewContent);
-            
+
             if (!string.IsNullOrEmpty(AppState.PreviewSearchTerm))
             {
-                int count = 0; 
-                _totalPreviewMatches = Regex.Matches(encoded, Regex.Escape(AppState.PreviewSearchTerm), RegexOptions.IgnoreCase).Count;
-                var highlighted = Regex.Replace(encoded, Regex.Escape(AppState.PreviewSearchTerm), m => 
+                int count = 0;
+                var encodedSearchTerm = HttpUtility.HtmlEncode(AppState.PreviewSearchTerm);
+                var escapedSearch = Regex.Escape(encodedSearchTerm);
+
+                _totalPreviewMatches = Regex.Matches(encoded, escapedSearch, RegexOptions.IgnoreCase).Count;
+                var highlighted = Regex.Replace(encoded, escapedSearch, m => 
                 {
                     var isCurrent = (count == _currentPreviewMatchIndex - 1);
                     return $"<span id=\"preview-match-{count++}\" class=\"highlight {(isCurrent ? "current" : "")}\">{m.Value}</span>";
@@ -488,7 +499,20 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private async Task FindPreviousInPreview() { if (_totalPreviewMatches > 0) { _currentPreviewMatchIndex = _currentPreviewMatchIndex <= 1 ? _totalPreviewMatches : _currentPreviewMatchIndex - 1; UpdatePreviewMarkup(); await ScrollToCurrentPreviewMatch(); } }
         private async Task ClearPreviewSearch() { AppState.PreviewSearchTerm = ""; _currentPreviewMatchIndex = 0; UpdatePreviewMarkup(); }
         private async Task ScrollToCurrentPreviewMatch() { if (_totalPreviewMatches > 0) await JSRuntime.InvokeVoidAsync("scrollToElementInContainer", "preview-box", $"preview-match-{_currentPreviewMatchIndex - 1}"); }
-        private async Task HandlePreviewSearchKeyup(KeyboardEventArgs e) { if (e.Key == "Enter") await FindNextInPreview(); else { _isInitialPreviewSearch = true; UpdatePreviewMarkup(); } }
+        private async Task HandlePreviewSearchKeyup(KeyboardEventArgs e) 
+        { 
+            if (e.Key == "Enter") 
+            {
+                AppState.AddPreviewSearchHistory(AppState.PreviewSearchTerm);
+                _ = ProjectSettingsService.SaveSettingsForProjectAsync(AppState.ProjectRoot);
+                await FindNextInPreview(); 
+            }
+            else 
+            { 
+                _isInitialPreviewSearch = true; 
+                UpdatePreviewMarkup(); 
+            } 
+        }
 
         public void Dispose() { AppState.SelectedFilesForContext.CollectionChanged -= OnSelectedFilesChanged; AppState.PropertyChanged -= OnAppStateChanged; _objRef?.Dispose(); }
     }

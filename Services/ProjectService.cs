@@ -45,6 +45,7 @@ namespace LlmContextCollector.Services
 
             var filesToPreserve = preserveSelection ? _appState.SelectedFilesForContext.ToList() : new List<string>();
             _appState.SelectedFilesForContext.Clear();
+            _appState.TypeToFileMap.Clear();
             _appState.ResetContextListHistory();
 
             var tree = await _fileSystemService.ScanDirectoryAsync(_appState.ProjectRoot);

@@ -21,6 +21,9 @@ namespace LlmContextCollector
             {
                 _appState = services.GetService<AppState>();
             }
+
+            TabStudioBtn.TextColor = Color.FromArgb("#0090ff");
+            TabChatBtn.TextColor = Color.FromArgb("#9e9e9e");
         }
 
         private void OnTabClicked(object sender, EventArgs e)

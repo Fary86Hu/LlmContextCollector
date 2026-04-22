@@ -11,5 +11,7 @@ namespace LlmContextCollector.Models
         public string RunCommand { get; set; } = string.Empty;
         public string SelectedLaunchProfile { get; set; } = string.Empty;
         public string LocalizationResourcePath { get; set; } = string.Empty;
+        public List<string> TreeSearchHistory { get; set; } = new();
+        public List<string> PreviewSearchHistory { get; set; } = new();
     }
 }

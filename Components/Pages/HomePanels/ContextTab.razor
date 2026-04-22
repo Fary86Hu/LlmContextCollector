@@ -133,7 +133,13 @@
         <div class="preview-header">
             <h4>Fájl Előnézet</h4>
             <div class="preview-search-controls">
-                <input type="text" placeholder="Keresés..." @bind="AppState.PreviewSearchTerm" @bind:event="oninput" @onkeyup="HandlePreviewSearchKeyup" />
+                <input type="text" placeholder="Keresés..." @bind="AppState.PreviewSearchTerm" @bind:event="oninput" @onkeyup="HandlePreviewSearchKeyup" list="preview-search-history-list" />
+                <datalist id="preview-search-history-list">
+                    @foreach (var term in AppState.PreviewSearchHistory)
+                    {
+                        <option value="@term"></option>
+                    }
+                </datalist>
                 @if (_totalPreviewMatches > 0)
                 {
                     <span class="preview-match-counter">@_currentPreviewMatchIndex/@_totalPreviewMatches</span>

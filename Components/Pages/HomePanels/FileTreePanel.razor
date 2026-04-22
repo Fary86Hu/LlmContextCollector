@@ -17,7 +17,13 @@
         </select>
     </div>
     <div class="toolbar">
-        <input type="text" placeholder="Keresés..." style="flex-grow: 1;" @bind="AppState.SearchTerm" @bind:event="oninput" @onkeyup="HandleSearchKeyup" />
+        <input type="text" placeholder="Keresés..." style="flex-grow: 1;" @bind="AppState.SearchTerm" @bind:event="oninput" @onkeyup="HandleSearchKeyup" list="tree-search-history-list" />
+        <datalist id="tree-search-history-list">
+            @foreach (var term in AppState.TreeSearchHistory)
+            {
+                <option value="@term"></option>
+            }
+        </datalist>
         <label style="font-size: 0.8em; margin: 0 5px;"><input type="checkbox" @bind="AppState.SearchInContent" /> Tartalomban</label>
         <button @onclick="ToggleFilter" 
                 disabled="@(string.IsNullOrWhiteSpace(AppState.SearchTerm) && !_isFiltered)" 

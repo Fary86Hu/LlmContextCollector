@@ -57,12 +57,12 @@
             </HorizontalStackLayout>
 
             <Grid Grid.Row="1">
-                <BlazorWebView x:Name="AiBlazorView" HostPage="wwwroot/index.html" IsVisible="True" VerticalOptions="Fill">
+                <BlazorWebView x:Name="AiBlazorView" HostPage="wwwroot/index.html" IsVisible="False" VerticalOptions="Fill">
                     <BlazorWebView.RootComponents>
                         <RootComponent Selector="#app" ComponentType="{x:Type local:Components.Pages.HomePanels.WorkbenchPanel}" />
                     </BlazorWebView.RootComponents>
                 </BlazorWebView>
-                <WebView x:Name="AiStudioWebView" Source="https://aistudio.google.com/" IsVisible="False" VerticalOptions="Fill" />
+                <WebView x:Name="AiStudioWebView" Source="https://aistudio.google.com/" IsVisible="True" VerticalOptions="Fill" />
             </Grid>
         </Grid>
 

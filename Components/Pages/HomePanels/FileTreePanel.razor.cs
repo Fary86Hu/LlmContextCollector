@@ -101,6 +101,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             _searchTimer?.Change(Timeout.Infinite, Timeout.Infinite);
             if (e.Key == "Enter" || e.Key == "ArrowDown")
             {
+                AppState.AddTreeSearchHistory(AppState.SearchTerm);
+                await ProjectSettingsService.SaveSettingsForProjectAsync(AppState.ProjectRoot);
                 await FindNext(false);
             }
             else if (e.Key == "ArrowUp")
@@ -126,6 +128,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private async Task FilterTree()
         {
             _searchTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+            AppState.AddTreeSearchHistory(AppState.SearchTerm);
+            await ProjectSettingsService.SaveSettingsForProjectAsync(AppState.ProjectRoot);
             await FileTreeFilterService.FilterFileTreeAsync();
             _isFiltered = !string.IsNullOrWhiteSpace(AppState.SearchTerm);
             StateHasChanged();
