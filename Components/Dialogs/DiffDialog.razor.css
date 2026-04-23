@@ -234,7 +234,7 @@
     cursor: help;
 }
 
-.reset-btn {
+.reset-btn, .history-btn {
     background: none;
     border: none;
     cursor: pointer;
@@ -245,11 +245,33 @@
     line-height: 1;
 }
 
-    .reset-btn:hover {
+    .reset-btn:hover, .history-btn:not(:disabled):hover {
         opacity: 1;
         background-color: rgba(0,0,0,0.1);
         border-radius: 3px;
     }
+
+.history-nav-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background-color: rgba(0,0,0,0.05);
+    border-radius: 4px;
+    padding: 0 2px;
+}
+
+.history-pointer {
+    font-size: 9px;
+    font-weight: bold;
+    min-width: 24px;
+    text-align: center;
+    color: var(--text-color-light);
+}
+
+.history-btn:disabled {
+    opacity: 0.2;
+    cursor: not-allowed;
+}
 
 
 .file-explanation-box {

@@ -29,131 +29,129 @@
                     </div>
 
                     <h4 style="margin-top: 20px;">Modell hozzárendelések</h4>
-
-                        <h4 style="margin-top: 20px;">Modell hozzárendelések</h4>
-                        <div class="form-group">
-                            <label>Chat funkció:</label>
-                            <select @bind="AppState.ChatModelId">
-                                <option value="@Guid.Empty">Lokális Ollama (Alapértelmezett)</option>
-                                @foreach (var model in AppState.AiModels)
-                                {
-                                    <option value="@model.Id">@model.FriendlyName</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="form-group" style="margin-top: 10px;">
-                            <label>Ügynök (Implementáció):</label>
-                            <select @bind="AppState.AgentModelId">
-                                <option value="@Guid.Empty">Lokális Ollama (Alapértelmezett)</option>
-                                @foreach (var model in AppState.AiModels)
-                                {
-                                    <option value="@model.Id">@model.FriendlyName</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="form-group" style="margin-top: 10px;">
-                            <label>Git (Commit & Branch):</label>
-                            <select @bind="AppState.GitSuggestionModelId">
-                                <option value="@Guid.Empty">Lokális Ollama (Alapértelmezett)</option>
-                                @foreach (var model in AppState.AiModels)
-                                {
-                                    <option value="@model.Id">@model.FriendlyName</option>
-                                }
-                            </select>
-                        </div>
-
-                        <h4 style="margin-top: 20px;">Lokális Ollama beállítások</h4>
-                        <div class="form-group">
-                            <label>Ollama API URL:</label>
-                            <input type="text" @bind="AppState.OllamaApiUrl" />
-                        </div>
-                        <div class="form-group">
-                            <label>Ollama Modell név:</label>
-                            <input type="text" @bind="AppState.OllamaModel" />
-                        </div>
-
-                        <h4 style="margin-top: 20px;">Azure DevOps</h4>
-                        <div class="form-group">
-                            <label>Szervezet URL:</label>
-                            <input type="text" @bind="AppState.AzureDevOpsOrganizationUrl" />
-                        </div>
-                        <div class="form-group">
-                            <label>Projekt Név:</label>
-                            <input type="text" @bind="AppState.AzureDevOpsProject" />
-                        </div>
-                        <div class="form-group">
-                            <label>PAT:</label>
-                            <input type="password" @bind="AppState.AzureDevOpsPat" />
-                        </div>
-                    </div>
-
-                    <div class="settings-content">
-                        <div class="header-with-action">
-                            <h4>AI Modell Registry</h4>
-                            <button class="primary btn-small" @onclick="AddNewModel">＋ Új modell</button>
-                        </div>
-
-                        <div class="model-list">
+                    <div class="form-group">
+                        <label>Chat funkció:</label>
+                        <select @bind="AppState.ChatModelId">
+                            <option value="@Guid.Empty">Lokális Ollama (Alapértelmezett)</option>
                             @foreach (var model in AppState.AiModels)
                             {
-                                <div class="model-card @(_selectedModelId == model.Id ? "selected" : "")" @onclick="() => _selectedModelId = model.Id">
-                                    <div class="model-card-header">
-                                        <strong>@model.FriendlyName</strong>
-                                        <div class="card-actions">
-                                            <button class="icon-btn-small" @onclick="() => RemoveModel(model)" @onclick:stopPropagation>🗑️</button>
-                                        </div>
-                                    </div>
-                                    <div class="model-card-meta">@model.ProviderType | @model.ModelName</div>
-                                </div>
+                                <option value="@model.Id">@model.FriendlyName</option>
                             }
-                        </div>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-top: 10px;">
+                        <label>Ügynök (Implementáció):</label>
+                        <select @bind="AppState.AgentModelId">
+                            <option value="@Guid.Empty">Lokális Ollama (Alapértelmezett)</option>
+                            @foreach (var model in AppState.AiModels)
+                            {
+                                <option value="@model.Id">@model.FriendlyName</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-top: 10px;">
+                        <label>Git (Commit & Branch):</label>
+                        <select @bind="AppState.GitSuggestionModelId">
+                            <option value="@Guid.Empty">Lokális Ollama (Alapértelmezett)</option>
+                            @foreach (var model in AppState.AiModels)
+                            {
+                                <option value="@model.Id">@model.FriendlyName</option>
+                            }
+                        </select>
+                    </div>
 
-                        @if (SelectedModel != null)
+                    <h4 style="margin-top: 20px;">Lokális Ollama beállítások</h4>
+                    <div class="form-group">
+                        <label>Ollama API URL:</label>
+                        <input type="text" @bind="AppState.OllamaApiUrl" />
+                    </div>
+                    <div class="form-group">
+                        <label>Ollama Modell név:</label>
+                        <input type="text" @bind="AppState.OllamaModel" />
+                    </div>
+
+                    <h4 style="margin-top: 20px;">Azure DevOps</h4>
+                    <div class="form-group">
+                        <label>Szervezet URL:</label>
+                        <input type="text" @bind="AppState.AzureDevOpsOrganizationUrl" />
+                    </div>
+                    <div class="form-group">
+                        <label>Projekt Név:</label>
+                        <input type="text" @bind="AppState.AzureDevOpsProject" />
+                    </div>
+                    <div class="form-group">
+                        <label>PAT:</label>
+                        <input type="password" @bind="AppState.AzureDevOpsPat" />
+                    </div>
+                </div>
+
+                <div class="settings-content">
+                    <div class="header-with-action">
+                        <h4>AI Modell Registry</h4>
+                        <button class="primary btn-small" @onclick="AddNewModel">＋ Új modell</button>
+                    </div>
+
+                    <div class="model-list">
+                        @foreach (var model in AppState.AiModels)
                         {
-                            <div class="model-editor">
-                                <h5>Szerkesztés: @SelectedModel.FriendlyName</h5>
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label>Megjelenítési név:</label>
-                                        <input type="text" @bind="SelectedModel.FriendlyName" />
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Típus:</label>
-                                        <select @bind="SelectedModel.ProviderType">
-                                            @foreach (var type in Enum.GetValues<AiProviderType>())
-                                            {
-                                                <option value="@type">@type</option>
-                                            }
-                                        </select>
+                            <div class="model-card @(_selectedModelId == model.Id ? "selected" : "")" @onclick="() => _selectedModelId = model.Id">
+                                <div class="model-card-header">
+                                    <strong>@model.FriendlyName</strong>
+                                    <div class="card-actions">
+                                        <button class="icon-btn-small" @onclick="() => RemoveModel(model)" @onclick:stopPropagation>🗑️</button>
                                     </div>
                                 </div>
-
-                                <div class="form-group">
-                                    <label>API URL (Base URL):</label>
-                                    <input type="text" @bind="SelectedModel.ApiUrl" placeholder="https://api.groq.com/openai/v1" />
-                                </div>
-
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label>Modell azonosító:</label>
-                                        <input type="text" @bind="SelectedModel.ModelName" placeholder="gpt-4o, qwen2.5..." />
-                                    </div>
-                                    <div class="form-group">
-                                        <label>API Kulcs (ha kell):</label>
-                                        <input type="password" @bind="SelectedModel.ApiKey" />
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label>Max Token:</label>
-                                    <input type="number" @bind="SelectedModel.MaxOutputTokens" />
-                                </div>
+                                <div class="model-card-meta">@model.ProviderType | @model.ModelName</div>
                             </div>
                         }
-                        else
-                        {
-                            <div class="editor-placeholder">Válassz ki egy modellt a szerkesztéshez vagy adj hozzá egy újat.</div>
-                        }
                     </div>
+
+                    @if (SelectedModel != null)
+                    {
+                        <div class="model-editor">
+                            <h5>Szerkesztés: @SelectedModel.FriendlyName</h5>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Megjelenítési név:</label>
+                                    <input type="text" @bind="SelectedModel.FriendlyName" />
+                                </div>
+                                <div class="form-group">
+                                    <label>Típus:</label>
+                                    <select @bind="SelectedModel.ProviderType">
+                                        @foreach (var type in Enum.GetValues<AiProviderType>())
+                                        {
+                                            <option value="@type">@type</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>API URL (Base URL):</label>
+                                <input type="text" @bind="SelectedModel.ApiUrl" placeholder="https://api.groq.com/openai/v1" />
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Modell azonosító:</label>
+                                    <input type="text" @bind="SelectedModel.ModelName" placeholder="gpt-4o, qwen2.5..." />
+                                </div>
+                                <div class="form-group">
+                                    <label>API Kulcs (ha kell):</label>
+                                    <input type="password" @bind="SelectedModel.ApiKey" />
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Max Token:</label>
+                                <input type="number" @bind="SelectedModel.MaxOutputTokens" />
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="editor-placeholder">Válassz ki egy modellt a szerkesztéshez vagy adj hozzá egy újat.</div>
+                    }
+                </div>
                 </div>
             </div>
             <div class="modal-footer">

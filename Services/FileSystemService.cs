@@ -8,17 +8,11 @@ namespace LlmContextCollector.Services
         private readonly AppState _appState;
         private readonly AppLogService _logService;
         private List<string> _simpleNameIgnores = new();
+        private List<string> _relativePathIgnores = new();
+        private List<Regex> _wildcardRegexes = new();
 
         private static readonly Regex TypeDefinitionRegex = new Regex(@"\b(class|interface|enum|struct|record)\s+(?<name>[A-Za-z0-9_]+)", RegexOptions.Compiled);
         private static readonly Regex ExtensionMethodRegex = new Regex(@"\bstatic\s+[\w<>[\]?]+\s+(?<name>[A-Za-z0-9_]+)\s*\(\s*this\b", RegexOptions.Compiled);
-
-        public FileSystemService(AppState appState, AppLogService logService)
-        {
-            _appState = appState;
-            _logService = logService;
-        }
-        private List<string> _relativePathIgnores = new();
-        private List<Regex> _wildcardRegexes = new();
 
         private static readonly HashSet<string> BinaryExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -30,9 +24,10 @@ namespace LlmContextCollector.Services
             ".mp3", ".wav", ".mp4", ".mov", ".avi", ".wmv", ".flv"
         };
 
-        public FileSystemService(AppState appState)
+        public FileSystemService(AppState appState, AppLogService logService)
         {
             _appState = appState;
+            _logService = logService;
         }
 
         public Task<List<FileNode>> ScanDirectoryAsync(string rootPath)
@@ -80,7 +75,6 @@ namespace LlmContextCollector.Services
 
         private void BuildIgnoreList(string rootPath)
         {
-
             _simpleNameIgnores.Clear();
             _relativePathIgnores.Clear();
             _wildcardRegexes.Clear();
@@ -185,7 +179,6 @@ namespace LlmContextCollector.Services
                                 var content = File.ReadAllText(file.FullName);
                                 var relPath = Path.GetRelativePath(_appState.ProjectRoot, file.FullName).Replace('\\', '/');
 
-                                // Típusok (class, enum, stb.) indexelése
                                 var typeMatches = TypeDefinitionRegex.Matches(content);
                                 foreach (Match match in typeMatches)
                                 {
@@ -196,7 +189,6 @@ namespace LlmContextCollector.Services
                                     }
                                 }
 
-                                // Extension methodok indexelése
                                 var methodMatches = ExtensionMethodRegex.Matches(content);
                                 foreach (Match match in methodMatches)
                                 {
@@ -214,14 +206,8 @@ namespace LlmContextCollector.Services
 
                 parentNode.Children = children.OrderBy(c => !c.IsDirectory).ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToList();
             }
-            catch (UnauthorizedAccessException ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Access denied scanning directory: {ex.Message}");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error scanning directory: {ex.Message}");
-            }
+            catch (UnauthorizedAccessException) { }
+            catch (Exception) { }
         }
 
 

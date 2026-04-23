@@ -9,7 +9,6 @@ namespace LlmContextCollector.Services
     public class ChatService
     {
         private readonly AppState _appState;
-        private readonly OllamaService _ollamaService;
         private readonly AiProviderFactory _providerFactory;
         private readonly JsonStorageService _storage;
 
@@ -21,10 +20,9 @@ namespace LlmContextCollector.Services
 
         private CancellationTokenSource? _cts;
 
-        public ChatService(AppState appState, OllamaService ollamaService, AiProviderFactory providerFactory, JsonStorageService storage)
+        public ChatService(AppState appState, AiProviderFactory providerFactory, JsonStorageService storage)
         {
             _appState = appState;
-            _ollamaService = ollamaService;
             _providerFactory = providerFactory;
             _storage = storage;
         }

@@ -296,7 +296,6 @@ namespace LlmContextCollector.Components.Pages
             _selectedInContextList.Clear();
         }
 
-        #region Context Menus & Exclude
 
         private async Task HandleTreeContextMenu((FileNode? Node, MouseEventArgs Args) payload)
         {
@@ -501,10 +500,6 @@ namespace LlmContextCollector.Components.Pages
             }
         }
 
-        #endregion
-
-
-        #region History
 
         private async Task LoadHistoryEntry(HistoryEntry entry)
         {
@@ -516,10 +511,7 @@ namespace LlmContextCollector.Components.Pages
             StateHasChanged();
         }
 
-        #endregion
 
-
-        #region Dialog Handling
         private async Task ApplyTheme()
         {
             await JSRuntime.InvokeVoidAsync("setTheme", AppState.Theme);
@@ -573,11 +565,6 @@ namespace LlmContextCollector.Components.Pages
             _isSettingsDialogVisible = false;
             await ApplyTheme();
             StateHasChanged();
-        }
-
-        private async Task HandleChatApplyResponse(string content)
-        {
-            await _workbenchPanelRef!.RouteResponseAsync(content);
         }
 
         private void HandleRequestLocPath(DiffResultArgs args)
@@ -752,11 +739,7 @@ namespace LlmContextCollector.Components.Pages
             finally { AppState.HideLoading(); }
         }
 
-        #endregion
 
-
-
-        #region Panel Resizing
         private string _activeSplitter = "None";
         private bool _isResizing = false;
         private double _startX, _startY, _startLeftFlex, _startMiddleFlex, _startRightFlex, _startTopFlex, _startMidFlex, _startBotFlex;
@@ -795,8 +778,6 @@ namespace LlmContextCollector.Components.Pages
                 case "LeftMiddle":
                     {
                         var delta = (e.ClientX - _startX) * flexFactorX;
-                        // A bal és középső panel közötti splitter mozgatása. 
-                        // Az összegüknek (StartLeft + StartMiddle) állandónak kell maradnia.
                         var combinedFlex = _startLeftFlex + _startMiddleFlex;
                         var newLeft = Math.Clamp(_startLeftFlex + delta, 10, combinedFlex - 10);
                         
@@ -807,8 +788,6 @@ namespace LlmContextCollector.Components.Pages
                 case "MiddleRight":
                     {
                         var delta = (e.ClientX - _startX) * flexFactorX;
-                        // A középső és jobb panel közötti splitter mozgatása.
-                        // Az összegüknek (StartMiddle + StartRight) állandónak kell maradnia.
                         var combinedFlex = _startMiddleFlex + _startRightFlex;
                         var newMiddle = Math.Clamp(_startMiddleFlex + delta, 10, combinedFlex - 10);
 
@@ -828,7 +807,6 @@ namespace LlmContextCollector.Components.Pages
                     break;
             }
         }
-        #endregion
 
         public void Dispose()
         {

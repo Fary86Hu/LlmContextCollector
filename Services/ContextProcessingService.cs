@@ -322,11 +322,11 @@ namespace LlmContextCollector.Services
             return new DiffResultArgs(explanation, diffResults, clipboardText, originalPrompt: "", localizationData: localizationFragment);
         }
 
-        private record BlockResult(bool Success, bool AlreadyPresent, string ErrorMessage = "");
-        private record PatchSummary(string UpdatedContent, List<BlockResult> BlockResults);
+        public record BlockResult(bool Success, bool AlreadyPresent, string ErrorMessage = "");
+        public record PatchSummary(string UpdatedContent, List<BlockResult> BlockResults);
         private record RobustMatchResult(int Index, int Length, string FileIndentation, string SearchIndentation);
 
-        private PatchSummary ApplyPatches(string originalContent, string patchContent)
+        public PatchSummary ApplyPatches(string originalContent, string patchContent)
         {
             string result = originalContent.Replace("\r\n", "\n").Replace("\r", "\n");
             string normalizedPatch = patchContent.Replace("\r\n", "\n").Replace("\r", "\n");

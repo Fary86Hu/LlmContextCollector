@@ -182,9 +182,25 @@
                                         {
                                             <span class="comment-indicator" title="Van magyarázat">💬</span>
                                         }
-                                        <button class="reset-btn" @onclick="() => RevertFile(result)" @onclick:stopPropagation title="Változások eldobása / visszaállítása">
-                                            ↩️
-                                        </button>
+
+                                        @if (!_isGitDiffMode || _selectedViewMode != ViewMode.LlmHistory)
+                                        {
+                                            <div class="history-nav-group" @onclick:stopPropagation>
+                                                <button class="history-btn" @onclick="() => NavigateFileHistoryAsync(result, 1)" disabled="@(!HasMoreHistory(result, 1))" title="Vissza a történetben (korábbi fájlverzió használata bázisként)">
+                                                    ◀
+                                                </button>
+                                                <span class="history-pointer" title="H0/LIVE: Aktuális lemez tartalom. H1, H2...: Korábbi verziók az előzményekből.">@GetHistoryPointerText(result)</span>
+                                                <button class="history-btn" @onclick="() => NavigateFileHistoryAsync(result, -1)" disabled="@(!HasMoreHistory(result, -1))" title="Vissza az újabb verziókhoz">
+                                                    ▶
+                                                </button>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <button class="reset-btn" @onclick="() => RevertFile(result)" @onclick:stopPropagation title="Változások eldobása / visszaállítása">
+                                                ↩️
+                                            </button>
+                                        }
                                     </div>
                                 </div>
                             }

@@ -40,6 +40,7 @@ namespace LlmContextCollector.Components.Dialogs
         private ViewMode _selectedViewMode = ViewMode.Uncommitted;
         private List<string> _allBranches = new();
         private List<LlmHistoryEntry> _historyEntries = new();
+        private Dictionary<string, int> _fileHistoryPointers = new();
         private Guid? _selectedHistoryEntryId;
         private string? _selectedTargetBranch;
         private bool _isLoadingDiffs = false;
@@ -98,6 +99,7 @@ namespace LlmContextCollector.Components.Dialogs
                 else
                 {
                     ParseGlobalExplanation();
+                    if (becameVisible) _historyEntries = await AcceptedResponseHistoryService.GetHistoryAsync(AppState.ProjectRoot);
                 }
                 
                 if (_selectedResult == null || !_localDiffResults.Any(r => r.Path == _selectedResult.Path))
@@ -569,6 +571,83 @@ namespace LlmContextCollector.Components.Dialogs
             }
         }
 
+        private bool HasMoreHistory(DiffResult result, int direction)
+        {
+            if (!_historyEntries.Any()) return false;
+            var historyForFile = _historyEntries.SelectMany(e => e.Files).Where(f => f.Path == result.Path).ToList();
+            if (!historyForFile.Any()) return false;
+
+            _fileHistoryPointers.TryGetValue(result.Path, out int currentIdx);
+            int nextIdx = currentIdx + direction;
+            return nextIdx >= -1 && nextIdx < historyForFile.Count;
+        }
+
+        private string GetHistoryPointerText(DiffResult result)
+        {
+            _fileHistoryPointers.TryGetValue(result.Path, out int idx);
+            return idx == -1 ? "LIVE" : $"H{idx + 1}";
+        }
+
+        private async Task NavigateFileHistoryAsync(DiffResult result, int direction)
+        {
+            var historyForFile = _historyEntries
+                .SelectMany(e => e.Files)
+                .Where(f => f.Path == result.Path)
+                .ToList();
+
+            if (!historyForFile.Any()) return;
+
+            _fileHistoryPointers.TryGetValue(result.Path, out int currentIdx);
+            int nextIdx = currentIdx + direction;
+
+            if (nextIdx < -1 || nextIdx >= historyForFile.Count) return;
+
+            _fileHistoryPointers[result.Path] = nextIdx;
+
+            string baseContent;
+            if (nextIdx == -1)
+            {
+                var fullPath = Path.Combine(AppState.ProjectRoot, result.Path.Replace('/', Path.DirectorySeparatorChar));
+                baseContent = File.Exists(fullPath) ? await File.ReadAllTextAsync(fullPath) : "";
+            }
+            else
+            {
+                baseContent = historyForFile[nextIdx].OldContent;
+            }
+
+            result.OldContent = baseContent;
+
+            if (result.FailedPatchContent.Contains("<<<<<<< SEARCH") || result.NewContent.Contains("<<<<<<< SEARCH"))
+            {
+                string patchSource = string.IsNullOrEmpty(result.FailedPatchContent) ? result.NewContent : result.FailedPatchContent;
+                var summary = ContextProcessingService.ApplyPatches(baseContent, patchSource);
+
+                result.NewContent = summary.UpdatedContent;
+                bool wasFailed = result.PatchFailed;
+                result.PatchFailed = summary.BlockResults.Any(r => !r.Success);
+                
+                if (result.PatchFailed)
+                {
+                    result.FailedPatchContent = patchSource;
+                    result.Status = DiffStatus.Error;
+                }
+                else
+                {
+                    // Ha sikerült a patch, akkor mindenképpen Modified-ra állítjuk, hogy ne legyen ERROR
+                    result.Status = DiffStatus.Modified;
+                    
+                    if (wasFailed)
+                    {
+                        string verName = nextIdx == -1 ? "LIVE (aktuális)" : $"H{nextIdx + 1} (korábbi)";
+                        result.Explanation = $"[VERSION_FIX]: A beolvasztás sikeres a(z) {verName} verzió alapján.\n" + result.Explanation;
+                    }
+                }
+            }
+
+            if (_selectedResult?.Path == result.Path) await SelectResult(result);
+            StateHasChanged();
+        }
+
         private async Task RevertFile(DiffResult r) 
         { 
             bool confirm = await JSRuntime.InvokeAsync<bool>("confirm", $"Biztosan visszaállítja a fájlt és eldobja a változtatásokat? ({r.Path})");
@@ -581,11 +660,9 @@ namespace LlmContextCollector.Components.Dialogs
                     await GitWorkflowService.RevertLlmHistoryChangesAsync(new List<DiffResult> { r });
                     AppState.StatusText = $"Fájl módosítás visszavonva az előzmények alapján: {r.Path}";
                     r.IsSelectedForAccept = false;
-                    // Itt nem töltünk újra, mert az előzmény lista statikus, csak megjelöljük
                 }
                 else
                 {
-                    // Meghatározzuk a bázist, amire vissza kell állni
                     string sourceRef = "HEAD";
                     if (_selectedViewMode == ViewMode.SinceBranchCreation)
                     {
@@ -603,7 +680,6 @@ namespace LlmContextCollector.Components.Dialogs
             }
             else 
             {
-                // Clipboard módban a visszaállítás csak a javaslat elvetését jelenti (mivel még nincs a lemezen)
                 _localDiffResults.Remove(r); 
                 await SelectResult(_localDiffResults.FirstOrDefault());
                 AppState.StatusText = $"Javasolt módosítás elvetve: {r.Path}";

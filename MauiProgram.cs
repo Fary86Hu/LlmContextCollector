@@ -55,7 +55,6 @@ namespace LlmContextCollector
             builder.Services.AddSingleton<BuildManagerService>();
             builder.Services.AddTransient<ProjectService>();
             builder.Services.AddTransient<FileContextService>();
-            builder.Services.AddTransient<OllamaService>();
             builder.Services.AddSingleton<BrowserService>();
             builder.Services.AddSingleton<LocalizationService>();
 
