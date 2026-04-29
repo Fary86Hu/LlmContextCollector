@@ -266,6 +266,7 @@ namespace LlmContextCollector.Services
                     oldContent = await File.ReadAllTextAsync(sourceFullPath);
                     if ((status == DiffStatus.Modified || status == DiffStatus.Renamed) && finalNewContent.Contains("<<<<<<< SEARCH"))
                     {
+                        failedPatchContent = finalNewContent; // Mindenképpen elmentjük a forrás blokkokat
                         var patchSummary = ApplyPatches(oldContent, finalNewContent);
                         finalNewContent = patchSummary.UpdatedContent;
 
@@ -277,7 +278,6 @@ namespace LlmContextCollector.Services
                         {
                             status = DiffStatus.Error;
                             patchFailed = true;
-                            failedPatchContent = fileData.NewContent; // Az eredeti SEARCH/REPLACE blokkokat őrizzük meg a javításhoz
                             fileData.Explanation += "\n" + string.Join("\n", errors.Select(e => "[HIBA: " + e.ErrorMessage + "]"));
                             finalNewContent = oldContent; // Hiba esetén ne rontsuk el a fájlt félkész patchekkel
                         }

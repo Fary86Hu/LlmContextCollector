@@ -227,37 +227,66 @@
                     }
                     else if (_selectedResult != null)
                     {
-                         @if (!string.IsNullOrEmpty(_selectedResult.Explanation))
-                        {
-                            <div class="file-explanation-box">
-                                <strong>@_selectedResult.Path - Magyarázat:</strong>
-                                <p>@_selectedResult.Explanation</p>
-                            </div>
-                        }
-
-                        @if (_selectedResult.PatchFailed)
-                        {
-                            <div class="patch-failed-warning">
-                                <strong>Figyelem!</strong> Az automatikus beolvasztás sikertelen (SEARCH blokk nem található).
-                                <button class="primary" style="margin-top: 5px;" @onclick="() => OpenManualMerge(_selectedResult)">Kézi beolvasztás megnyitása</button>
-                            </div>
-                        }
-                        
-                        <div class="diff-content-wrapper">
-                            <div id="diff-view-container" class="diff-content unified-diff-list">
-                                @foreach (var line in _unifiedDiffLines)
-                                {
-                                    <div class="diff-row @GetDiffLineClass(line)" @oncontextmenu="(e) => ShowLineContextMenu(e, line)" @oncontextmenu:preventDefault>
-                                        <span class="diff-marker-text">@GetDiffLineMarker(line)</span>
-                                        <span class="diff-text">@line.Content</span>
+                        <div class="right-top-block-pane" style="height: @(_topPaneHeightPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;">
+                            @if (!string.IsNullOrEmpty(_selectedResult.FailedPatchContent))
+                            {
+                                <div class="block-viewer-header">
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <strong>LLM Blokkok forrása: @_selectedResult.Path</strong>
+                                        <div class="block-nav-controls">
+                                            <button class="icon-btn-small" @onclick="() => NavigatePatchBlock(-1)" title="Előző blokk">▲</button>
+                                            <span class="block-counter">@(_currentPatchBlockIndex + 1) / @_patchBlockCount</span>
+                                            <button class="icon-btn-small" @onclick="() => NavigatePatchBlock(1)" title="Következő blokk">▼</button>
+                                        </div>
                                     </div>
-                                }
-                            </div>
-                            <div class="diff-scrollbar-track">
-                                @foreach (var marker in _unifiedDiffMarkers)
-                                {
-                                    <div class="diff-marker @marker.Type" style="top: @marker.TopPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%"></div>
-                                }
+                                    <span class="status-indicator @(_selectedResult.PatchFailed ? "failed" : "success")">
+                                        @(_selectedResult.PatchFailed ? "BEOLVASZTÁS SIKERTELEN" : "BEOLVASZTÁS SIKERES")
+                                    </span>
+                                </div>
+                                <textarea id="patch-block-textarea" class="block-content-textarea" readonly>@_selectedResult.FailedPatchContent</textarea>
+                            }
+                            else if (!string.IsNullOrEmpty(_selectedResult.Explanation))
+                            {
+                                <div class="file-explanation-box">
+                                    <strong>Magyarázat:</strong>
+                                    <p>@_selectedResult.Explanation</p>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="editor-placeholder">Ehhez a fájlhoz nem tartoznak Search/Replace blokkok.</div>
+                            }
+                        </div>
+
+                        <div class="diff-h-splitter" @onmousedown="StartTopPaneResize"></div>
+
+                        <div class="right-bottom-diff-pane" style="height: @((100 - _topPaneHeightPercent).ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;">
+                            @if (_selectedResult.PatchFailed)
+                            {
+                                <div class="patch-failed-warning error-border">
+                                    <div><strong>Figyelem!</strong> Az automatikus beolvasztás sikertelen (SEARCH blokk nem egyezik).</div>
+                                    <button class="primary" style="margin-top: 5px;" @onclick="() => OpenManualMerge(_selectedResult)">Kézi beolvasztás megnyitása</button>
+                                </div>
+                            }
+
+                            <div class="diff-content-wrapper">
+                                <div id="diff-view-container" class="diff-content unified-diff-list">
+                                    @for (int i = 0; i < _unifiedDiffLines.Count; i++)
+                                    {
+                                        var line = _unifiedDiffLines[i];
+                                        var idx = i;
+                                        <div id="diff-row-@idx" class="diff-row @GetDiffLineClass(line) @(idx == _activeDiffHighlightIndex ? "nav-highlight" : "")" @oncontextmenu="(e) => ShowLineContextMenu(e, line)" @oncontextmenu:preventDefault>
+                                            <span class="diff-marker-text">@GetDiffLineMarker(line)</span>
+                                            <span class="diff-text">@line.Content</span>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="diff-scrollbar-track">
+                                    @foreach (var marker in _unifiedDiffMarkers)
+                                    {
+                                        <div class="diff-marker @marker.Type" style="top: @marker.TopPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%"></div>
+                                    }
+                                </div>
                             </div>
                         </div>
 

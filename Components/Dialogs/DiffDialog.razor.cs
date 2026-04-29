@@ -50,9 +50,15 @@ namespace LlmContextCollector.Components.Dialogs
         private double _contextMenuX, _contextMenuY;
         private DiffUtility.DiffLineItem? _contextMenuTargetLine;
         private double _leftPaneWidthPercent = 35.0;
+        private double _topPaneHeightPercent = 30.0;
         private bool _isResizingPane = false;
+        private bool _isResizingTopPane = false;
+        private int _currentPatchBlockIndex = -1;
+        private int _patchBlockCount = 0;
+        private int _activeDiffHighlightIndex = -1;
         private bool _includeOriginalPromptInSuggestions = true;
         private double _windowWidth = 0;
+        private double _windowHeight = 0;
         private CancellationTokenSource? _diffCts;
         
         private bool _isManualMergeMode = false;
@@ -107,6 +113,7 @@ namespace LlmContextCollector.Components.Dialogs
                     await SelectResult(_localDiffResults.FirstOrDefault());
                 }
             }
+            CalculatePatchBlocks();
             _prevIsVisible = IsVisible;
         }
 
@@ -117,12 +124,59 @@ namespace LlmContextCollector.Components.Dialogs
             var token = _diffCts.Token;
 
             _selectedResult = result;
-            
+            _currentPatchBlockIndex = -1;
+            _activeDiffHighlightIndex = -1;
+            CalculatePatchBlocks();
+
             try 
             {
                 await GenerateDiffViewAsync(token);
             }
             catch (OperationCanceledException) { }
+        }
+
+        private void CalculatePatchBlocks()
+        {
+            if (_selectedResult == null || string.IsNullOrEmpty(_selectedResult.FailedPatchContent))
+            {
+                _patchBlockCount = 0;
+                return;
+            }
+            _patchBlockCount = Regex.Matches(_selectedResult.FailedPatchContent, @"<<<<<<< SEARCH").Count;
+        }
+
+        private async Task NavigatePatchBlock(int direction)
+        {
+            if (_patchBlockCount == 0 || _selectedResult == null) return;
+
+            _currentPatchBlockIndex += direction;
+            if (_currentPatchBlockIndex < 0) _currentPatchBlockIndex = _patchBlockCount - 1;
+            if (_currentPatchBlockIndex >= _patchBlockCount) _currentPatchBlockIndex = 0;
+
+            var patchContent = _selectedResult.FailedPatchContent;
+            var matches = Regex.Matches(patchContent, @"<<<<<<< SEARCH\s*\n?([\s\S]*?)\s*\n?=======");
+            if (_currentPatchBlockIndex >= matches.Count) return;
+
+            var match = matches[_currentPatchBlockIndex];
+            var searchBlock = match.Groups[1].Value.Trim();
+            var searchLines = searchBlock.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(l => l.Trim()).ToList();
+
+            await JSRuntime.InvokeVoidAsync("selectTextInTextarea", "patch-block-textarea", match.Value);
+
+            if (searchLines.Any())
+            {
+                var firstLine = searchLines.First();
+                for (int i = 0; i < _unifiedDiffLines.Count; i++)
+                {
+                    if (_unifiedDiffLines[i].Content.Trim().Contains(firstLine))
+                    {
+                        _activeDiffHighlightIndex = i;
+                        await JSRuntime.InvokeVoidAsync("scrollToElementInContainer", "diff-view-container", $"diff-row-{i}");
+                        break;
+                    }
+                }
+            }
+            StateHasChanged();
         }
 
         private async Task GenerateDiffViewAsync(CancellationToken ct)
@@ -620,15 +674,16 @@ namespace LlmContextCollector.Components.Dialogs
             if (result.FailedPatchContent.Contains("<<<<<<< SEARCH") || result.NewContent.Contains("<<<<<<< SEARCH"))
             {
                 string patchSource = string.IsNullOrEmpty(result.FailedPatchContent) ? result.NewContent : result.FailedPatchContent;
+                result.FailedPatchContent = patchSource; // Biztosítjuk, hogy a navigáció után is meglegyen a gombhoz
+
                 var summary = ContextProcessingService.ApplyPatches(baseContent, patchSource);
 
                 result.NewContent = summary.UpdatedContent;
                 bool wasFailed = result.PatchFailed;
                 result.PatchFailed = summary.BlockResults.Any(r => !r.Success);
-                
+
                 if (result.PatchFailed)
                 {
-                    result.FailedPatchContent = patchSource;
                     result.Status = DiffStatus.Error;
                 }
                 else
@@ -686,8 +741,13 @@ namespace LlmContextCollector.Components.Dialogs
             }
         }
         private async Task StartPaneResize(MouseEventArgs e) { _isResizingPane = true; _windowWidth = await JSRuntime.InvokeAsync<double>("eval", "window.innerWidth"); }
-        private void StopPaneResize(MouseEventArgs e) { _isResizingPane = false; }
-        private void OnMouseMove(MouseEventArgs e) { if (_isResizingPane) _leftPaneWidthPercent = Math.Clamp((e.ClientX / _windowWidth) * 100, 15, 85); }
+        private async Task StartTopPaneResize(MouseEventArgs e) { _isResizingTopPane = true; _windowHeight = await JSRuntime.InvokeAsync<double>("eval", "window.innerHeight"); }
+        private void StopPaneResize(MouseEventArgs e) { _isResizingPane = false; _isResizingTopPane = false; }
+        private void OnMouseMove(MouseEventArgs e) 
+        { 
+            if (_isResizingPane) _leftPaneWidthPercent = Math.Clamp((e.ClientX / _windowWidth) * 100, 15, 85); 
+            if (_isResizingTopPane) _topPaneHeightPercent = Math.Clamp((e.ClientY / _windowHeight) * 100, 10, 80);
+        }
         
         public void Dispose() 
         {

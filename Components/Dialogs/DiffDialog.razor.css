@@ -39,7 +39,90 @@
     flex-direction: column;
     min-height: 0;
     padding-left: 5px;
-    flex-grow: 1; /* Fallback */
+    flex-grow: 1;
+}
+
+.right-top-block-pane {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 50px;
+    background-color: var(--panel-bg);
+}
+
+.right-bottom-diff-pane {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-grow: 1;
+}
+
+.diff-h-splitter {
+    height: 5px;
+    background-color: var(--bg-color);
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    cursor: row-resize;
+    flex-shrink: 0;
+    z-index: 10;
+}
+
+.diff-h-splitter:hover {
+    background-color: var(--accent-color);
+}
+
+.block-viewer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 8px;
+    background-color: var(--toolbar-bg);
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    font-size: 11px;
+}
+
+.block-nav-controls {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(0,0,0,0.1);
+    padding: 2px 5px;
+    border-radius: 4px;
+}
+
+.block-counter {
+    font-family: monospace;
+    font-size: 10px;
+    min-width: 40px;
+    text-align: center;
+}
+
+.diff-row.nav-highlight {
+    background-color: rgba(255, 235, 59, 0.3) !important;
+    outline: 1px solid rgba(255, 235, 59, 0.5);
+    transition: background-color 0.3s;
+}
+
+.status-indicator {
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 9px;
+}
+
+.status-indicator.success { background-color: #2a9d8f; color: white; }
+.status-indicator.failed { background-color: #e76f51; color: white; }
+
+.block-content-textarea {
+    flex-grow: 1;
+    font-family: Consolas, monospace;
+    font-size: 11px;
+    background-color: var(--input-disabled-bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    resize: none;
+    padding: 5px;
 }
 
 .modal-header .header-controls {
