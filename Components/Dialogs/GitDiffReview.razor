@@ -1,0 +1,111 @@
+@using LlmContextCollector.Models
+@using LlmContextCollector.Utils
+@using LlmContextCollector.Services
+@implements IDisposable
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop" @onmousemove="OnMouseMove" @onmouseup="StopPaneResize" @onmouseleave="StopPaneResize">
+        <div class="modal-dialog review-dialog">
+            <div class="modal-header">
+                <h3>Git Változások Áttekintése</h3>
+                <button class="close-btn" @onclick="Close">&times;</button>
+            </div>
+            <div class="modal-body review-body">
+                <div class="review-left-pane" style="width: @(_leftPaneWidthPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;">
+                    <div class="diff-selector-box">
+                        <strong>Különbségek forrása:</strong>
+                        <div class="diff-options">
+                            <label><input type="radio" name="git-mode" @onchange="() => ChangeViewMode(ViewMode.Uncommitted)" checked="@(_selectedViewMode == ViewMode.Uncommitted)" /> Jelenlegi változások</label>
+                            <label><input type="radio" name="git-mode" @onchange="() => ChangeViewMode(ViewMode.SinceBranchCreation)" checked="@(_selectedViewMode == ViewMode.SinceBranchCreation)" /> Branch nyitása óta</label>
+                            <label><input type="radio" name="git-mode" @onchange="() => ChangeViewMode(ViewMode.AgainstBranch)" checked="@(_selectedViewMode == ViewMode.AgainstBranch)" /> Másik branch-hez képest</label>
+                            <label><input type="radio" name="git-mode" @onchange="() => ChangeViewMode(ViewMode.LlmHistory)" checked="@(_selectedViewMode == ViewMode.LlmHistory)" /> Elfogadott LLM válaszok</label>
+                        </div>
+                        @if (_selectedViewMode == ViewMode.AgainstBranch)
+                        {
+                            <select @bind="_selectedTargetBranch">@foreach (var b in _allBranches) { <option value="@b">@b</option> }</select>
+                        }
+                        @if (_selectedViewMode == ViewMode.LlmHistory)
+                        {
+                            <select @onchange="OnHistoryEntrySelected"><option value="">Válassz előzményt...</option>@foreach (var e in _historyEntries) { <option value="@e.Id">@e.Timestamp.ToString("MM.dd HH:mm") - @GetSnippet(e.Explanation)</option> }</select>
+                        }
+                        @if (_selectedViewMode != ViewMode.LlmHistory)
+                        {
+                            <button @onclick="LoadSelectedDiffsAsync" disabled="@_isLoadingDiffs">@if (_isLoadingDiffs) { <span class="spinner-small"></span> } else { <span>Mutat</span> }</button>
+                        }
+                    </div>
+
+                    <div class="suggestion-box">
+                        <div class="suggestion-header">
+                            <strong>Git Műveletek</strong>
+                            <button class="refresh-btn" @onclick="RefreshSuggestionsAsync" title="Javaslatok újragenerálása" disabled="@_isRefreshingSuggestions">
+                                @if (_isRefreshingSuggestions) { <span class="spinner-small"></span> } else { <span>🔄</span> }
+                            </button>
+                        </div>
+                        <div class="suggestion-item">
+                            <label>Branch:</label>
+                            <input type="text" @bind="_suggestedBranch" placeholder="pl. feature/uj-funkcio" />
+                            <button @onclick="() => CopyToClipboard(_suggestedBranch)">Másol</button>
+                        </div>
+                        <div class="suggestion-item">
+                            <label>Commit:</label>
+                            <textarea rows="3" @bind="_suggestedCommit" placeholder="pl. feat: Új funkció..."></textarea>
+                            <button @onclick="() => CopyToClipboard(_suggestedCommit)">Másol</button>
+                        </div>
+                    </div>
+
+                    <div class="review-file-list">
+                        @foreach (var result in _localDiffResults)
+                        {
+                            <div @key="result.Path" class="review-file-item @(_selectedResult == result ? "selected" : "")" @onclick="() => SelectResult(result)">
+                                <input type="checkbox" @bind="result.IsSelectedForAccept" @onclick:stopPropagation />
+                                <span class="file-path-text">@result.Path</span>
+                                <div class="item-actions">
+                                    <div class="history-nav-group" @onclick:stopPropagation>
+                                        <button class="history-btn" @onclick="() => NavigateFileHistoryAsync(result, 1)" disabled="@(!HasMoreHistory(result, 1))">◀</button>
+                                        <span class="history-pointer">@GetHistoryPointerText(result)</span>
+                                        <button class="history-btn" @onclick="() => NavigateFileHistoryAsync(result, -1)" disabled="@(!HasMoreHistory(result, -1))">▶</button>
+                                    </div>
+                                    <button class="reset-btn" @onclick="() => RevertFile(result)" @onclick:stopPropagation title="Visszaállítás">↩</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="review-splitter" @onmousedown="StartPaneResize"></div>
+
+                <div class="review-right-pane" style="width: @((100 - _leftPaneWidthPercent).ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;">
+                    @if (_isGeneratingDiff) { <div class="editor-placeholder"><div class="spinner-small"></div></div> }
+                    else if (_selectedResult != null)
+                    {
+                        <div class="diff-content-wrapper">
+                            <div id="diff-view-container" class="unified-diff-list">
+                                @foreach (var line in _unifiedDiffLines)
+                                {
+                                    <div class="diff-row @GetDiffLineClass(line)">
+                                        <span class="diff-marker-text">@GetDiffLineMarker(line)</span>
+                                        <span class="diff-text">@line.Content</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button @onclick="Close">Bezárás</button>
+                @if (_selectedViewMode == ViewMode.LlmHistory)
+                {
+                    <button class="primary" style="background-color: #dc3545;" @onclick="RevertSelectedHistoryChanges">Kijelöltek visszavonása</button>
+                }
+                else
+                {
+                    <button class="primary" @onclick="CreateBranch" disabled="@string.IsNullOrEmpty(_suggestedBranch)">Branch Létrehozása</button>
+                    <button class="primary" @onclick="Commit" disabled="@(string.IsNullOrEmpty(_suggestedCommit) || !_localDiffResults.Any(r => r.IsSelectedForAccept))">Commit</button>
+                    <button class="primary commit-btn" @onclick="Push">Push</button>
+                }
+            </div>
+        </div>
+    </div>
+}

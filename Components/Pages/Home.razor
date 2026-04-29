@@ -74,16 +74,24 @@
                         OnClose="() => _isLocPathDialogVisible = false" 
                         OnConfirm="HandleLocalizationPathSet" />
 
-<DiffDialog IsVisible="AppState.IsDiffDialogVisible"
-            GlobalExplanation="@AppState.DiffGlobalExplanation"
-            FullLlmResponse="@AppState.DiffFullLlmResponse"
-            OriginalPrompt="@AppState.DiffOriginalPrompt"
-            DiffResults="AppState.DiffResults"
-            OnClose="OnDiffDialogClose"
-            OnAccept="HandleAcceptChanges"
-            OnCreateBranch="HandleCreateBranchAsync"
-            OnCommit="HandleCommitAsync"
-            OnPush="HandlePushAsync" />
+@if (!string.IsNullOrEmpty(AppState.DiffFullLlmResponse))
+{
+    <LlmResponseReview IsVisible="AppState.IsDiffDialogVisible"
+                       GlobalExplanation="@AppState.DiffGlobalExplanation"
+                       FullLlmResponse="@AppState.DiffFullLlmResponse"
+                       DiffResults="AppState.DiffResults"
+                       OnClose="OnDiffDialogClose"
+                       OnAccept="HandleAcceptChanges" />
+}
+else
+{
+    <GitDiffReview IsVisible="AppState.IsDiffDialogVisible"
+                   DiffResults="AppState.DiffResults"
+                   OnClose="OnDiffDialogClose"
+                   OnCreateBranch="HandleCreateBranchAsync"
+                   OnCommit="HandleCommitAsync"
+                   OnPush="HandlePushAsync" />
+}
 <SystemInspectorDialog />
 
 <ExclusionsDialog IsVisible="_isExclusionsDialogVisible" 
