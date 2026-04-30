@@ -34,42 +34,7 @@
                         <textarea readonly class="full-response-textarea">@FullLlmResponse</textarea>
                     </div>
                 }
-                else if (_isManualMergeMode && _selectedResult != null)
-                {
-                    <div class="manual-merge-view">
-                        <div class="manual-merge-toolbar">
-                            <div style="display: flex; align-items: center; gap: 15px;">
-                                <strong>Kézi beolvasztás: @_selectedResult.Path</strong>
-                                <div style="display: flex; gap: 5px; align-items: center;">
-                                    <input type="text" placeholder="Keresés..." @bind="_mergeSearchTerm" @bind:event="oninput" @bind:after="UpdateMergeHighlighting" style="width: 250px; height: 28px; font-size: 11px;" />
-                                    <button class="icon-btn-small" @onclick="() => NavigateFailedPatch(-1)" title="Előző sor a patch-ből">▲</button>
-                                    <button class="icon-btn-small" @onclick="() => NavigateFailedPatch(1)" title="Következő sor a patch-ből">▼</button>
-                                    @if (_currentFailedLineIndex >= 0) {
-                                        <span style="font-size: 11px; color: var(--text-color-light);">Sor: @(_currentFailedLineIndex + 1)/@_failedPatchLines.Count</span>
-                                    }
-                                </div>
-                            </div>
-                            <div style="display: flex; gap: 10px;">
-                                <button @onclick="CloseManualMerge">Mégsem</button>
-                                <button class="primary" @onclick="SaveManualMerge">Beolvasztás befejezése</button>
-                            </div>
-                        </div>
-                        <div class="manual-merge-editors">
-                            <div class="merge-editor-pane">
-                                <div class="editor-header">Sikertelen LLM Patch (Navigálható)</div>
-                                <div class="merge-textarea-container" style="background-color: var(--input-disabled-bg-color);">
-                                    <pre style="margin:0; font-family: inherit; font-size: inherit; white-space: pre;">@_highlightedFailedPatch</pre>
-                                </div>
-                            </div>
-                            <div class="merge-editor-pane">
-                                <div class="editor-header">Végeredmény (Szerkeszthető)</div>
-                                <textarea id="merge-editor-main" class="merge-textarea-edit" @bind="_manualMergeNewContent" @bind:event="oninput"></textarea>
-                            </div>
-                        </div>
-                    </div>
-                }
-                else
-                {
+
                 <div class="review-left-pane" style="width: @(_leftPaneWidthPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;">
 
                     @if (!string.IsNullOrEmpty(GlobalExplanation))
@@ -106,7 +71,6 @@
                                             <span class="history-pointer" @onclick:stopPropagation>@GetHistoryPointerText(result)</span>
                                             <button class="history-btn" @onclick="() => NavigateFileHistoryAsync(result, -1)" disabled="@(!HasMoreHistory(result, -1) || _isFullResponseView)" title="Előre a történetben">▶</button>
                                         </div>
-                                        <button class="reset-btn" @onclick="() => DiscardChange(result)" @onclick:stopPropagation title="Módosítás elvetése" disabled="@_isFullResponseView">×</button>
                                     </div>
                                 </div>
                             }
@@ -151,23 +115,37 @@
                                 @if (_selectedResult.PatchFailed)
                                 {
                                     <div class="patch-failed-warning error-border">
-                                        <div><strong>Figyelem!</strong> Az automatikus beolvasztás sikertelen.</div>
-                                        <button class="primary" style="margin-top: 5px;" @onclick="() => OpenManualMerge(_selectedResult)">Kézi beolvasztás megnyitása</button>
+                                        <div><strong>Figyelem!</strong> Az automatikus beolvasztás sikertelen. Használja a szerkesztő módot a javításhoz.</div>
                                     </div>
                                 }
-                                
+
+                                <div class="diff-toolbar">
+                                    <span class="toolbar-label">Változások áttekintése</span>
+                                    <div style="flex-grow: 1;"></div>
+                                    <button class="icon-btn-small @(_isManualEditMode ? "active" : "")" @onclick="ToggleManualEdit" title="@(_isManualEditMode ? "Vissza nézetre" : "Kézi szerkesztés")">
+                                        @(_isManualEditMode ? "👁️" : "✏️")
+                                    </button>
+                                </div>
+
                                 <div class="diff-content-wrapper">
-                                    <div id="diff-view-container" class="diff-content unified-diff-list">
-                                        @for (int i = 0; i < _unifiedDiffLines.Count; i++)
-                                        {
-                                            var line = _unifiedDiffLines[i];
-                                            var idx = i;
-                                            <div id="diff-row-@idx" class="diff-row @GetDiffLineClass(line) @(idx == _activeDiffHighlightIndex ? "nav-highlight" : "")" @oncontextmenu="(e) => ShowLineContextMenu(e, line)" @oncontextmenu:preventDefault>
-                                                <span class="diff-marker-text">@GetDiffLineMarker(line)</span>
-                                                <span class="diff-text">@line.Content</span>
-                                            </div>
-                                        }
-                                    </div>
+                                    @if (_isManualEditMode)
+                                    {
+                                        <textarea class="manual-edit-textarea" @bind="_selectedResult.NewContent" @bind:event="oninput"></textarea>
+                                    }
+                                    else
+                                    {
+                                        <div id="diff-view-container" class="diff-content unified-diff-list">
+                                            @for (int i = 0; i < _unifiedDiffLines.Count; i++)
+                                            {
+                                                var line = _unifiedDiffLines[i];
+                                                var idx = i;
+                                                <div id="diff-row-@idx" class="diff-row @GetDiffLineClass(line) @(idx == _activeDiffHighlightIndex ? "nav-highlight" : "")" @oncontextmenu="(e) => ShowLineContextMenu(e, line)" @oncontextmenu:preventDefault>
+                                                    <span class="diff-marker-text">@GetDiffLineMarker(line)</span>
+                                                    <span class="diff-text">@line.Content</span>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
                                     <div class="diff-scrollbar-track">
                                         @foreach (var marker in _unifiedDiffMarkers)
                                         {
@@ -187,18 +165,34 @@
                                         <p>@_selectedResult.Explanation</p>
                                     </div>
                                 }
+
+                                <div class="diff-toolbar">
+                                    <span class="toolbar-label">Változások áttekintése</span>
+                                    <div style="flex-grow: 1;"></div>
+                                    <button class="icon-btn-small @(_isManualEditMode ? "active" : "")" @onclick="ToggleManualEdit" title="@(_isManualEditMode ? "Vissza nézetre" : "Kézi szerkesztés")">
+                                        @(_isManualEditMode ? "👁️" : "✏️")
+                                    </button>
+                                </div>
+
                                 <div class="diff-content-wrapper">
-                                    <div id="diff-view-container" class="diff-content unified-diff-list">
-                                        @for (int i = 0; i < _unifiedDiffLines.Count; i++)
-                                        {
-                                            var line = _unifiedDiffLines[i];
-                                            var idx = i;
-                                            <div id="diff-row-@idx" class="diff-row @GetDiffLineClass(line) @(idx == _activeDiffHighlightIndex ? "nav-highlight" : "")" @oncontextmenu="(e) => ShowLineContextMenu(e, line)" @oncontextmenu:preventDefault>
-                                                <span class="diff-marker-text">@GetDiffLineMarker(line)</span>
-                                                <span class="diff-text">@line.Content</span>
-                                            </div>
-                                        }
-                                    </div>
+                                    @if (_isManualEditMode)
+                                    {
+                                        <textarea class="manual-edit-textarea" @bind="_selectedResult.NewContent" @bind:event="oninput"></textarea>
+                                    }
+                                    else
+                                    {
+                                        <div id="diff-view-container" class="diff-content unified-diff-list">
+                                            @for (int i = 0; i < _unifiedDiffLines.Count; i++)
+                                            {
+                                                var line = _unifiedDiffLines[i];
+                                                var idx = i;
+                                                <div id="diff-row-@idx" class="diff-row @GetDiffLineClass(line) @(idx == _activeDiffHighlightIndex ? "nav-highlight" : "")" @oncontextmenu="(e) => ShowLineContextMenu(e, line)" @oncontextmenu:preventDefault>
+                                                    <span class="diff-marker-text">@GetDiffLineMarker(line)</span>
+                                                    <span class="diff-text">@line.Content</span>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
                                     <div class="diff-scrollbar-track">
                                         @foreach (var marker in _unifiedDiffMarkers)
                                         {

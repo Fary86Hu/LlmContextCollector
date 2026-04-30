@@ -30,6 +30,7 @@ namespace LlmContextCollector.Components.Dialogs
         private List<DiffMarkerInfo> _unifiedDiffMarkers = new();
         private List<LlmHistoryEntry> _historyEntries = new();
         private Dictionary<string, int> _fileHistoryPointers = new();
+        private string _liveContentOnDisk = string.Empty;
 
         private string _globalExplanationText = string.Empty;
         private bool _isFullResponseView = false;
@@ -47,12 +48,7 @@ namespace LlmContextCollector.Components.Dialogs
         private int _patchBlockCount = 0;
         private int _activeDiffHighlightIndex = -1;
 
-        private bool _isManualMergeMode = false;
-        private string _manualMergeNewContent = string.Empty;
-        private string _mergeSearchTerm = string.Empty;
-        private List<string> _failedPatchLines = new();
-        private int _currentFailedLineIndex = -1;
-        private MarkupString _highlightedFailedPatch;
+        private bool _isManualEditMode = false;
         private bool _showContextMenu = false;
         private double _contextMenuX, _contextMenuY;
         private DiffUtility.DiffLineItem? _contextMenuTargetLine;
@@ -66,6 +62,13 @@ namespace LlmContextCollector.Components.Dialogs
                 _localDiffResults = DiffResults?.ToList() ?? new();
                 _historyEntries = await AcceptedResponseHistoryService.GetHistoryAsync(AppState.ProjectRoot);
                 _globalExplanationText = GlobalExplanation;
+
+                _fileHistoryPointers.Clear();
+                foreach (var res in _localDiffResults)
+                {
+                    _fileHistoryPointers[res.Path] = -1;
+                }
+
                 ParseGlobalExplanation();
                 await SelectResult(_localDiffResults.FirstOrDefault());
             }
@@ -86,9 +89,51 @@ namespace LlmContextCollector.Components.Dialogs
             _selectedResult = result;
             _currentPatchBlockIndex = -1;
             _activeDiffHighlightIndex = -1;
+            _isManualEditMode = false;
+
+            if (_selectedResult != null)
+            {
+                var fullPath = Path.Combine(AppState.ProjectRoot, _selectedResult.Path.Replace('/', Path.DirectorySeparatorChar));
+                _liveContentOnDisk = File.Exists(fullPath) ? await File.ReadAllTextAsync(fullPath) : "";
+
+                if (!_fileHistoryPointers.ContainsKey(_selectedResult.Path))
+                {
+                    _fileHistoryPointers[_selectedResult.Path] = -1;
+                }
+
+                await SyncNewContentToHistoryPointer(_selectedResult);
+            }
+
             CalculatePatchBlocks();
             try { await GenerateDiffViewAsync(_diffCts.Token); }
             catch (OperationCanceledException) { }
+        }
+
+        private async Task SyncNewContentToHistoryPointer(DiffResult result)
+        {
+            _fileHistoryPointers.TryGetValue(result.Path, out int idx);
+            string baseContent;
+
+            if (idx == -1)
+            {
+                baseContent = _liveContentOnDisk;
+            }
+            else
+            {
+                var historyForFile = _historyEntries.SelectMany(e => e.Files).Where(f => f.Path == result.Path).ToList();
+                baseContent = idx < historyForFile.Count ? historyForFile[idx].OldContent : _liveContentOnDisk;
+            }
+
+            if (result.FailedPatchContent.Contains("<<<<<<< SEARCH"))
+            {
+                var summary = ContextProcessingService.ApplyPatches(baseContent, result.FailedPatchContent);
+                result.NewContent = summary.UpdatedContent;
+                result.PatchFailed = summary.BlockResults.Any(r => !r.Success);
+            }
+            else
+            {
+                result.NewContent = result.NewContent; // Megtartjuk az eredetit, ha nem patch alapú
+            }
         }
 
         private void CalculatePatchBlocks()
@@ -136,7 +181,10 @@ namespace LlmContextCollector.Components.Dialogs
                 _isGeneratingDiff = false;
                 return;
             }
-            var oldLines = _selectedResult.OldContent.Replace("\r\n", "\n").Split('\n');
+
+            // A bal oldal (Old) mindig a fájlrendszeri jelenlegi állapot (Live)
+            var oldLines = _liveContentOnDisk.Replace("\r\n", "\n").Split('\n');
+            // A jobb oldal (New) a navigált history állapot + az LLM változtatásai
             var newLines = _selectedResult.NewContent.Replace("\r\n", "\n").Split('\n');
             var opcodes = await DiffUtility.GetOpcodesAsync(oldLines, newLines);
             if (ct.IsCancellationRequested) return;
@@ -182,70 +230,29 @@ namespace LlmContextCollector.Components.Dialogs
             _fileHistoryPointers.TryGetValue(result.Path, out int currentIdx);
             int nextIdx = currentIdx + direction;
             if (nextIdx < -1 || nextIdx >= historyForFile.Count) return;
+
             _fileHistoryPointers[result.Path] = nextIdx;
 
-            string baseContent;
-            if (nextIdx == -1)
+            await SyncNewContentToHistoryPointer(result);
+
+            if (_selectedResult?.Path == result.Path)
             {
-                var fullPath = Path.Combine(AppState.ProjectRoot, result.Path.Replace('/', Path.DirectorySeparatorChar));
-                baseContent = File.Exists(fullPath) ? await File.ReadAllTextAsync(fullPath) : "";
-            }
-            else
-            {
-                baseContent = historyForFile[nextIdx].OldContent;
-            }
-
-            result.OldContent = baseContent;
-            if (result.FailedPatchContent.Contains("<<<<<<< SEARCH"))
-            {
-                var summary = ContextProcessingService.ApplyPatches(baseContent, result.FailedPatchContent);
-                result.NewContent = summary.UpdatedContent;
-                result.PatchFailed = summary.BlockResults.Any(r => !r.Success);
-                result.Status = result.PatchFailed ? DiffStatus.Error : DiffStatus.Modified;
-            }
-            if (_selectedResult?.Path == result.Path) await SelectResult(result);
-        }
-
-        private void OpenManualMerge(DiffResult result)
-        {
-            _selectedResult = result;
-            _manualMergeNewContent = result.NewContent;
-            _isManualMergeMode = true;
-            _mergeSearchTerm = "";
-            _currentFailedLineIndex = -1;
-            _failedPatchLines = result.FailedPatchContent.Split('\n').Where(l => !l.Contains("<<<<<<< SEARCH") && !l.Contains("=======") && !l.Contains(">>>>>>> REPLACE")).ToList();
-            UpdateMergeHighlighting();
-        }
-
-        private async Task NavigateFailedPatch(int direction)
-        {
-            if (!_failedPatchLines.Any()) return;
-            _currentFailedLineIndex = (_currentFailedLineIndex + direction + _failedPatchLines.Count) % _failedPatchLines.Count;
-            _mergeSearchTerm = _failedPatchLines[_currentFailedLineIndex].TrimStart();
-            await UpdateMergeHighlighting();
-        }
-
-        private async Task UpdateMergeHighlighting()
-        {
-            if (_selectedResult == null) return;
-            if (string.IsNullOrWhiteSpace(_mergeSearchTerm))
-                _highlightedFailedPatch = new MarkupString(System.Web.HttpUtility.HtmlEncode(_selectedResult.FailedPatchContent));
-            else
-                _highlightedFailedPatch = new MarkupString(Regex.Replace(System.Web.HttpUtility.HtmlEncode(_selectedResult.FailedPatchContent), Regex.Escape(System.Web.HttpUtility.HtmlEncode(_mergeSearchTerm)), m => $"<span class=\"highlight\">{m.Value}</span>", RegexOptions.IgnoreCase));
-        }
-
-        private async Task SaveManualMerge()
-        {
-            if (_selectedResult != null)
-            {
-                _selectedResult.NewContent = _manualMergeNewContent;
-                _selectedResult.PatchFailed = false;
-                _isManualMergeMode = false;
-                await SelectResult(_selectedResult);
+                await GenerateDiffViewAsync(CancellationToken.None);
             }
         }
 
-        private void CloseManualMerge() => _isManualMergeMode = false;
+        private async Task ToggleManualEdit()
+        {
+            _isManualEditMode = !_isManualEditMode;
+            if (!_isManualEditMode && _selectedResult != null)
+            {
+                if (_selectedResult.PatchFailed)
+                {
+                    _selectedResult.PatchFailed = false;
+                }
+                await GenerateDiffViewAsync(CancellationToken.None);
+            }
+        }
 
         private async Task ProcessFixFromClipboardAsync()
         {

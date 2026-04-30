@@ -19,28 +19,23 @@
                             <label><input type="radio" name="git-mode" @onchange="() => ChangeViewMode(ViewMode.Uncommitted)" checked="@(_selectedViewMode == ViewMode.Uncommitted)" /> Jelenlegi változások</label>
                             <label><input type="radio" name="git-mode" @onchange="() => ChangeViewMode(ViewMode.SinceBranchCreation)" checked="@(_selectedViewMode == ViewMode.SinceBranchCreation)" /> Branch nyitása óta</label>
                             <label><input type="radio" name="git-mode" @onchange="() => ChangeViewMode(ViewMode.AgainstBranch)" checked="@(_selectedViewMode == ViewMode.AgainstBranch)" /> Másik branch-hez képest</label>
-                            <label><input type="radio" name="git-mode" @onchange="() => ChangeViewMode(ViewMode.LlmHistory)" checked="@(_selectedViewMode == ViewMode.LlmHistory)" /> Elfogadott LLM válaszok</label>
                         </div>
                         @if (_selectedViewMode == ViewMode.AgainstBranch)
                         {
                             <select @bind="_selectedTargetBranch">@foreach (var b in _allBranches) { <option value="@b">@b</option> }</select>
                         }
-                        @if (_selectedViewMode == ViewMode.LlmHistory)
-                        {
-                            <select @onchange="OnHistoryEntrySelected"><option value="">Válassz előzményt...</option>@foreach (var e in _historyEntries) { <option value="@e.Id">@e.Timestamp.ToString("MM.dd HH:mm") - @GetSnippet(e.Explanation)</option> }</select>
-                        }
-                        @if (_selectedViewMode != ViewMode.LlmHistory)
-                        {
-                            <button @onclick="LoadSelectedDiffsAsync" disabled="@_isLoadingDiffs">@if (_isLoadingDiffs) { <span class="spinner-small"></span> } else { <span>Mutat</span> }</button>
-                        }
+                        <button @onclick="LoadSelectedDiffsAsync" disabled="@_isLoadingDiffs">@if (_isLoadingDiffs) { <span class="spinner-small"></span> } else { <span>Mutat</span> }</button>
                     </div>
 
                     <div class="suggestion-box">
                         <div class="suggestion-header">
                             <strong>Git Műveletek</strong>
-                            <button class="refresh-btn" @onclick="RefreshSuggestionsAsync" title="Javaslatok újragenerálása" disabled="@_isRefreshingSuggestions">
-                                @if (_isRefreshingSuggestions) { <span class="spinner-small"></span> } else { <span>🔄</span> }
-                            </button>
+                            <div class="suggestion-actions">
+                                <label class="prompt-toggle"><input type="checkbox" @bind="_includePromptInSuggestions" /> Prompt küldése</label>
+                                <button class="refresh-btn" @onclick="RefreshSuggestionsAsync" title="Javaslatok újragenerálása" disabled="@_isRefreshingSuggestions">
+                                    @if (_isRefreshingSuggestions) { <span class="spinner-small"></span> } else { <span>🔄</span> }
+                                </button>
+                            </div>
                         </div>
                         <div class="suggestion-item">
                             <label>Branch:</label>
@@ -60,14 +55,6 @@
                             <div @key="result.Path" class="review-file-item @(_selectedResult == result ? "selected" : "")" @onclick="() => SelectResult(result)">
                                 <input type="checkbox" @bind="result.IsSelectedForAccept" @onclick:stopPropagation />
                                 <span class="file-path-text">@result.Path</span>
-                                <div class="item-actions">
-                                    <div class="history-nav-group" @onclick:stopPropagation>
-                                        <button class="history-btn" @onclick="() => NavigateFileHistoryAsync(result, 1)" disabled="@(!HasMoreHistory(result, 1))">◀</button>
-                                        <span class="history-pointer">@GetHistoryPointerText(result)</span>
-                                        <button class="history-btn" @onclick="() => NavigateFileHistoryAsync(result, -1)" disabled="@(!HasMoreHistory(result, -1))">▶</button>
-                                    </div>
-                                    <button class="reset-btn" @onclick="() => RevertFile(result)" @onclick:stopPropagation title="Visszaállítás">↩</button>
-                                </div>
                             </div>
                         }
                     </div>
@@ -95,16 +82,9 @@
             </div>
             <div class="modal-footer">
                 <button @onclick="Close">Bezárás</button>
-                @if (_selectedViewMode == ViewMode.LlmHistory)
-                {
-                    <button class="primary" style="background-color: #dc3545;" @onclick="RevertSelectedHistoryChanges">Kijelöltek visszavonása</button>
-                }
-                else
-                {
-                    <button class="primary" @onclick="CreateBranch" disabled="@string.IsNullOrEmpty(_suggestedBranch)">Branch Létrehozása</button>
-                    <button class="primary" @onclick="Commit" disabled="@(string.IsNullOrEmpty(_suggestedCommit) || !_localDiffResults.Any(r => r.IsSelectedForAccept))">Commit</button>
-                    <button class="primary commit-btn" @onclick="Push">Push</button>
-                }
+                <button class="primary" @onclick="CreateBranch" disabled="@string.IsNullOrEmpty(_suggestedBranch)">Branch Létrehozása</button>
+                <button class="primary" @onclick="Commit" disabled="@(string.IsNullOrEmpty(_suggestedCommit) || !_localDiffResults.Any(r => r.IsSelectedForAccept))">Commit</button>
+                <button class="primary commit-btn" @onclick="Push">Push</button>
             </div>
         </div>
     </div>

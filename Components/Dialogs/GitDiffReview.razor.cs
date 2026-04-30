@@ -9,7 +9,6 @@ namespace LlmContextCollector.Components.Dialogs
 {
     public partial class GitDiffReview : ComponentBase, IDisposable
     {
-        [Inject] private AcceptedResponseHistoryService AcceptedResponseHistoryService { get; set; } = null!;
         [Inject] private GitWorkflowService GitWorkflowService { get; set; } = null!;
         [Inject] private GitSuggestionService GitSuggestionService { get; set; } = null!;
         [Inject] private IClipboard Clipboard { get; set; } = null!;
@@ -26,11 +25,9 @@ namespace LlmContextCollector.Components.Dialogs
         private List<DiffResult> _localDiffResults = new();
         private DiffResult? _selectedResult;
         private List<DiffUtility.DiffLineItem> _unifiedDiffLines = new();
-        private enum ViewMode { Uncommitted, SinceBranchCreation, AgainstBranch, LlmHistory }
+        private enum ViewMode { Uncommitted, SinceBranchCreation, AgainstBranch }
         private ViewMode _selectedViewMode = ViewMode.Uncommitted;
         private List<string> _allBranches = new();
-        private List<LlmHistoryEntry> _historyEntries = new();
-        private Dictionary<string, int> _fileHistoryPointers = new();
         private string _suggestedBranch = string.Empty;
         private string _suggestedCommit = string.Empty;
         private string _selectedTargetBranch = string.Empty;
@@ -39,6 +36,7 @@ namespace LlmContextCollector.Components.Dialogs
         private bool _prevIsVisible = false;
         private bool _isResizingPane = false;
         private bool _isRefreshingSuggestions = false;
+        private bool _includePromptInSuggestions = true;
         private double _leftPaneWidthPercent = 35.0;
         private double _windowWidth = 0;
         private CancellationTokenSource? _diffCts;
@@ -48,7 +46,6 @@ namespace LlmContextCollector.Components.Dialogs
             if (IsVisible && !_prevIsVisible)
             {
                 _localDiffResults = DiffResults?.ToList() ?? new();
-                _historyEntries = await AcceptedResponseHistoryService.GetHistoryAsync(AppState.ProjectRoot);
                 _allBranches = await GitWorkflowService.GetBranchesAsync();
                 _selectedTargetBranch = _allBranches.FirstOrDefault() ?? "";
                 await SelectResult(_localDiffResults.FirstOrDefault());
@@ -90,7 +87,8 @@ namespace LlmContextCollector.Components.Dialogs
             _isRefreshingSuggestions = true;
             try 
             {
-                var (b, c) = await GitSuggestionService.GetSuggestionsAsync(_localDiffResults, null, AppState.DiffOriginalPrompt);
+                var promptToUse = _includePromptInSuggestions ? AppState.DiffOriginalPrompt : null;
+                var (b, c) = await GitSuggestionService.GetSuggestionsAsync(_localDiffResults, null, promptToUse);
                 if (b != "suggestion-not-found") 
                 { 
                     _suggestedBranch = b ?? ""; 
@@ -103,7 +101,6 @@ namespace LlmContextCollector.Components.Dialogs
         private async Task ChangeViewMode(ViewMode mode)
         {
             _selectedViewMode = mode;
-            if (mode == ViewMode.LlmHistory) _historyEntries = await AcceptedResponseHistoryService.GetHistoryAsync(AppState.ProjectRoot);
             _localDiffResults.Clear(); 
             await SelectResult(null);
         }
@@ -120,36 +117,6 @@ namespace LlmContextCollector.Components.Dialogs
             _localDiffResults = await GitWorkflowService.GetDiffsAsync(gitMode, _selectedTargetBranch);
             await SelectResult(_localDiffResults.FirstOrDefault());
             _isLoadingDiffs = false;
-        }
-
-        private async Task OnHistoryEntrySelected(ChangeEventArgs e)
-        {
-            if (Guid.TryParse(e.Value?.ToString(), out var id))
-            {
-                var entry = _historyEntries.FirstOrDefault(x => x.Id == id);
-                if (entry != null) { _localDiffResults = entry.Files; await SelectResult(_localDiffResults.FirstOrDefault()); }
-            }
-        }
-
-        private bool HasMoreHistory(DiffResult result, int direction) 
-        { 
-            var historyForFile = _historyEntries.SelectMany(e => e.Files).Where(f => f.Path == result.Path).ToList(); 
-            _fileHistoryPointers.TryGetValue(result.Path, out int currentIdx); 
-            int nextIdx = currentIdx + direction; 
-            return nextIdx >= -1 && nextIdx < historyForFile.Count; 
-        }
-        
-        private string GetHistoryPointerText(DiffResult result) { _fileHistoryPointers.TryGetValue(result.Path, out int idx); return idx == -1 ? "LIVE" : $"H{idx + 1}"; }
-        
-        private async Task NavigateFileHistoryAsync(DiffResult result, int direction) 
-        { 
-            var historyForFile = _historyEntries.SelectMany(e => e.Files).Where(f => f.Path == result.Path).ToList(); 
-            _fileHistoryPointers.TryGetValue(result.Path, out int currentIdx); 
-            int nextIdx = currentIdx + direction; 
-            if (nextIdx < -1 || nextIdx >= historyForFile.Count) return; 
-            _fileHistoryPointers[result.Path] = nextIdx; 
-            result.OldContent = nextIdx == -1 ? (File.Exists(Path.Combine(AppState.ProjectRoot, result.Path.Replace('/', Path.DirectorySeparatorChar))) ? await File.ReadAllTextAsync(Path.Combine(AppState.ProjectRoot, result.Path.Replace('/', Path.DirectorySeparatorChar))) : "") : historyForFile[nextIdx].OldContent; 
-            if (_selectedResult?.Path == result.Path) await SelectResult(result); 
         }
 
         private async Task RevertFile(DiffResult r) { await GitWorkflowService.DiscardFileChangesAsync(r); await LoadSelectedDiffsAsync(); }
