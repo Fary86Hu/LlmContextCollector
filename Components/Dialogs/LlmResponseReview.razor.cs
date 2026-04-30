@@ -13,7 +13,6 @@ namespace LlmContextCollector.Components.Dialogs
     {
         [Inject] private AcceptedResponseHistoryService AcceptedResponseHistoryService { get; set; } = null!;
         [Inject] private ContextProcessingService ContextProcessingService { get; set; } = null!;
-        [Inject] private GitSuggestionService GitSuggestionService { get; set; } = null!;
         [Inject] private IClipboard Clipboard { get; set; } = null!;
         [Inject] private AppState AppState { get; set; } = null!;
 
@@ -32,13 +31,7 @@ namespace LlmContextCollector.Components.Dialogs
         private List<LlmHistoryEntry> _historyEntries = new();
         private Dictionary<string, int> _fileHistoryPointers = new();
 
-        private string _suggestedBranch = string.Empty;
-        private string _suggestedCommit = string.Empty;
         private string _globalExplanationText = string.Empty;
-        private bool _hasSuggestions = false;
-        private bool _isRefreshingSuggestions = false;
-        private bool _includeOriginalPromptInSuggestions = true;
-
         private bool _isFullResponseView = false;
         private bool _isGeneratingDiff = false;
         private bool _prevIsVisible = false;
@@ -82,35 +75,8 @@ namespace LlmContextCollector.Components.Dialogs
         private void ParseGlobalExplanation()
         {
             if (string.IsNullOrEmpty(GlobalExplanation)) return;
-            var bMatch = Regex.Match(GlobalExplanation, @"\[BRANCH_SUGGESTION\]([\s\S]*?)\[/BRANCH_SUGGESTION\]");
-            var cMatch = Regex.Match(GlobalExplanation, @"\[COMMIT_SUGGESTION\]([\s\S]*?)\[/COMMIT_SUGGESTION\]");
-            if (bMatch.Success && cMatch.Success)
-            {
-                _suggestedBranch = bMatch.Groups[1].Value.Trim();
-                _suggestedCommit = cMatch.Groups[1].Value.Trim();
-                _hasSuggestions = true;
-                _globalExplanationText = Regex.Replace(_globalExplanationText, @"\[BRANCH_SUGGESTION\][\s\S]*?\[/BRANCH_SUGGESTION\]", "").Trim();
-                _globalExplanationText = Regex.Replace(_globalExplanationText, @"\[COMMIT_SUGGESTION\][\s\S]*?\[/COMMIT_SUGGESTION\]", "").Trim();
-            }
-        }
-
-        private async Task RefreshSuggestionsAsync()
-        {
-            _isRefreshingSuggestions = true;
-            try
-            {
-                var (b, c) = await GitSuggestionService.GetSuggestionsAsync(_localDiffResults, _globalExplanationText, _includeOriginalPromptInSuggestions ? (OriginalPrompt ?? AppState.DiffOriginalPrompt) : null);
-                if (b != "suggestion-not-found")
-                {
-                    _suggestedBranch = b ?? "";
-                    _suggestedCommit = c ?? "";
-                    _hasSuggestions = true;
-                }
-            }
-            finally
-            {
-                _isRefreshingSuggestions = false;
-            }
+            _globalExplanationText = Regex.Replace(GlobalExplanation, @"\[BRANCH_SUGGESTION\][\s\S]*?\[/BRANCH_SUGGESTION\]", "").Trim();
+            _globalExplanationText = Regex.Replace(_globalExplanationText, @"\[COMMIT_SUGGESTION\][\s\S]*?\[/COMMIT_SUGGESTION\]", "").Trim();
         }
 
         private async Task SelectResult(DiffResult? result)

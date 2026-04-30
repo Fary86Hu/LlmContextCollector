@@ -391,12 +391,14 @@
     border-radius: 4px;
     border: 1px solid var(--border-color);
     flex: 1;
+    flex-wrap: wrap;
 }
 
 .copy-options-inline {
     display: flex;
     gap: 8px;
     font-size: 11px;
+    flex-shrink: 0;
 }
 
     .copy-options-inline label {

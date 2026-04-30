@@ -1,33 +1,46 @@
 .review-dialog { width: 95vw; height: 90vh; display: flex; flex-direction: column; }
 .review-body { display: flex; overflow: hidden; flex-grow: 1; }
-.review-left-pane { display: flex; flex-direction: column; overflow-y: auto; padding-right: 5px; }
+.review-left-pane { 
+    display: flex; 
+    flex-direction: column; 
+    overflow-y: auto; 
+    overflow-x: hidden; 
+    padding-right: 5px; 
+    min-width: 0; 
+}
 .review-splitter { width: 5px; background-color: var(--bg-color); cursor: col-resize; flex-shrink: 0; z-index: 10; border-left: 1px solid var(--border-color); }
 .review-right-pane { display: flex; flex-direction: column; flex-grow: 1; padding-left: 5px; min-width: 0; min-height: 0; }
 
 .global-explanation-box { background-color: var(--panel-bg); border: 1px solid var(--border-color); padding: 10px; margin-bottom: 10px; max-height: 150px; overflow-y: auto; flex-shrink: 0; }
 .global-explanation-box pre { white-space: pre-wrap; margin: 0; font-size: 11px; }
 
-.suggestion-box { background-color: var(--suggestion-box-bg); border: 1px solid var(--suggestion-box-border); padding: 10px; margin-bottom: 10px; border-radius: 4px; flex-shrink: 0; }
-.suggestion-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.suggestion-header .refresh-btn { background: none; border: none; cursor: pointer; font-size: 1.2em; padding: 2px; }
 
-.suggestion-item { display: grid; grid-template-columns: 60px 1fr auto; align-items: center; gap: 8px; margin-bottom: 8px; }
-.suggestion-item label { font-weight: bold; font-size: 11px; }
-.suggestion-item input, .suggestion-item textarea { 
-    font-family: Consolas, monospace; 
-    font-size: 11px; 
-    background-color: var(--input-bg-color); 
-    border: 1px solid var(--border-color);
-    width: 100%;
-    padding: 4px;
-}
-.suggestion-item textarea { align-self: flex-start; resize: vertical; min-height: 40px; }
-.suggestion-item button { padding: 4px 8px; height: 24px; display: flex; align-items: center; }
 
 .spinner-small { display: inline-block; border: 2px solid var(--text-color); border-top-color: transparent; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.review-file-list { flex-grow: 1; border: 1px solid var(--border-color); background-color: var(--panel-bg); overflow-y: auto; }
+.review-file-list-container {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    min-height: 0;
+    min-width: 0;
+}
+
+.review-file-list-container.disabled {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.review-file-list { 
+    flex-grow: 1; 
+    border: 1px solid var(--border-color); 
+    background-color: var(--panel-bg); 
+    overflow-y: auto; 
+    overflow-x: hidden; 
+    min-width: 0; 
+}
+
 .review-file-item { 
     padding: 6px 10px; 
     cursor: pointer; 
@@ -36,6 +49,8 @@
     align-items: center; 
     gap: 10px; 
     min-height: 40px;
+    font-size: 12px;
+    min-width: 0;
 }
 
 .review-file-item.selected { 
@@ -43,27 +58,32 @@
 }
 
 .file-path-text { 
+    flex-grow: 1;
     overflow: hidden; 
     text-overflow: ellipsis; 
     white-space: nowrap; 
-    flex-grow: 1; 
-    font-size: 12px; 
+    min-width: 0;
 }
 
 .status-badge { 
-    padding: 2px 6px; 
+    padding: 2px 4px; 
     border-radius: 3px; 
     font-size: 9px; 
     font-weight: bold; 
     color: white; 
-    width: 80px;
+    width: 75px;
     flex-shrink: 0;
     text-align: center;
+    text-transform: uppercase;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .status-badge.new { background-color: #2a9d8f; }
 .status-badge.modified { background-color: #e9c46a; }
 .status-badge.error { background-color: #e76f51; }
+.status-badge.accepted { background-color: #27ae60; }
 
 .right-top-block-pane { display: flex; flex-direction: column; overflow: hidden; min-height: 50px; background-color: var(--panel-bg); }
 .block-viewer-header { display: flex; justify-content: space-between; align-items: center; padding: 5px 8px; background-color: var(--toolbar-bg); border: 1px solid var(--border-color); font-size: 11px; }
@@ -108,8 +128,8 @@
 }
 
 .history-btn {
-    height: 20px;
-    width: 20px;
+    height: 22px;
+    width: 22px;
     padding: 0;
     display: flex;
     align-items: center;

@@ -71,30 +71,6 @@
                 else
                 {
                 <div class="review-left-pane" style="width: @(_leftPaneWidthPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;">
-                    
-                    <div class="suggestion-box">
-                        <div class="suggestion-header">
-                            <div style="display:flex; flex-direction:column; gap:2px;">
-                                <strong>@(_hasSuggestions ? "Javaslatok:" : "Git Műveletek")</strong>
-                                <label style="font-size: 10px; font-weight: normal; cursor: pointer; display: flex; align-items: center; gap: 4px;">
-                                    <input type="checkbox" @bind="_includeOriginalPromptInSuggestions" style="width: auto; height: auto;" /> Eredeti prompt küldése
-                                </label>
-                            </div>
-                            <button class="refresh-btn" @onclick="RefreshSuggestionsAsync" title="Javaslatok újragenerálása" disabled="@_isRefreshingSuggestions">
-                                @if (_isRefreshingSuggestions) { <span class="spinner-small"></span> } else { <span>🔄</span> }
-                            </button>
-                        </div>
-                        <div class="suggestion-item">
-                            <label>Branch:</label>
-                            <input type="text" @bind="_suggestedBranch" placeholder="pl. feature/uj-funkcio" />
-                            @if (_hasSuggestions) { <button @onclick="() => CopyToClipboard(_suggestedBranch)">Másol</button> }
-                        </div>
-                        <div class="suggestion-item">
-                            <label>Commit:</label>
-                            <textarea rows="3" @bind="_suggestedCommit" placeholder="pl. feat: Új funkció..."></textarea>
-                            @if (_hasSuggestions) { <button @onclick="() => CopyToClipboard(_suggestedCommit)">Másol</button> }
-                        </div>
-                    </div>
 
                     @if (!string.IsNullOrEmpty(GlobalExplanation))
                     {
@@ -104,17 +80,17 @@
                         </div>
                     }
                     <strong>Módosított fájlok: (@_localDiffResults.Count)</strong>
-                    <fieldset class="file-list-fieldset" disabled="@_isFullResponseView">
+                    <div class="review-file-list-container @(_isFullResponseView ? "disabled" : "")">
                         <div class="review-file-list">
                             @foreach (var result in _localDiffResults)
                             {
                                 <div @key="result.Path"
                                      class="review-file-item @GetStatusClass(result) @(_selectedResult != null && _selectedResult.Path == result.Path ? "selected" : "")"
                                      @onclick="() => SelectResult(result)">
-                                    <input type="checkbox" @bind="result.IsSelectedForAccept" @onclick:stopPropagation />
+                                    <input type="checkbox" @bind="result.IsSelectedForAccept" @onclick:stopPropagation disabled="@_isFullResponseView" />
                                     <span class="status-badge @GetStatusClass(result)">@GetStatusText(result)</span>
                                     <span class="file-path-text" title="@result.Path">@result.Path</span>
-                                    
+
                                     <div class="item-actions">
                                         @if (result.PatchFailed)
                                         {
@@ -126,16 +102,16 @@
                                         }
 
                                         <div class="history-nav-group" @onclick:stopPropagation>
-                                            <button class="history-btn" @onclick="() => NavigateFileHistoryAsync(result, 1)" disabled="@(!HasMoreHistory(result, 1))" title="Vissza a történetben">◀</button>
-                                            <span class="history-pointer">@GetHistoryPointerText(result)</span>
-                                            <button class="history-btn" @onclick="() => NavigateFileHistoryAsync(result, -1)" disabled="@(!HasMoreHistory(result, -1))" title="Előre a történetben">▶</button>
+                                            <button class="history-btn" @onclick="() => NavigateFileHistoryAsync(result, 1)" disabled="@(!HasMoreHistory(result, 1) || _isFullResponseView)" title="Vissza a történetben">◀</button>
+                                            <span class="history-pointer" @onclick:stopPropagation>@GetHistoryPointerText(result)</span>
+                                            <button class="history-btn" @onclick="() => NavigateFileHistoryAsync(result, -1)" disabled="@(!HasMoreHistory(result, -1) || _isFullResponseView)" title="Előre a történetben">▶</button>
                                         </div>
-                                        <button class="reset-btn" @onclick="() => DiscardChange(result)" @onclick:stopPropagation title="Módosítás elvetése">×</button>
+                                        <button class="reset-btn" @onclick="() => DiscardChange(result)" @onclick:stopPropagation title="Módosítás elvetése" disabled="@_isFullResponseView">×</button>
                                     </div>
                                 </div>
                             }
                         </div>
-                    </fieldset>
+                    </div>
                 </div>
 
                 <div class="review-splitter" @onmousedown="StartPaneResize"></div>
