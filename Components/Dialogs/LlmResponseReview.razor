@@ -37,10 +37,10 @@
 
                 <div class="review-left-pane" style="width: @(_leftPaneWidthPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;">
 
-                    @if (!string.IsNullOrEmpty(GlobalExplanation))
+                    @if (!string.IsNullOrEmpty(_globalExplanationText))
                     {
                         <div class="global-explanation-box">
-                            <strong>Globális Magyarázat:</strong>
+                            <strong>Change Log:</strong>
                             <pre>@_globalExplanationText</pre>
                         </div>
                     }
@@ -112,6 +112,14 @@
                             <div class="diff-h-splitter" @onmousedown="StartTopPaneResize"></div>
 
                             <div class="right-bottom-diff-pane" style="height: @((100 - _topPaneHeightPercent).ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;">
+                                @if (!string.IsNullOrEmpty(_selectedResult.Explanation))
+                                {
+                                    <div class="file-explanation-box">
+                                        <strong>Fájl magyarázat:</strong>
+                                        <p>@_selectedResult.Explanation</p>
+                                    </div>
+                                }
+
                                 @if (_selectedResult.PatchFailed)
                                 {
                                     <div class="patch-failed-warning error-border">
@@ -161,7 +169,7 @@
                                 @if (!string.IsNullOrEmpty(_selectedResult.Explanation))
                                 {
                                     <div class="file-explanation-box">
-                                        <strong>Magyarázat:</strong>
+                                        <strong>Fájl magyarázat:</strong>
                                         <p>@_selectedResult.Explanation</p>
                                     </div>
                                 }

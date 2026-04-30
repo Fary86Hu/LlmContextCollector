@@ -11,10 +11,11 @@
 .review-splitter { width: 5px; background-color: var(--bg-color); cursor: col-resize; flex-shrink: 0; z-index: 10; border-left: 1px solid var(--border-color); }
 .review-right-pane { display: flex; flex-direction: column; flex-grow: 1; padding-left: 5px; min-width: 0; min-height: 0; }
 
-.global-explanation-box { background-color: var(--panel-bg); border: 1px solid var(--border-color); padding: 10px; margin-bottom: 10px; max-height: 150px; overflow-y: auto; flex-shrink: 0; }
-.global-explanation-box pre { white-space: pre-wrap; margin: 0; font-size: 11px; }
+.global-explanation-box { background-color: var(--suggestion-box-bg); border: 1px solid var(--border-color); padding: 10px; margin-bottom: 10px; max-height: 200px; overflow-y: auto; flex-shrink: 0; border-left: 4px solid var(--accent-color); }
+.global-explanation-box pre { white-space: pre-wrap; margin: 5px 0 0 0; font-size: 11px; font-family: inherit; color: var(--text-color); }
 
-
+.file-explanation-box { background-color: var(--suggestion-box-bg); border: 1px solid var(--border-color); padding: 8px 12px; margin: 5px; border-left: 4px solid #2a9d8f; flex-shrink: 0; }
+.file-explanation-box p { margin: 4px 0 0 0; font-size: 11px; color: var(--text-color); }
 
 .spinner-small { display: inline-block; border: 2px solid var(--text-color); border-top-color: transparent; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
