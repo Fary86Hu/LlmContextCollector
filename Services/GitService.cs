@@ -1,3 +1,4 @@
+using System;
 using System.Diagnostics;
 using System.Text;
 
@@ -99,6 +100,25 @@ namespace LlmContextCollector.Services
 
         public async Task PushAsync(string branchName)
         {
+            if (!string.IsNullOrWhiteSpace(_appState.GitPersonalAccessToken))
+            {
+                var (success, output, _) = await RunGitCommandAsync(new[] { "remote", "get-url", "origin" });
+                if (success)
+                {
+                    var url = output.Trim();
+                    if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps)
+                    {
+                        var builder = new UriBuilder(uri) { UserName = _appState.GitPersonalAccessToken };
+                        var authUrl = builder.ToString();
+
+                        // Push művelet a tokenes URL használatával, de az upstream-et nem állítjuk át 
+                        // a tokenes verzióra a config-ban a biztonság megőrzése érdekében.
+                        await RunGitCommandAsync(new[] { "push", authUrl, $"HEAD:{branchName}" }, throwOnError: true);
+                        return;
+                    }
+                }
+            }
+
             await RunGitCommandAsync(new[] { "push", "--set-upstream", "origin", branchName }, throwOnError: true);
         }
 

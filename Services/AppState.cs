@@ -317,6 +317,9 @@ namespace LlmContextCollector.Services
         private string _azureDevOpsPat = "";
         public string AzureDevOpsPat { get => _azureDevOpsPat; set => SetField(ref _azureDevOpsPat, value); }
 
+        private string _gitPersonalAccessToken = "";
+        public string GitPersonalAccessToken { get => _gitPersonalAccessToken; set => SetField(ref _gitPersonalAccessToken, value); }
+
         private string _localizationResourcePath = string.Empty;
         public string LocalizationResourcePath { get => _localizationResourcePath; set => SetField(ref _localizationResourcePath, value); }
 
