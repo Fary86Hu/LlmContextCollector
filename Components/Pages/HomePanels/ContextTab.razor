@@ -152,19 +152,18 @@
         <div id="preview-box" class="preview-box"><pre>@_previewContentMarkup</pre></div>
     </div>
 
-    <div class="bottom-actions">
-        <div class="main-actions">
-            <div class="copy-group">
-                <div class="copy-options-inline">
-                    <label><input type="checkbox" @bind="AppState.IncludePromptInCopy" />Prompt</label>
-                    <label><input type="checkbox" @bind="AppState.IncludeSystemPromptInCopy" />System</label>
-                    <label><input type="checkbox" @bind="AppState.IncludeFilesInCopy" />Fájlok</label>
-                    <label><input type="checkbox" @bind="AppState.IncludeProjectTreeInCopy" />Struktúra</label>
-                </div>
-
-                <div class="custom-dropdown-container inline-dropdown" style="width: 140px;">
+    <div class="bottom-panel-container">
+        <div class="options-bar">
+            <div class="options-group">
+                <label class="option-check"><input type="checkbox" @bind="AppState.IncludePromptInCopy" /> Prompt</label>
+                <label class="option-check"><input type="checkbox" @bind="AppState.IncludeSystemPromptInCopy" /> System</label>
+                <label class="option-check"><input type="checkbox" @bind="AppState.IncludeFilesInCopy" /> Fájlok</label>
+                <label class="option-check"><input type="checkbox" @bind="AppState.IncludeProjectTreeInCopy" /> Struktúra</label>
+            </div>
+            <div class="options-dropdowns">
+                <div class="custom-dropdown-container" style="width: 140px;">
                     <div class="custom-dropdown-trigger" @onclick="ToggleDocsDropdown" @onclick:stopPropagation="true">
-                        <span>Dokuk (@AppState.AttachableDocuments.Count(d => d.IsSelected))</span>
+                        <span class="truncate">Dokuk (@AppState.AttachableDocuments.Count(d => d.IsSelected))</span>
                         <span class="dropdown-arrow">▼</span>
                     </div>
                     @if (_isDocsDropdownOpen)
@@ -178,14 +177,14 @@
                                     <button class="icon-btn-small" @onclick="() => EditDocument(doc)" @onclick:stopPropagation="true">✏️</button>
                                 </div>
                             }
-                            <div class="custom-dropdown-item add-new-item" @onclick="AddNewDocument" @onclick:stopPropagation="true" style="justify-content:center; border-top:1px solid var(--border-color); color:var(--accent-color); font-weight:bold;">+ Új dokumentum</div>
+                            <div class="custom-dropdown-item add-new-item" @onclick="AddNewDocument" @onclick:stopPropagation="true">+ Új dokumentum</div>
                         </div>
                     }
                 </div>
 
-                <div class="custom-dropdown-container inline-dropdown" style="flex: 1; max-width: 200px;">
+                <div class="custom-dropdown-container" style="width: 180px;">
                     <div class="custom-dropdown-trigger" @onclick="ToggleBottomDropdown" @onclick:stopPropagation="true">
-                        <span>@(AppState.PromptTemplates.FirstOrDefault(p => p.Id == AppState.ActiveGlobalPromptId)?.Title ?? "Válassz sablont...")</span>
+                        <span class="truncate">@(AppState.PromptTemplates.FirstOrDefault(p => p.Id == AppState.ActiveGlobalPromptId)?.Title ?? "Sablon...")</span>
                         <span class="dropdown-arrow">▼</span>
                     </div>
                     @if (_isBottomDropdownOpen)
@@ -201,15 +200,28 @@
                         </div>
                     }
                 </div>
-                <button class="copy-button secondary" @onclick="HandleKontextClick" title="Releváns fájlok keresése" style="padding: 6px 10px;">🔍 Kontext</button>
-                <button class="copy-button primary" @onclick="HandleAiChatClick" style="min-width: 80px;">AI Chat</button>
-                <button class="copy-button" @onclick="CopyToClipboard" style="min-width: 80px; background-color: var(--button-bg-color); color: var(--text-color);">@_copyButtonText</button>
-                <button class="copy-button secondary" @onclick="CopyImagesAsync" disabled="@(!AppState.AttachedImages.Any())" title="Csatolt képek másolása vágólapra">Másolás (🖼️)</button>
+            </div>
+        </div>
+
+        <div class="actions-bar">
+            <div class="actions-main">
+                <button class="action-btn-primary context-btn" @onclick="HandleKontextClick" title="Releváns fájlok keresése">
+                    <span class="icon">🔍</span> Kontext
+                </button>
+                <button class="action-btn-primary chat-btn" @onclick="HandleAiChatClick">
+                    <span class="icon">🤖</span> AI Chat
+                </button>
             </div>
 
-            <div class="other-actions">
-                <button class="copy-button secondary" @onclick="HandleGitDiffClick" title="Git változások ellenőrzése">Git Diff</button>
-                <button class="copy-button" @onclick="ProcessChangesFromClipboardAsync">Feldolgoz</button>
+            <div class="actions-utils">
+                <div class="button-group">
+                    <button class="action-btn-secondary" @onclick="CopyToClipboard">@_copyButtonText</button>
+                    <button class="action-btn-secondary" @onclick="CopyImagesAsync" disabled="@(!AppState.AttachedImages.Any())" title="Képek másolása">🖼️</button>
+                </div>
+                <div class="button-group">
+                    <button class="action-btn-secondary git-btn" @onclick="HandleGitDiffClick" title="Git Diff">Git Diff</button>
+                    <button class="action-btn-accent" @onclick="ProcessChangesFromClipboardAsync">Feldolgoz</button>
+                </div>
             </div>
         </div>
     </div>

@@ -366,59 +366,153 @@
     -webkit-user-select: text !important;
 }
 
-.bottom-actions {
+.bottom-panel-container {
     margin-top: 10px;
-    padding-top: 8px;
+    padding-top: 10px;
     border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     flex-shrink: 0;
-    min-height: min-content;
+    background-color: var(--bg-color);
 }
 
-.main-actions {
+/* Row 1: Options & Settings */
+.options-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 8px;
+    gap: 15px;
+    padding: 0 4px;
     flex-wrap: wrap;
 }
 
-.copy-group {
+.options-group {
+    display: flex;
+    gap: 12px;
+}
+
+.option-check {
     display: flex;
     align-items: center;
-    gap: 12px;
-    background-color: var(--toolbar-bg);
-    padding: 4px 10px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    flex: 1;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--text-color-light);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.2s;
+}
+
+.option-check:hover {
+    color: var(--text-color);
+}
+
+.option-check input {
+    margin: 0;
+}
+
+.options-dropdowns {
+    display: flex;
+    gap: 8px;
+}
+
+/* Row 2: Main Execution Buttons */
+.actions-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
     flex-wrap: wrap;
 }
 
-.copy-options-inline {
+.actions-main {
     display: flex;
-    gap: 8px;
-    font-size: 11px;
-    flex-shrink: 0;
+    gap: 6px;
 }
 
-    .copy-options-inline label {
-        display: flex;
-        align-items: center;
-        gap: 3px;
-        cursor: pointer;
-    }
-
-.other-actions {
+.actions-utils {
     display: flex;
-    gap: 4px;
-    flex-shrink: 0;
+    gap: 12px;
+    align-items: center;
 }
 
-    .other-actions button {
-        padding: 4px 10px;
-        font-size: 11px;
-        white-space: nowrap;
-    }
+.button-group {
+    display: flex;
+    gap: 2px;
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 2px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
+/* Button Styles */
+.action-btn-primary, .action-btn-secondary, .action-btn-accent {
+    height: 32px;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.action-btn-primary {
+    background-color: var(--accent-color);
+    color: white;
+    min-width: 100px;
+}
+
+.action-btn-primary:hover {
+    filter: brightness(1.2);
+    box-shadow: 0 2px 8px rgba(0, 120, 212, 0.3);
+}
+
+.chat-btn {
+    background-color: #512bd4; /* .NET Purple style */
+}
+
+.action-btn-secondary {
+    background-color: var(--button-bg-color);
+    color: var(--text-color);
+    border-color: var(--border-color);
+    font-weight: normal;
+}
+
+.action-btn-secondary:hover:not(:disabled) {
+    background-color: var(--hover-bg-color);
+}
+
+.action-btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.action-btn-accent {
+    background-color: #0078d4;
+    color: white;
+}
+
+.git-btn {
+    color: #e67e22;
+}
+
+.truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.add-new-item {
+    justify-content: center;
+    border-top: 1px solid var(--border-color);
+    color: var(--accent-color);
+    font-weight: bold;
+}
 
 .horizontal-splitter {
     height: 4px;
@@ -479,21 +573,27 @@
 .custom-dropdown-list {
     position: absolute;
     bottom: 100%;
-    left: 0;
-    width: 250px;
+    right: 0;
+    min-width: 240px;
+    width: max-content;
+    max-width: 450px;
     background: var(--panel-bg);
     border: 1px solid var(--border-color);
-    box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.3);
     z-index: 100;
+    border-radius: 4px;
+    padding: 4px 0;
 }
 
 .custom-dropdown-item {
-    padding: 4px 8px;
+    padding: 6px 12px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: space-between;
+    gap: 12px;
     font-size: 11px;
     cursor: pointer;
+    transition: background 0.15s;
 }
 
     .custom-dropdown-item:hover {
@@ -505,16 +605,36 @@
         color: white;
     }
 
+.item-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .copy-item-btn {
-    background: none;
-    border: none;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
     cursor: pointer;
-    margin-left: auto;
-    opacity: 0.5;
+    opacity: 0.4;
+    padding: 2px 4px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    color: inherit;
 }
 
 .custom-dropdown-item:hover .copy-item-btn {
     opacity: 1;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.copy-item-btn:hover {
+    background: var(--accent-color) !important;
+    color: white;
 }
 
 ::deep .highlight {
