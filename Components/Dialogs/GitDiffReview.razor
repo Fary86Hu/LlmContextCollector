@@ -27,6 +27,33 @@
                         <button @onclick="LoadSelectedDiffsAsync" disabled="@_isLoadingDiffs">@if (_isLoadingDiffs) { <span class="spinner-small"></span> } else { <span>Mutat</span> }</button>
                     </div>
 
+                    @if (_historyEntries.Any())
+                    {
+                        <div class="diff-selector-box">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong>Elfogadott előzmények:</strong>
+                                <button class="icon-btn-small reset-btn" title="Visszaállítás az előzmény alapállapotára" @onclick="RevertSelectedHistoryChanges" disabled="@(_historyIndex == -1)">↺</button>
+                            </div>
+                            <div class="history-nav-group">
+                                <button @onclick="() => NavigateHistory(1)" disabled="@(_historyIndex >= _historyEntries.Count - 1)">◀</button>
+                                <span class="history-pointer">@(_historyIndex == -1 ? "LIVE" : $"H{_historyIndex + 1}")</span>
+                                <button @onclick="() => NavigateHistory(-1)" disabled="@(_historyIndex <= -1)">▶</button>
+                            </div>
+                            @if (_historyIndex > 0)
+                            {
+                                <button class="sidebar-btn-half" style="margin-top: 5px; width: 100%;" @onclick="RollbackToSelectedPoint">Visszaállítás ide (H@{
+                                        (_historyIndex + 1).ToString();
+                                    })</button>
+                            }
+                            @if (_historyIndex >= 0)
+                            {
+                                <div style="font-size: 10px; color: var(--text-color-light); font-style: italic; max-height: 40px; overflow: hidden;">
+                                    @_historyEntries[_historyIndex].Explanation
+                                </div>
+                            }
+                        </div>
+                    }
+
                     <div class="suggestion-box">
                         <div class="suggestion-header">
                             <strong>Git Műveletek</strong>

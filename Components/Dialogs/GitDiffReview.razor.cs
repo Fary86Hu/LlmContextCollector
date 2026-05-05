@@ -14,6 +14,7 @@ namespace LlmContextCollector.Components.Dialogs
         [Inject] private IClipboard Clipboard { get; set; } = null!;
         [Inject] private AppState AppState { get; set; } = null!;
         [Inject] private IJSRuntime JSRuntime { get; set; } = null!;
+        [Inject] private AcceptedResponseHistoryService AcceptedResponseHistoryService { get; set; } = null!;
 
         [Parameter] public bool IsVisible { get; set; }
         [Parameter] public List<DiffResult>? DiffResults { get; set; }
@@ -25,6 +26,8 @@ namespace LlmContextCollector.Components.Dialogs
         private List<DiffResult> _localDiffResults = new();
         private DiffResult? _selectedResult;
         private List<DiffUtility.DiffLineItem> _unifiedDiffLines = new();
+        private List<LlmHistoryEntry> _historyEntries = new();
+        private int _historyIndex = -1;
         private enum ViewMode { Uncommitted, SinceBranchCreation, AgainstBranch }
         private ViewMode _selectedViewMode = ViewMode.Uncommitted;
         private List<string> _allBranches = new();
@@ -48,6 +51,8 @@ namespace LlmContextCollector.Components.Dialogs
                 _localDiffResults = DiffResults?.ToList() ?? new();
                 _allBranches = await GitWorkflowService.GetBranchesAsync();
                 _selectedTargetBranch = _allBranches.FirstOrDefault() ?? "";
+                _historyEntries = await AcceptedResponseHistoryService.GetHistoryAsync(AppState.ProjectRoot);
+                _historyIndex = -1;
                 await SelectResult(_localDiffResults.FirstOrDefault());
             }
             _prevIsVisible = IsVisible;
@@ -98,9 +103,35 @@ namespace LlmContextCollector.Components.Dialogs
             finally { _isRefreshingSuggestions = false; }
         }
 
+        private async Task NavigateHistory(int direction)
+        {
+            int newIdx = _historyIndex + direction;
+            if (newIdx < -1 || newIdx >= _historyEntries.Count) return;
+
+            _historyIndex = newIdx;
+            if (_historyIndex == -1)
+            {
+                await LoadSelectedDiffsAsync();
+            }
+            else
+            {
+                var entry = _historyEntries[_historyIndex];
+                _localDiffResults = entry.Files.Select(f => new DiffResult 
+                { 
+                    Path = f.Path, 
+                    Status = f.Status, 
+                    OldContent = f.OldContent, 
+                    NewContent = f.NewContent,
+                    IsSelectedForAccept = true 
+                }).ToList();
+                await SelectResult(_localDiffResults.FirstOrDefault());
+            }
+        }
+
         private async Task ChangeViewMode(ViewMode mode)
         {
             _selectedViewMode = mode;
+            _historyIndex = -1;
             _localDiffResults.Clear(); 
             await SelectResult(null);
         }
@@ -120,7 +151,55 @@ namespace LlmContextCollector.Components.Dialogs
         }
 
         private async Task RevertFile(DiffResult r) { await GitWorkflowService.DiscardFileChangesAsync(r); await LoadSelectedDiffsAsync(); }
-        private async Task RevertSelectedHistoryChanges() { var acc = _localDiffResults.Where(r => r.IsSelectedForAccept).ToList(); if (acc.Any()) { await GitWorkflowService.RevertLlmHistoryChangesAsync(acc); await ChangeViewMode(ViewMode.Uncommitted); } }
+        private async Task RevertSelectedHistoryChanges()
+        {
+            if (_historyIndex < 0 || !_historyEntries.Any()) return;
+
+            var allFilesToRevert = new List<DiffResult>();
+            for (int i = 0; i <= _historyIndex; i++)
+            {
+                allFilesToRevert.AddRange(_historyEntries[i].Files);
+            }
+
+            if (allFilesToRevert.Any())
+            {
+                await GitWorkflowService.RevertLlmHistoryChangesAsync(allFilesToRevert);
+                _historyEntries = await AcceptedResponseHistoryService.GetHistoryAsync(AppState.ProjectRoot);
+                await ChangeViewMode(ViewMode.Uncommitted);
+                AppState.StatusText = "Minden AI módosítás visszavonva a választott pontig.";
+            }
+        }
+
+        private async Task RollbackToSelectedPoint()
+        {
+            if (_historyIndex < 0 || !_historyEntries.Any()) return;
+
+            var filesToUndo = new List<DiffResult>();
+            for (int i = 0; i < _historyIndex; i++)
+            {
+                filesToUndo.AddRange(_historyEntries[i].Files);
+            }
+
+            if (filesToUndo.Any())
+            {
+                await GitWorkflowService.RevertLlmHistoryChangesAsync(filesToUndo);
+                _historyEntries = await AcceptedResponseHistoryService.GetHistoryAsync(AppState.ProjectRoot);
+
+                var entry = _historyEntries[_historyIndex];
+                _localDiffResults = entry.Files.Select(f => new DiffResult 
+                { 
+                    Path = f.Path, 
+                    Status = f.Status, 
+                    OldContent = f.OldContent, 
+                    NewContent = f.NewContent,
+                    IsSelectedForAccept = true 
+                }).ToList();
+
+                await SelectResult(_localDiffResults.FirstOrDefault());
+                AppState.StatusText = $"Visszaállítva a(z) H{_historyIndex + 1} állapotra (újabbak törölve).";
+            }
+        }
+
         private async Task CreateBranch() => await OnCreateBranch.InvokeAsync(_suggestedBranch);
         private async Task Commit() => await OnCommit.InvokeAsync(new CommitAndPushArgs(_suggestedBranch, _suggestedCommit, _localDiffResults.Where(r => r.IsSelectedForAccept).ToList()));
         private async Task Push() => await OnPush.InvokeAsync(new CommitAndPushArgs(AppState.CurrentGitBranch, _suggestedCommit, _localDiffResults.Where(r => r.IsSelectedForAccept).ToList()));
