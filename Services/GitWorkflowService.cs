@@ -293,6 +293,14 @@ namespace LlmContextCollector.Services
             _appState.StatusText = $"Átváltva a(z) '{branchName}' branch-re.";
         }
 
+        public async Task CheckoutBranchAsync(string branchName)
+        {
+            _logService.LogInfo("Git", "Átváltás meglévő ágra", branchName);
+            await _gitService.CheckoutAsync(branchName);
+            _appState.CurrentGitBranch = branchName;
+            _appState.StatusText = $"Átváltva a(z) '{branchName}' ágra.";
+        }
+
         public async Task CommitChangesAsync(CommitAndPushArgs args)
         {
             _logService.LogInfo("Git", "Commit folyamat indítása", $"Üzenet: {args.CommitMessage}");

@@ -89,6 +89,131 @@ namespace LlmContextCollector.Services
             _appState.AdoDocsExist = newExist;
         }
 
+        public record PullRequestFile(string Path, string ChangeType);
+        public record PullRequestData(string FormattedText, List<PullRequestFile> Files, string SourceBranch, List<AttachedImage> Images);
+
+        public async Task<PullRequestData> GetFormattedPullRequestAsync(int prId)
+        {
+            _logService.LogInfo("ADO", $"Pull Request {prId} lekérése indítva...");
+
+            if (string.IsNullOrWhiteSpace(_appState.AzureDevOpsOrganizationUrl) || string.IsNullOrWhiteSpace(_appState.AzureDevOpsPat))
+            {
+                throw new InvalidOperationException("Az Azure DevOps beállítások (URL, PAT) nincsenek megadva.");
+            }
+
+            var orgUrl = _appState.AzureDevOpsOrganizationUrl.Trim().TrimEnd('/');
+            var project = _appState.AzureDevOpsProject.Trim();
+            var pat = _appState.AzureDevOpsPat.Trim();
+            var encodedProject = Uri.EscapeDataString(project);
+
+            var client = _httpClientFactory.CreateClient("AzureDevOps");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                Convert.ToBase64String(Encoding.ASCII.GetBytes($":{pat}")));
+
+            var prUrl = $"{orgUrl}/{encodedProject}/_apis/git/pullrequests/{prId}?api-version=6.0";
+            var prResponse = await client.GetAsync(prUrl);
+            if (!prResponse.IsSuccessStatusCode)
+            {
+                var err = await prResponse.Content.ReadAsStringAsync();
+                _logService.LogError("ADO", $"PR hiba ({prResponse.StatusCode})", err);
+                throw new HttpRequestException($"Nem sikerült lekérni a Pull Requestet ({prId}).");
+            }
+
+            var pr = await JsonSerializer.DeserializeAsync<GitPullRequest>(await prResponse.Content.ReadAsStreamAsync(), _jsonOptions);
+            if (pr == null) return new PullRequestData(string.Empty, new List<PullRequestFile>(), string.Empty, new List<AttachedImage>());
+
+            var repositoryId = pr.Repository?.Id;
+            _logService.LogInfo("ADO", $"PR alapadatok lekérve. Repo: {pr.Repository?.Name}");
+
+            // Részadatok lekérése (szálak, iterációk, munkaminták)
+            async Task<T?> FetchSafe<T>(string url, string label) where T : class
+            {
+                try {
+                    var resp = await client.GetAsync(url);
+                    if (!resp.IsSuccessStatusCode) return null;
+                    return await JsonSerializer.DeserializeAsync<T>(await resp.Content.ReadAsStreamAsync(), _jsonOptions);
+                } catch (Exception ex) {
+                    _logService.LogWarning("ADO", $"Részadat hiba ({label})", ex.Message);
+                    return null;
+                }
+            }
+
+            var threadsData = await FetchSafe<GitPullRequestCommentThreadListResponse>(
+                $"{orgUrl}/_apis/git/repositories/{repositoryId}/pullRequests/{prId}/threads?api-version=6.0", "threads");
+
+            var iterationsData = await FetchSafe<GitPullRequestIterationListResponse>(
+                $"{orgUrl}/_apis/git/repositories/{repositoryId}/pullRequests/{prId}/iterations?api-version=6.0", "iterations");
+
+            var lastIterationId = iterationsData?.Value.LastOrDefault()?.Id ?? 1;
+            var changesData = await FetchSafe<GitPullRequestChangeListResponse>(
+                $"{orgUrl}/_apis/git/repositories/{repositoryId}/pullRequests/{prId}/iterations/{lastIterationId}/changes?api-version=6.0", "changes");
+
+            var workItemsData = await FetchSafe<GitPullRequestWorkItemReferenceListResponse>(
+                $"{orgUrl}/_apis/git/repositories/{repositoryId}/pullRequests/{prId}/workitems?api-version=6.0", "workitems");
+
+            var affectedFiles = new List<PullRequestFile>();
+            var allImages = new List<AttachedImage>();
+            var sb = new StringBuilder();
+            sb.AppendLine($"# ADO Pull Request {prId}: {pr.Title}");
+            sb.AppendLine($"Forrás: {pr.SourceRefName} -> Cél: {pr.TargetRefName}");
+            sb.AppendLine("\n## Leírás:");
+            sb.AppendLine(pr.Description);
+
+            if (threadsData?.Value != null)
+            {
+                var threadsWithComments = threadsData.Value.Where(t => t.Comments != null && t.Comments.Any(c => !string.IsNullOrWhiteSpace(c.Text))).ToList();
+                if (threadsWithComments.Any())
+                {
+                    sb.AppendLine("\n## Megjegyzések és szálak:");
+                    foreach (var thread in threadsWithComments)
+                    {
+                        var firstComment = thread.Comments.First();
+                        var context = thread.ThreadContext != null ? $" (Fájl: {thread.ThreadContext.Path})" : "";
+                        sb.AppendLine($"\n[{thread.Status}]{context} {firstComment.CreatedBy?.DisplayName}:");
+                        sb.AppendLine(HtmlToPlainText(firstComment.Text));
+                        foreach (var reply in thread.Comments.Skip(1)) sb.AppendLine($"  > {reply.CreatedBy?.DisplayName}: {HtmlToPlainText(reply.Text)}");
+                    }
+                }
+            }
+
+            if (changesData?.ChangeEntries != null)
+            {
+                sb.AppendLine("\n## Módosított fájlok:");
+                foreach (var change in changesData.ChangeEntries.Where(c => c.Item != null))
+                {
+                    sb.AppendLine($"- [{change.ChangeType}] {change.Item!.Path}");
+                    affectedFiles.Add(new PullRequestFile(change.Item.Path, change.ChangeType));
+                }
+            }
+
+            var branchName = pr.SourceRefName;
+            if (branchName.StartsWith("refs/heads/")) branchName = branchName.Substring(11);
+
+            if (workItemsData?.Value != null && workItemsData.Value.Any())
+            {
+                sb.AppendLine("\n## Kapcsolódó Work Item-ek:");
+                foreach (var wiRef in workItemsData.Value)
+                {
+                    if (int.TryParse(wiRef.Id, out int wiId))
+                    {
+                        try {
+                            var wiData = await GetFormattedWorkItemAsync(wiId, allImages.Count);
+                            sb.AppendLine($"\n--- START WORK ITEM {wiId} ---");
+                            sb.AppendLine(wiData.Text);
+                            if (wiData.Images != null) allImages.AddRange(wiData.Images);
+                            sb.AppendLine($"--- END WORK ITEM {wiId} ---");
+                        } catch (Exception ex) {
+                            sb.AppendLine($"\n[HIBA: Nem sikerült letölteni a(z) {wiId} munkamintát: {ex.Message}]");
+                        }
+                    }
+                }
+            }
+
+            sb.AppendLine("\n--- END OF PULL REQUEST CONTEXT ---");
+            _logService.LogInfo("ADO", $"PR {prId} feldolgozása kész. Fájlok: {affectedFiles.Count}");
+            return new PullRequestData(sb.ToString(), affectedFiles, branchName, allImages);
+        }
+
         public async Task<(string Text, List<AttachedImage> Images, int FailedImagesCount)> GetFormattedWorkItemAsync(int workItemId, int startIndex)
         {
             _logService.LogInfo("ADO", $"Work Item {workItemId} lekérése indítva...");
@@ -464,7 +589,11 @@ namespace LlmContextCollector.Services
 
             var wiqlResult = await JsonSerializer.DeserializeAsync<WiqlResponse>(await wiqlResponse.Content.ReadAsStreamAsync(), _jsonOptions);
             if (wiqlResult == null || !wiqlResult.WorkItems.Any()) return;
-            workItemIds = wiqlResult.WorkItems.Select(wi => wi.Id).ToList();
+
+            workItemIds = wiqlResult.WorkItems
+                .Select(wi => int.TryParse(wi.Id, out int id) ? id : 0)
+                .Where(id => id > 0)
+                .ToList();
 
             const int batchSize = 200;
             for (int i = 0; i < workItemIds.Count; i += batchSize)

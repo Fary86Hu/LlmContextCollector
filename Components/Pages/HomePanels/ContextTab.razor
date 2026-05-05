@@ -30,7 +30,11 @@
                 <div class="sidebar-section">
                     <div class="input-group">
                         <input type="number" placeholder="Work item ID..." @bind="_adoWorkItemIdToLoad" @onkeyup="HandleAdoKeyup" />
-                        <button class="icon-btn-group" @onclick="LoadAdoWorkItemAsync" title="Betöltés">⏎</button>
+                        <button class="icon-btn-group" @onclick="LoadAdoWorkItemAsync" title="Work Item betöltése">⏎</button>
+                    </div>
+                    <div class="input-group" style="margin-top: 4px;">
+                        <input type="number" placeholder="PR ID..." @bind="_adoPullRequestIdToLoad" @onkeyup="HandlePrKeyup" />
+                        <button class="icon-btn-group" @onclick="LoadAdoPullRequestAsync" title="Pull Request betöltése">⏎</button>
                     </div>
                 </div>
 

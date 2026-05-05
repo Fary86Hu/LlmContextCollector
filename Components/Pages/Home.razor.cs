@@ -91,7 +91,7 @@ namespace LlmContextCollector.Components.Pages
             InvokeAsync(StateHasChanged);
         }
 
-        private async Task ApplyFiltersAndReload(bool preserveSelection = true, bool showIndicator = true)
+        public async Task ApplyFiltersAndReload(bool preserveSelection = true, bool showIndicator = true)
         {
             if (showIndicator)
             {

@@ -66,6 +66,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private bool _isSortAscending = true;
         private string? _lastInteractionPath;
         private int? _adoWorkItemIdToLoad;
+        private int? _adoPullRequestIdToLoad;
         private bool _isClarificationDialogVisible = false;
         private string _clarificationDialogText = string.Empty;
         private Dictionary<string, long> _originalSizeCache = new();
@@ -374,6 +375,100 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private void EditDocument(AttachableDocument doc) { _isDocsDropdownOpen = false; HomeRef?.ShowAttachableDocDialog(doc); }
         private void AddNewDocument() { _isDocsDropdownOpen = false; HomeRef?.ShowAttachableDocDialog(null); }
         private async Task HandleAdoKeyup(KeyboardEventArgs e) { if (e.Key == "Enter") await LoadAdoWorkItemAsync(); }
+        private async Task HandlePrKeyup(KeyboardEventArgs e) { if (e.Key == "Enter") await LoadAdoPullRequestAsync(); }
+
+        private async Task LoadAdoPullRequestAsync()
+        {
+            if (!_adoPullRequestIdToLoad.HasValue) return;
+            AppState.ShowLoading("PR adatok lekérése...");
+            try
+            {
+                var result = await SettingsStore.GetFormattedPullRequestAsync(_adoPullRequestIdToLoad.Value);
+                if (result == null || string.IsNullOrEmpty(result.FormattedText))
+                {
+                    AppState.StatusText = "A Pull Request lekérése nem adott eredményt.";
+                    return;
+                }
+
+                AppState.PromptText = result.FormattedText + "\n\n" + AppState.PromptText;
+
+                if (result.Images != null)
+                {
+                    foreach (var img in result.Images) AppState.AttachedImages.Add(img);
+                }
+
+                _adoPullRequestIdToLoad = null;
+
+                if (HomeRef != null && !string.IsNullOrEmpty(result.SourceBranch) && AppState.CurrentGitBranch != result.SourceBranch)
+                {
+                    AppState.StatusText = $"Átváltás a(z) {result.SourceBranch} ágra...";
+                    try 
+                    { 
+                        await GitWorkflowService.CheckoutBranchAsync(result.SourceBranch); 
+                        await HomeRef!.ApplyFiltersAndReload(preserveSelection: true, showIndicator: false);
+                    }
+                    catch (Exception ex) 
+                    { 
+                        AppState.StatusText = $"Ágváltás sikertelen: {ex.Message}. Folytatás a jelenlegi ágon."; 
+                    }
+                }
+
+                var reviewerTemplate = AppState.PromptTemplates.FirstOrDefault(t => t.Title.Contains("Reviewer", StringComparison.OrdinalIgnoreCase));
+                if (reviewerTemplate != null)
+                {
+                    AppState.ActiveGlobalPromptId = reviewerTemplate.Id;
+                }
+
+                int addedCount = 0;
+                foreach (var prFile in result.Files)
+                {
+                    var cleanPath = prFile.Path.TrimStart('/');
+                    var node = AppState.FindNodeByPath(Path.Combine(AppState.ProjectRoot, cleanPath));
+
+                    if (node == null)
+                    {
+                        var fileName = Path.GetFileName(cleanPath);
+                        var flatNodes = new List<FileNode>();
+                        Utils.FileTreeHelper.GetAllFileNodes(AppState.FileTree, flatNodes);
+                        node = flatNodes.FirstOrDefault(n => n.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
+                    }
+
+                    if (node != null)
+                    {
+                        var relPath = Path.GetRelativePath(AppState.ProjectRoot, node.FullPath).Replace('\\', '/');
+                        var originalPath = $"[ORIGINAL]{relPath}";
+
+                        if (!AppState.SelectedFilesForContext.Contains(relPath))
+                        {
+                            AppState.SelectedFilesForContext.Add(relPath);
+                            addedCount++;
+                        }
+
+                        bool isNew = prFile.ChangeType.Equals("add", StringComparison.OrdinalIgnoreCase);
+                        if (!isNew && !AppState.SelectedFilesForContext.Contains(originalPath))
+                        {
+                            AppState.SelectedFilesForContext.Add(originalPath);
+                            addedCount++;
+                        }
+                    }
+                }
+
+                if (addedCount > 0)
+                {
+                    AppState.SaveContextListState();
+                    AppState.StatusText = $"Pull Request lekérve, {result.Files.Count} fájl hozzáadva a kontextushoz.";
+                }
+                else
+                {
+                    AppState.StatusText = "Pull Request lekérve, de nem sikerült illeszteni a fájlokat a helyi projekthez.";
+                }
+            }
+            catch (Exception ex)
+            {
+                AppState.StatusText = $"Hiba a PR lekérésekor: {ex.Message}";
+            }
+            finally { AppState.HideLoading(); }
+        }
 
         private async Task LoadAdoWorkItemAsync()
         {

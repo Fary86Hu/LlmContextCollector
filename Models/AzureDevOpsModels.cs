@@ -13,7 +13,8 @@ namespace LlmContextCollector.Models
     public class WorkItemReference
     {
         [JsonPropertyName("id")]
-        public int Id { get; set; }
+        [JsonConverter(typeof(Utils.StringOrIntConverter))]
+        public string Id { get; set; } = string.Empty;
     }
 
     // Model for batch work item details response
@@ -69,5 +70,107 @@ namespace LlmContextCollector.Models
     {
         [JsonPropertyName("displayName")]
         public string DisplayName { get; set; } = string.Empty;
+    }
+
+    public class GitPullRequest
+    {
+        [JsonPropertyName("pullRequestId")]
+        public int PullRequestId { get; set; }
+
+        [JsonPropertyName("title")]
+        public string Title { get; set; } = string.Empty;
+
+        [JsonPropertyName("description")]
+        public string Description { get; set; } = string.Empty;
+
+        [JsonPropertyName("sourceRefName")]
+        public string SourceRefName { get; set; } = string.Empty;
+
+        [JsonPropertyName("targetRefName")]
+        public string TargetRefName { get; set; } = string.Empty;
+
+        [JsonPropertyName("repository")]
+        public GitRepository? Repository { get; set; }
+    }
+
+    public class GitRepository
+    {
+        [JsonPropertyName("id")]
+        public Guid Id { get; set; }
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+    }
+
+    public class GitPullRequestIterationListResponse
+    {
+        [JsonPropertyName("value")]
+        public List<GitPullRequestIteration> Value { get; set; } = new();
+    }
+
+    public class GitPullRequestIteration
+    {
+        [JsonPropertyName("id")]
+        public int Id { get; set; }
+
+        [JsonPropertyName("description")]
+        public string Description { get; set; } = string.Empty;
+    }
+
+    public class GitPullRequestChangeListResponse
+    {
+        [JsonPropertyName("changeEntries")]
+        public List<GitPullRequestChange> ChangeEntries { get; set; } = new();
+    }
+
+    public class GitPullRequestChange
+    {
+        [JsonPropertyName("changeId")]
+        public int ChangeId { get; set; }
+
+        [JsonPropertyName("item")]
+        public GitItem? Item { get; set; }
+
+        [JsonPropertyName("changeType")]
+        public string ChangeType { get; set; } = string.Empty;
+    }
+
+    public class GitItem
+    {
+        [JsonPropertyName("path")]
+        public string Path { get; set; } = string.Empty;
+    }
+
+    public class GitPullRequestCommentThreadListResponse
+    {
+        [JsonPropertyName("value")]
+        public List<GitPullRequestCommentThread> Value { get; set; } = new();
+    }
+
+    public class GitPullRequestCommentThread
+    {
+        [JsonPropertyName("id")]
+        public int Id { get; set; }
+
+        [JsonPropertyName("comments")]
+        public List<WorkItemComment> Comments { get; set; } = new();
+
+        [JsonPropertyName("status")]
+        public string Status { get; set; } = string.Empty;
+
+        [JsonPropertyName("threadContext")]
+        public GitPullRequestCommentThreadContext? ThreadContext { get; set; }
+    }
+
+    public class GitPullRequestCommentThreadContext
+    {
+        [JsonPropertyName("filePath")]
+        public string Path { get; set; } = string.Empty;
+    }
+
+    public class GitPullRequestWorkItemReferenceListResponse
+    {
+        [JsonPropertyName("value")]
+        public List<WorkItemReference> Value { get; set; } = new();
     }
 }

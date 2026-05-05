@@ -58,6 +58,11 @@ namespace LlmContextCollector.Services
             await RunGitCommandAsync(new[] { "checkout", "-b", branchName }, throwOnError: true);
         }
 
+        public async Task CheckoutAsync(string branchName)
+        {
+            await RunGitCommandAsync(new[] { "checkout", branchName }, throwOnError: true);
+        }
+
         public async Task StageFilesAsync(IEnumerable<string> filePaths)
         {
             foreach (var path in filePaths)
