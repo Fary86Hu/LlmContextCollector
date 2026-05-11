@@ -31,6 +31,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         [Inject] private AzureDevOpsService SettingsStore { get; set; } = null!;
         [Inject] private BuildManagerService BuildManagerService { get; set; } = null!;
         [Inject] private AiProviderFactory ProviderFactory { get; set; } = null!;
+        [Inject] private ContextAgentService ContextAgentService { get; set; } = null!;
         [Inject] private ProjectSettingsService ProjectSettingsService { get; set; } = null!;
         [Inject] private IImageClipboardService ImageClipboardService { get; set; } = null!;
 
@@ -497,7 +498,13 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         private async Task CopyToClipboard()
         {
-            var content = await ContextProcessingService.BuildContextForClipboardAsync(AppState.IncludePromptInCopy, AppState.IncludeSystemPromptInCopy, AppState.IncludeFilesInCopy, _sortedFiles.Select(f => f.RelativePath));
+            var content = await ContextProcessingService.BuildContextForClipboardAsync(
+                AppState.IncludePromptInCopy, 
+                AppState.IncludeSystemPromptInCopy, 
+                AppState.IncludeFilesInCopy, 
+                AppState.IncludeProjectTreeInCopy,
+                _sortedFiles.Select(f => f.RelativePath));
+
             await OnHistorySaveRequested.InvokeAsync();
             await Clipboard.SetTextAsync(content);
             _copyButtonText = "Másolva! ✓"; StateHasChanged();
@@ -518,15 +525,19 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private async Task HandleKontextClick()
         {
             if (string.IsNullOrWhiteSpace(AppState.PromptText)) return;
-            var input = $"KERESD MEG A RELEVÁNS FÁJLOKAT AZ ALÁBBI FELADATHOZ: {AppState.PromptText}";
-            var files = await ContextProcessingService.BuildContextForClipboardAsync(false, false, true, AppState.SelectedFilesForContext);
-            await ChatService.SendMessageAsync(input, "Segíts megtalálni a releváns fájlokat a projekten belül. Csak az útvonalakat sorold fel, amik érintettek lehetnek.", files, forceRefreshContext: true, clearHistory: true);
+            await ContextAgentService.RunAgentAsync(AppState.PromptText);
         }
 
         private async Task HandleAiChatClick()
         {
             if (string.IsNullOrWhiteSpace(AppState.PromptText)) return;
-            var content = await ContextProcessingService.BuildContextForClipboardAsync(AppState.IncludePromptInCopy, AppState.IncludeSystemPromptInCopy, AppState.IncludeFilesInCopy, _sortedFiles.Select(f => f.RelativePath));
+            var content = await ContextProcessingService.BuildContextForClipboardAsync(
+                AppState.IncludePromptInCopy, 
+                AppState.IncludeSystemPromptInCopy, 
+                AppState.IncludeFilesInCopy, 
+                AppState.IncludeProjectTreeInCopy,
+                _sortedFiles.Select(f => f.RelativePath));
+
             var system = await PromptService.GetSystemPromptAsync();
             await ChatService.SendMessageAsync(AppState.PromptText, system, content, forceRefreshContext: true, clearHistory: true);
         }
@@ -542,7 +553,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private async Task HandleGenerateRefinedPrompt(string qa)
         {
             _isClarificationDialogVisible = false;
-            var ctx = await ContextProcessingService.BuildContextForClipboardAsync(true, true, true, _sortedFiles.Select(f => f.RelativePath));
+            var ctx = await ContextProcessingService.BuildContextForClipboardAsync(true, true, true, true, _sortedFiles.Select(f => f.RelativePath));
             await Clipboard.SetTextAsync($"{ctx}\n\nQA:\n{qa}\n\nKérlek készíts végleges promptot!");
         }
 

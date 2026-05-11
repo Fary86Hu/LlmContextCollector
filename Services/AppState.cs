@@ -398,6 +398,13 @@ namespace LlmContextCollector.Services
             set => SetField(ref _isLoading, value);
         }
 
+        private bool _isAgentRunning = false;
+        public bool IsAgentRunning
+        {
+            get => _isAgentRunning;
+            set => SetField(ref _isAgentRunning, value);
+        }
+
         private bool _isAiInspectorVisible = false;
         public bool IsAiInspectorVisible
         {

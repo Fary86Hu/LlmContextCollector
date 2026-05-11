@@ -136,5 +136,43 @@ namespace LlmContextCollector.Services
 
             return code.TrimEnd('\n', '\r', ' ', '\t');
         }
+
+        public List<string> ExtractPotentialFilePaths(string text, IEnumerable<string> allProjectFiles)
+        {
+            var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var words = Regex.Split(text, @"[\s`'""*()\[\]\n\r]+");
+
+            var fileSet = new HashSet<string>(allProjectFiles, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var word in words)
+            {
+                var cleanWord = word.Trim().TrimEnd('.', ',', ';', ':').Replace('\\', '/').TrimStart('/');
+                if (string.IsNullOrEmpty(cleanWord) || cleanWord.Length < 3) continue;
+
+                if (fileSet.Contains(cleanWord))
+                {
+                    results.Add(cleanWord);
+                }
+                else
+                {
+                    var fileName = Path.GetFileName(cleanWord);
+                    if (!string.IsNullOrEmpty(fileName) && fileName.Contains('.'))
+                    {
+                        var match = allProjectFiles.FirstOrDefault(f => f.EndsWith(cleanWord, StringComparison.OrdinalIgnoreCase));
+                        if (match != null) results.Add(match);
+                    }
+                }
+            }
+
+            var lineMatches = Regex.Matches(text, @"[*•-]\s*(?<path>[a-zA-Z0-9_\-\./\\]+\.[a-zA-Z0-9]{1,5})", RegexOptions.Multiline);
+            foreach (Match match in lineMatches)
+            {
+                var p = match.Groups["path"].Value.Replace('\\', '/').TrimStart('/');
+                var hit = allProjectFiles.FirstOrDefault(f => f.EndsWith(p, StringComparison.OrdinalIgnoreCase));
+                if (hit != null) results.Add(hit);
+            }
+
+            return results.ToList();
+        }
     }
 }

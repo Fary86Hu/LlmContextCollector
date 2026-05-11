@@ -131,6 +131,7 @@
             AppState.ChatIncludePrompt, 
             AppState.ChatIncludeSystem, 
             AppState.ChatIncludeFiles, 
+            AppState.IncludeProjectTreeInCopy,
             AppState.SelectedFilesForContext);
 
         var totalChars = _currentInput.Length + (string.IsNullOrEmpty(fullContext) ? 0 : fullContext.Length);
@@ -144,10 +145,10 @@
         if (string.IsNullOrWhiteSpace(_currentInput) || ChatService.IsGenerating) return;
         var input = _currentInput;
         _currentInput = string.Empty;
-        
+
         var system = await PromptService.GetSystemPromptAsync();
-        var files = await ContextProcessingService.BuildContextForClipboardAsync(false, false, true, AppState.SelectedFilesForContext);
-        
+        var files = await ContextProcessingService.BuildContextForClipboardAsync(false, false, true, false, AppState.SelectedFilesForContext);
+
         await ChatService.SendMessageAsync(input, system, files, forceRefreshContext: AppState.IsContextDirty);
         await UpdateChatStats();
     }

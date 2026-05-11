@@ -57,7 +57,7 @@ namespace LlmContextCollector.Services
             return sb.ToString();
         }
 
-        public async Task<string> BuildContextForClipboardAsync(bool includePrompt, bool includeSystemPrompt, bool includeFiles, IEnumerable<string> sortedFilePaths)
+        public async Task<string> BuildContextForClipboardAsync(bool includePrompt, bool includeSystemPrompt, bool includeFiles, bool includeProjectTree, IEnumerable<string> sortedFilePaths)
         {
             var sb = new StringBuilder();
             if (includePrompt && !string.IsNullOrWhiteSpace(_appState.PromptText))
@@ -76,7 +76,7 @@ namespace LlmContextCollector.Services
                 }
             }
 
-            if (_appState.IncludeProjectTreeInCopy && !string.IsNullOrEmpty(_appState.ProjectRoot))
+            if (includeProjectTree && !string.IsNullOrEmpty(_appState.ProjectRoot))
             {
                 sb.AppendLine("\n--- PROJECT STRUCTURE ---");
                 sb.AppendLine("// Note: [*] indicates files already included in the full context below.");

@@ -180,5 +180,30 @@ namespace LlmContextCollector.Services
                 files.Add(relativePath);
             }
         }
+
+        public async Task<int> AddPathsToContextAsync(IEnumerable<string> paths, int referenceDepth = 0)
+        {
+            var currentFiles = _appState.SelectedFilesForContext.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var initialCount = currentFiles.Count;
+            var projectRoot = _appState.ProjectRoot;
+
+            foreach (var p in paths) currentFiles.Add(p);
+
+            if (referenceDepth > 0 && paths.Any())
+            {
+                var foundRefs = await _referenceFinder.FindReferencesAsync(paths.ToList(), _appState.FileTree, projectRoot, referenceDepth);
+                currentFiles.UnionWith(foundRefs);
+            }
+
+            if (currentFiles.Count != initialCount)
+            {
+                _appState.SelectedFilesForContext.Clear();
+                foreach (var f in currentFiles.OrderBy(x => x)) _appState.SelectedFilesForContext.Add(f);
+                _appState.SaveContextListState();
+                return currentFiles.Count - initialCount;
+            }
+
+            return 0;
+        }
     }
 }
