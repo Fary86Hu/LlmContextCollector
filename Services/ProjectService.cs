@@ -13,18 +13,21 @@ namespace LlmContextCollector.Services
         private readonly AppState _appState;
         private readonly FileSystemService _fileSystemService;
         private readonly GitService _gitService;
+        private readonly GitWorkflowService _gitWorkflowService;
         private readonly AzureDevOpsService _azureDevOpsService;
         private readonly AppLogService _logService;
         public ProjectService(
             AppState appState, 
             FileSystemService fileSystemService, 
             GitService gitService,
+            GitWorkflowService gitWorkflowService,
             AzureDevOpsService azureDevOpsService,
             AppLogService logService)
         {
             _appState = appState;
             _fileSystemService = fileSystemService;
             _gitService = gitService;
+            _gitWorkflowService = gitWorkflowService;
             _azureDevOpsService = azureDevOpsService;
             _logService = logService;
         }
@@ -57,6 +60,7 @@ namespace LlmContextCollector.Services
             {
                 var (branchName, success, _) = await _gitService.GetCurrentBranchAsync();
                 if (success) _appState.CurrentGitBranch = branchName;
+                _appState.AvailableGitBranches = await _gitWorkflowService.GetBranchesAsync();
             }
             else
             {

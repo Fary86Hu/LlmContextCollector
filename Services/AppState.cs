@@ -46,6 +46,7 @@ namespace LlmContextCollector.Services
         private List<FileNode> _fileTree = new();
         public List<FileNode> FileTree => _fileTree;
         public ObservableCollection<string> SelectedFilesForContext { get; } = new();
+        public List<string> AvailableGitBranches { get; set; } = new();
 
         public Dictionary<string, string> TypeToFileMap { get; } = new(StringComparer.OrdinalIgnoreCase);
 

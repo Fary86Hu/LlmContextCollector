@@ -32,13 +32,24 @@ namespace LlmContextCollector.Services
 
         public async Task<List<string>> GetBranchesAsync()
         {
-            var (success, output, error) = await _gitService.RunGitCommandAsync(new[] { "branch" });
+            var (success, output, error) = await _gitService.RunGitCommandAsync(new[] { "branch", "--sort=-committerdate", "--format=%(refname:short)" });
             if (!success) return new List<string>();
 
-            return output.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
-                         .Select(line => line.Trim().Replace("* ", ""))
-                         .Where(b => !b.Contains("->"))
+            var rawBranches = output.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                         .Select(line => line.Trim())
+                         .Where(b => !string.IsNullOrEmpty(b) && !b.Contains("->"))
                          .ToList();
+
+            var result = new List<string>();
+            if (rawBranches.Contains("develop")) result.Add("develop");
+            if (rawBranches.Contains("main")) result.Add("main");
+
+            foreach (var b in rawBranches)
+            {
+                if (b != "develop" && b != "main") result.Add(b);
+            }
+
+            return result;
         }
 
         public async Task<string> GetDevelopmentBranchNameAsync()

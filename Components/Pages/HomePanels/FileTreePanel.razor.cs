@@ -41,6 +41,9 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         [Parameter]
         public EventCallback OnShowDiffDialog { get; set; }
 
+        [Inject]
+        private GitWorkflowService GitWorkflowService { get; set; } = null!;
+
 
 
         private Timer? _searchTimer;
@@ -325,6 +328,27 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 }
             }
             StateHasChanged();
+        }
+
+        private async Task HandleBranchChange(ChangeEventArgs e)
+        {
+            var targetBranch = e.Value?.ToString();
+            if (string.IsNullOrEmpty(targetBranch) || targetBranch == AppState.CurrentGitBranch) return;
+
+            AppState.ShowLoading($"Átváltás a(z) '{targetBranch}' ágra...");
+            try
+            {
+                await GitWorkflowService.CheckoutBranchAsync(targetBranch);
+                await OnRequestApplyFiltersAndReload.InvokeAsync();
+            }
+            catch (Exception ex)
+            {
+                AppState.StatusText = $"Hiba az ágváltáskor: {ex.Message}";
+            }
+            finally
+            {
+                AppState.HideLoading();
+            }
         }
 
         public void Dispose()
