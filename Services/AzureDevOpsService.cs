@@ -516,6 +516,65 @@ namespace LlmContextCollector.Services
             return HtmlToPlainText(processedHtml);
         }
 
+        public async Task<List<WorkItemSearchResult>> SearchWorkItemsAsync(string? state, string? assignedTo, string? type)
+        {
+            if (string.IsNullOrWhiteSpace(_appState.AzureDevOpsOrganizationUrl) || string.IsNullOrWhiteSpace(_appState.AzureDevOpsPat))
+            {
+                throw new InvalidOperationException("Az Azure DevOps beállítások hiányoznak.");
+            }
+
+            var orgUrl = _appState.AzureDevOpsOrganizationUrl.Trim().TrimEnd('/');
+            var project = _appState.AzureDevOpsProject.Trim();
+            var pat = _appState.AzureDevOpsPat.Trim();
+            var encodedProject = Uri.EscapeDataString(project);
+
+            var client = _httpClientFactory.CreateClient("AzureDevOps");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                Convert.ToBase64String(Encoding.ASCII.GetBytes($":{pat}")));
+
+            var queryBuilder = new StringBuilder();
+            queryBuilder.Append($"SELECT [System.Id], [System.Title], [System.WorkItemType], [System.State], [System.AssignedTo] FROM WorkItems WHERE [System.TeamProject] = '{project.Replace("'", "''")}'");
+
+            if (!string.IsNullOrWhiteSpace(state))
+                queryBuilder.Append($" AND [System.State] = '{state.Replace("'", "''")}'");
+
+            if (!string.IsNullOrWhiteSpace(assignedTo))
+            {
+                if (assignedTo.Equals("@Me", StringComparison.OrdinalIgnoreCase))
+                    queryBuilder.Append(" AND [System.AssignedTo] = @Me");
+                else
+                    queryBuilder.Append($" AND [System.AssignedTo] CONTAINS '{assignedTo.Replace("'", "''")}'");
+            }
+
+            if (!string.IsNullOrWhiteSpace(type))
+                queryBuilder.Append($" AND [System.WorkItemType] = '{type.Replace("'", "''")}'");
+
+            queryBuilder.Append(" ORDER BY [System.ChangedDate] DESC");
+
+            var wiqlQuery = new { query = queryBuilder.ToString() };
+            var wiqlContent = new StringContent(JsonSerializer.Serialize(wiqlQuery), Encoding.UTF8, "application/json");
+            var response = await client.PostAsync($"{orgUrl}/{encodedProject}/_apis/wit/wiql?api-version=6.0", wiqlContent);
+
+            if (!response.IsSuccessStatusCode) return new List<WorkItemSearchResult>();
+
+            var wiqlResult = await JsonSerializer.DeserializeAsync<WiqlResponse>(await response.Content.ReadAsStreamAsync(), _jsonOptions);
+            if (wiqlResult == null || !wiqlResult.WorkItems.Any()) return new List<WorkItemSearchResult>();
+
+            var ids = wiqlResult.WorkItems.Take(50).Select(wi => wi.Id);
+            var detailsResponse = await client.GetAsync($"{orgUrl}/{encodedProject}/_apis/wit/workitems?ids={string.Join(",", ids)}&fields=System.Id,System.Title,System.WorkItemType,System.State,System.AssignedTo&api-version=6.0");
+
+            if (!detailsResponse.IsSuccessStatusCode) return new List<WorkItemSearchResult>();
+
+            var detailsResult = await JsonSerializer.DeserializeAsync<WorkItemListResponse>(await detailsResponse.Content.ReadAsStreamAsync(), _jsonOptions);
+            return detailsResult?.Value.Select(wi => new WorkItemSearchResult(
+                wi.Id,
+                wi.Fields.TryGetValue("System.Title", out var t) ? t.ToString()! : "",
+                wi.Fields.TryGetValue("System.WorkItemType", out var ty) ? ty.ToString()! : "",
+                wi.Fields.TryGetValue("System.State", out var s) ? s.ToString()! : "",
+                wi.Fields.TryGetValue("System.AssignedTo", out var a) ? (a is JsonElement e && e.TryGetProperty("displayName", out var d) ? d.GetString()! : a.ToString()!) : "Unassigned"
+            )).ToList() ?? new List<WorkItemSearchResult>();
+        }
+
         public async Task DownloadWorkItemsAsync(string orgUrl, string project, string pat, string iterationPath, string projectRoot, bool isIncremental, bool onlyMine)
         {
             if (string.IsNullOrWhiteSpace(projectRoot) || !Directory.Exists(projectRoot))

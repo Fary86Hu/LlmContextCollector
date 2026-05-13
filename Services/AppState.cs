@@ -474,6 +474,13 @@ namespace LlmContextCollector.Services
             set => SetField(ref _previewSearchTerm, value);
         }
 
+        private bool _leftPanelShowAdo = false;
+        public bool LeftPanelShowAdo
+        {
+            get => _leftPanelShowAdo;
+            set => SetField(ref _leftPanelShowAdo, value);
+        }
+
         public void RequestWorkbenchFocus(WorkbenchTab tab)
         {
             ActiveTab = tab;

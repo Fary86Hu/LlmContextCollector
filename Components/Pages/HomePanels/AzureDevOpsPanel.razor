@@ -1,0 +1,62 @@
+@using LlmContextCollector.Models
+@using LlmContextCollector.Services
+@inject AppState AppState
+@inject AzureDevOpsService AdoService
+@inject AppLogService LogService
+
+<div class="ado-panel">
+    <div class="ado-filters">
+        <div class="filter-row">
+            <label>Státusz:</label>
+            <select @bind="_selectedStatus">
+                <option value="">Mindegyik</option>
+                <option value="Active">Active</option>
+                <option value="Resolved">Resolved</option>
+                <option value="Closed">Closed</option>
+                <option value="New">New</option>
+                <option value="Committed">Committed</option>
+            </select>
+        </div>
+        <div class="filter-row">
+            <label>Felelős:</label>
+            <input type="text" @bind="_assignedTo" placeholder="Név vagy kukac Me" @onkeyup="HandleKeyup" />
+        </div>
+        <div class="filter-row">
+            <label>Típus:</label>
+            <select @bind="_selectedType">
+                <option value="">Összes</option>
+                <option value="User Story">User Story</option>
+                <option value="Task">Task</option>
+                <option value="Bug">Bug</option>
+            </select>
+        </div>
+        <button class="primary load-btn" @onclick="LoadWorkItems" disabled="@_isLoading">
+            @if (_isLoading) { <span class="spinner-mini"></span> }
+            <span>Keresés</span>
+        </button>
+    </div>
+
+    <div class="ado-list-container">
+        @if (_workItems.Any())
+        {
+            <div class="ado-list">
+                @foreach (var item in _workItems)
+                {
+                    <div class="ado-item" @onclick="() => SelectWorkItem(item.Id)">
+                        <div class="item-header">
+                            <span class="item-id">#@item.Id</span>
+                            <span class="item-type @item.Type.ToLower().Replace(" ", "-")">@item.Type</span>
+                            <span class="item-state">@item.State</span>
+                        </div>
+                        <div class="item-title">@item.Title</div>
+                        <div class="item-assignee">👤 @item.AssignedTo</div>
+                    </div>
+                }
+            </div>
+        }
+        else if (!_isLoading)
+        {
+            <div class="empty-state">Nincs találat vagy add meg a keresési feltételeket.</div>
+        }
+    </div>
+</div>

@@ -4,7 +4,6 @@
         <input type="text" class="path-display" placeholder="Nincs mappa kiválasztva" @bind="AppState.ProjectRoot" @bind:event="oninput" readonly="@(AppState.CurrentBuildStatus == BuildStatus.Running)" />
     </div>
     <div class="toolbar">
-        <button @onclick="OnAzureDevOpsAttach" title="Azure DevOps Work Item-ek letöltése/kezelése">Azure DevOps Letöltés</button>
         @if (AppState.IsGitRepository && AppState.AvailableGitBranches.Any())
         {
             <div class="branch-group">
@@ -18,56 +17,69 @@
             </div>
         }
     </div>
-    <div class="toolbar">
-        <label for="history-select" style="white-space: nowrap; margin-right: 5px;">Előzmények:</label>
-        <select id="history-select" @onchange="LoadSelectedHistory" style="flex-grow: 1;" disabled="@(AppState.CurrentBuildStatus == BuildStatus.Running)">
-            <option value="-1" selected>Válassz egy előzményt...</option>
-            @foreach (var (entry, index) in AppState.HistoryEntries.Select((entry, index) => (entry, index)))
-            {
-                <option value="@index">@FormatHistoryEntry(entry)</option>
-            }
-        </select>
+
+    <div class="toolbar panel-switcher-tabs">
+        <div class="tab-item @(!AppState.LeftPanelShowAdo ? "active" : "")" @onclick="() => AppState.LeftPanelShowAdo = false">Fájlrendszer</div>
+        <div class="tab-item @(AppState.LeftPanelShowAdo ? "active" : "")" @onclick="() => AppState.LeftPanelShowAdo = true">Azure DevOps</div>
     </div>
-    <div class="toolbar">
-        <input type="text" placeholder="Keresés..." style="flex-grow: 1;" @bind="AppState.SearchTerm" @bind:event="oninput" @onkeyup="HandleSearchKeyup" list="tree-search-history-list" />
-        <datalist id="tree-search-history-list">
-            @foreach (var term in AppState.TreeSearchHistory)
+
+    @if (!AppState.LeftPanelShowAdo)
+    {
+        <div class="toolbar">
+            <label for="history-select" style="white-space: nowrap; margin-right: 5px;">Előzmények:</label>
+            <select id="history-select" @onchange="LoadSelectedHistory" style="flex-grow: 1;" disabled="@(AppState.CurrentBuildStatus == BuildStatus.Running)">
+                <option value="-1" selected>Válassz egy előzményt...</option>
+                @foreach (var (entry, index) in AppState.HistoryEntries.Select((entry, index) => (entry, index)))
+                {
+                    <option value="@index">@FormatHistoryEntry(entry)</option>
+                }
+            </select>
+        </div>
+        <div class="toolbar">
+            <input type="text" placeholder="Keresés..." style="flex-grow: 1;" @bind="AppState.SearchTerm" @bind:event="oninput" @onkeyup="HandleSearchKeyup" list="tree-search-history-list" />
+            <datalist id="tree-search-history-list">
+                @foreach (var term in AppState.TreeSearchHistory)
+                {
+                    <option value="@term"></option>
+                }
+            </datalist>
+            <label style="font-size: 0.8em; margin: 0 5px;"><input type="checkbox" @bind="AppState.SearchInContent" /> Tartalomban</label>
+            <button @onclick="ToggleFilter" 
+                    disabled="@(string.IsNullOrWhiteSpace(AppState.SearchTerm) && !_isFiltered)" 
+                    class="icon-btn" 
+                    title="@(_isFiltered ? "Szűrés törlése" : "Szűrés")">
+                @if (_isFiltered)
+                {
+                    <span>🚫</span>
+                }
+                else
+                {
+                    <svg viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 3h20l-8 9.46V19l-4 2v-8.54L2 3z"></path>
+                    </svg>
+                }
+            </button>
+            <button @onclick="FindPrevious" class="icon-btn" disabled="@(string.IsNullOrWhiteSpace(AppState.SearchTerm))" title="Előző találat">▲</button>
+            <button @onclick="() => FindNext(false)" class="icon-btn" disabled="@(string.IsNullOrWhiteSpace(AppState.SearchTerm))" title="Következő találat">▼</button>
+            <button @onclick="ClearSearch" class="icon-btn clear-btn" title="Törlés">&times;</button>
+        </div>
+        <div class="tree-view-container" @oncontextmenu="e => OnShowTreeContextMenu.InvokeAsync((null, e))" @oncontextmenu:preventDefault>
+            @if (AppState.FileTree.Any())
             {
-                <option value="@term"></option>
-            }
-        </datalist>
-        <label style="font-size: 0.8em; margin: 0 5px;"><input type="checkbox" @bind="AppState.SearchInContent" /> Tartalomban</label>
-        <button @onclick="ToggleFilter" 
-                disabled="@(string.IsNullOrWhiteSpace(AppState.SearchTerm) && !_isFiltered)" 
-                class="icon-btn" 
-                title="@(_isFiltered ? "Szűrés törlése" : "Szűrés")">
-            @if (_isFiltered)
-            {
-                <span>🚫</span>
+                foreach (var node in AppState.FileTree)
+                {
+                    <FileTreeNodeView Node="node" OnNodeClick="HandleNodeClick" OnNodeContextMenu="e => OnShowTreeContextMenu.InvokeAsync(e)" />
+                }
             }
             else
             {
-                <svg viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M2 3h20l-8 9.46V19l-4 2v-8.54L2 3z"></path>
-                </svg>
+                <div style="padding: 10px; color: #888;">Nincs megjeleníthető fájl. Válasszon mappát és alkalmazza a szűrőket.</div>
             }
-        </button>
-        <button @onclick="FindPrevious" class="icon-btn" disabled="@(string.IsNullOrWhiteSpace(AppState.SearchTerm))" title="Előző találat">▲</button>
-        <button @onclick="() => FindNext(false)" class="icon-btn" disabled="@(string.IsNullOrWhiteSpace(AppState.SearchTerm))" title="Következő találat">▼</button>
-        <button @onclick="ClearSearch" class="icon-btn clear-btn" title="Törlés">&times;</button>
-    </div>
-    <div class="tree-view-container" @oncontextmenu="e => OnShowTreeContextMenu.InvokeAsync((null, e))" @oncontextmenu:preventDefault>
-        @if (AppState.FileTree.Any())
-        {
-            foreach (var node in AppState.FileTree)
-            {
-                <FileTreeNodeView Node="node" OnNodeClick="HandleNodeClick" OnNodeContextMenu="e => OnShowTreeContextMenu.InvokeAsync(e)" />
-            }
-        }
-        else
-        {
-            <div style="padding: 10px; color: #888;">Nincs megjeleníthető fájl. Válasszon mappát és alkalmazza a szűrőket.</div>
-        }
-    </div>
-    <LlmContextCollector.Components.Pages.HomePanels.ProjectActionFooter OnReload="OnRequestApplyFiltersAndReload" />
+        </div>
+        <LlmContextCollector.Components.Pages.HomePanels.ProjectActionFooter OnReload="OnRequestApplyFiltersAndReload" />
+    }
+    else
+    {
+        <AzureDevOpsPanel />
+    }
 </div>

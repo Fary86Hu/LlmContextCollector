@@ -15,7 +15,12 @@ namespace LlmContextCollector.Models
         [JsonPropertyName("id")]
         [JsonConverter(typeof(Utils.StringOrIntConverter))]
         public string Id { get; set; } = string.Empty;
+
+        [JsonPropertyName("url")]
+        public string Url { get; set; } = string.Empty;
     }
+
+    public record WorkItemSearchResult(int Id, string Title, string Type, string State, string AssignedTo);
 
     // Model for batch work item details response
     public class WorkItemListResponse
