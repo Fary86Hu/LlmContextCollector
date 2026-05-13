@@ -132,7 +132,7 @@ namespace LlmContextCollector.Components.Dialogs
             }
             else
             {
-                result.NewContent = result.NewContent; // Megtartjuk az eredetit, ha nem patch alapú
+                result.NewContent = result.NewContent;
             }
         }
 
@@ -182,9 +182,7 @@ namespace LlmContextCollector.Components.Dialogs
                 return;
             }
 
-            // A bal oldal (Old) mindig a fájlrendszeri jelenlegi állapot (Live)
             var oldLines = _liveContentOnDisk.Replace("\r\n", "\n").Split('\n');
-            // A jobb oldal (New) a navigált history állapot + az LLM változtatásai
             var newLines = _selectedResult.NewContent.Replace("\r\n", "\n").Split('\n');
             var opcodes = await DiffUtility.GetOpcodesAsync(oldLines, newLines);
             if (ct.IsCancellationRequested) return;
@@ -197,6 +195,21 @@ namespace LlmContextCollector.Components.Dialogs
                 else if (op.Tag == 'i') for (int j = 0; j < (op.J2 - op.J1); j++) lines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Add, newLines[op.J1 + j], null, op.J1 + j));
             }
             _unifiedDiffLines = lines;
+
+            _unifiedDiffMarkers.Clear();
+            if (lines.Count > 0)
+            {
+                for (int i = 0; i < lines.Count; i++)
+                {
+                    if (lines[i].Type == DiffUtility.DiffLineType.Add || lines[i].Type == DiffUtility.DiffLineType.Delete)
+                    {
+                        var markerType = lines[i].Type == DiffUtility.DiffLineType.Add ? "add" : "del";
+                        var percent = (double)i / lines.Count * 100;
+                        _unifiedDiffMarkers.Add(new DiffMarkerInfo(markerType, percent));
+                    }
+                }
+            }
+
             _isGeneratingDiff = false;
             StateHasChanged();
         }

@@ -26,6 +26,7 @@ namespace LlmContextCollector.Components.Dialogs
         private List<DiffResult> _localDiffResults = new();
         private DiffResult? _selectedResult;
         private List<DiffUtility.DiffLineItem> _unifiedDiffLines = new();
+        private List<DiffMarkerInfo> _unifiedDiffMarkers = new();
         private List<LlmHistoryEntry> _historyEntries = new();
         private int _historyIndex = -1;
         private enum ViewMode { Uncommitted, SinceBranchCreation, AgainstBranch }
@@ -82,8 +83,23 @@ namespace LlmContextCollector.Components.Dialogs
                 else if (op.Tag == 'd') for (int i = 0; i < (op.I2 - op.I1); i++) lines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Delete, oldLines[op.I1 + i], null, null));
                 else if (op.Tag == 'i') for (int j = 0; j < (op.J2 - op.J1); j++) lines.Add(new DiffUtility.DiffLineItem(DiffUtility.DiffLineType.Add, newLines[op.J1 + j], null, null));
             }
-            _unifiedDiffLines = lines; 
-            _isGeneratingDiff = false; 
+            _unifiedDiffLines = lines;
+
+            _unifiedDiffMarkers.Clear();
+            if (lines.Count > 0)
+            {
+                for (int i = 0; i < lines.Count; i++)
+                {
+                    if (lines[i].Type == DiffUtility.DiffLineType.Add || lines[i].Type == DiffUtility.DiffLineType.Delete)
+                    {
+                        var markerType = lines[i].Type == DiffUtility.DiffLineType.Add ? "add" : "del";
+                        var percent = (double)i / lines.Count * 100;
+                        _unifiedDiffMarkers.Add(new DiffMarkerInfo(markerType, percent));
+                    }
+                }
+            }
+
+            _isGeneratingDiff = false;
             StateHasChanged();
         }
 
@@ -211,6 +227,9 @@ namespace LlmContextCollector.Components.Dialogs
         private async Task StartPaneResize(MouseEventArgs e) { _isResizingPane = true; _windowWidth = await JSRuntime.InvokeAsync<double>("eval", "window.innerWidth"); }
         private void StopPaneResize(MouseEventArgs e) => _isResizingPane = false;
         private void OnMouseMove(MouseEventArgs e) { if (_isResizingPane) _leftPaneWidthPercent = Math.Clamp((e.ClientX / _windowWidth) * 100, 15, 85); }
+
+        private record DiffMarkerInfo(string Type, double TopPercent);
+
         public void Dispose() { _diffCts?.Cancel(); _diffCts?.Dispose(); }
     }
 }

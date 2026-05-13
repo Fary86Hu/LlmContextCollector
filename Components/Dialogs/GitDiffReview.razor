@@ -103,6 +103,12 @@
                                     </div>
                                 }
                             </div>
+                            <div class="diff-scrollbar-track">
+                                @foreach (var marker in _unifiedDiffMarkers)
+                                {
+                                    <div class="diff-marker @marker.Type" style="top: @marker.TopPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%"></div>
+                                }
+                            </div>
                         </div>
                     }
                 </div>

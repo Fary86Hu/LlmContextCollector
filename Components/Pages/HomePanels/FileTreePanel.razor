@@ -7,12 +7,15 @@
         <button @onclick="OnAzureDevOpsAttach" title="Azure DevOps Work Item-ek letöltése/kezelése">Azure DevOps Letöltés</button>
         @if (AppState.IsGitRepository && AppState.AvailableGitBranches.Any())
         {
-            <select class="branch-selector" value="@AppState.CurrentGitBranch" @onchange="HandleBranchChange" title="Branch váltás">
-                @foreach (var branch in AppState.AvailableGitBranches)
-                {
-                    <option value="@branch">@branch</option>
-                }
-            </select>
+            <div class="branch-group">
+                <select class="branch-selector" value="@AppState.CurrentGitBranch" @onchange="HandleBranchChange" title="Branch váltás">
+                    @foreach (var branch in AppState.AvailableGitBranches)
+                    {
+                        <option value="@branch">@branch</option>
+                    }
+                </select>
+                <button class="icon-btn" @onclick="HandleGitPull" title="Git Pull (Frissítés)">📥</button>
+            </div>
         }
     </div>
     <div class="toolbar">

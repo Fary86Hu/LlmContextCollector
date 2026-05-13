@@ -27,12 +27,10 @@ namespace LlmContextCollector.Services
             var headerMatches = headerRegex.Matches(text);
 
             string globalExplanation = "";
-            string nextFileExplanation = "";
 
             if (headerMatches.Count > 0)
             {
-                var preamble = text.Substring(0, headerMatches[0].Index);
-                (globalExplanation, nextFileExplanation) = ExtractExplanationAndLog(preamble);
+                globalExplanation = text.Substring(0, headerMatches[0].Index).Trim();
             }
             else
             {
@@ -67,17 +65,25 @@ namespace LlmContextCollector.Services
                 int contentStart = match.Index + match.Length;
                 int contentEnd = (i == headerMatches.Count - 1) ? text.Length : headerMatches[i + 1].Index;
 
-                string rawBlock = text.Substring(contentStart, contentEnd - contentStart);
-                var (codePart, fileLog) = ExtractExplanationAndLog(rawBlock);
-                string cleanCode = status == DiffStatus.Deleted ? string.Empty : RemoveMarkdownFences(codePart);
+                string rawBlock = text.Substring(contentStart, contentEnd - contentStart).TrimStart();
 
-                string combinedExplanation = (nextFileExplanation + "\n" + fileLog).Trim();
+                string fileExplanation = "";
+                string codePart = rawBlock;
+
+                var codeStartIdx = FindCodeStart(rawBlock);
+                if (codeStartIdx != -1)
+                {
+                    fileExplanation = rawBlock.Substring(0, codeStartIdx).Trim();
+                    codePart = rawBlock.Substring(codeStartIdx);
+                }
+
+                string cleanCode = status == DiffStatus.Deleted ? string.Empty : RemoveMarkdownFences(codePart);
 
                 if (parsedFilesDict.TryGetValue(path, out var existing))
                 {
                     existing.NewContent = (existing.NewContent + "\n" + cleanCode);
-                    if (!string.IsNullOrWhiteSpace(combinedExplanation))
-                        existing.Explanation = (existing.Explanation + "\n" + combinedExplanation).Trim();
+                    if (!string.IsNullOrWhiteSpace(fileExplanation))
+                        existing.Explanation = (existing.Explanation + "\n" + fileExplanation).Trim();
                 }
                 else
                 {
@@ -87,32 +93,22 @@ namespace LlmContextCollector.Services
                         OldPath = oldPath,
                         NewContent = cleanCode,
                         Status = status,
-                        Explanation = combinedExplanation
+                        Explanation = fileExplanation
                     };
                 }
-
-                nextFileExplanation = "";
             }
 
             return (globalExplanation, parsedFilesDict.Values.ToList());
         }
 
-        private (string content, string log) ExtractExplanationAndLog(string text)
+        private int FindCodeStart(string block)
         {
-            var logStartMarker = "[CHANGE_LOG]";
-            var logEndMarker = "[/CHANGE_LOG]";
+            var fenceIdx = block.IndexOf("```");
+            var patchIdx = block.IndexOf("<<<<<<< SEARCH");
 
-            int logStart = text.LastIndexOf(logStartMarker, StringComparison.OrdinalIgnoreCase);
-            int logEnd = text.LastIndexOf(logEndMarker, StringComparison.OrdinalIgnoreCase);
-
-            if (logStart != -1 && logEnd != -1 && logEnd > logStart)
-            {
-                string log = text.Substring(logStart + logStartMarker.Length, logEnd - (logStart + logStartMarker.Length)).Trim();
-                string content = text.Substring(0, logStart);
-                return (content, log);
-            }
-
-            return (text, "");
+            if (fenceIdx != -1 && patchIdx != -1) return Math.Min(fenceIdx, patchIdx);
+            if (fenceIdx != -1) return fenceIdx;
+            return patchIdx;
         }
 
         private string RemoveMarkdownFences(string code)

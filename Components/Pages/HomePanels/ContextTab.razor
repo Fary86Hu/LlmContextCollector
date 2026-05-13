@@ -119,7 +119,7 @@
         <div class="toolbar">
             <button title="Visszavonás" @onclick="AppState.UndoContextListChange" disabled="@(!AppState.CanUndo)">⮌</button>
             <button title="Újra" @onclick="AppState.RedoContextListChange" disabled="@(!AppState.CanRedo)">⮍</button>
-            <button @onclick="GitWorkflowService.AddOriginalModifiedFilesToContextAsync" disabled="@(!AppState.IsGitRepository)">Eredetiek</button>
+            <button @onclick="GitWorkflowService.AddOriginalModifiedFilesToContextAsync" disabled="@(!AppState.IsGitRepository)">Különbségek</button>
             <span style="margin-left:auto;"></span>
             <span class="char-counter">@_charCount.ToString("N0") kar. | ~@_tokenCount.ToString("N0") tok.</span>
             <button @onclick="ClearSelectionList">Lista ürítése</button>

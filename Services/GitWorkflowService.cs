@@ -120,6 +120,12 @@ namespace LlmContextCollector.Services
                 {
                     foreach (var path in allModifiedPaths)
                     {
+                        if (!_appState.SelectedFilesForContext.Contains(path))
+                        {
+                            _appState.SelectedFilesForContext.Add(path);
+                            addedCount++;
+                        }
+
                         var originalPath = $"[ORIGINAL]{path}";
                         if (!_appState.SelectedFilesForContext.Contains(originalPath))
                         {
@@ -132,11 +138,11 @@ namespace LlmContextCollector.Services
                 if (addedCount > 0)
                 {
                     _appState.SaveContextListState();
-                    _appState.StatusText = $"{addedCount} fájl eredeti verziója hozzáadva.";
+                    _appState.StatusText = $"{addedCount} új bejegyzés hozzáadva (aktuális és eredeti verziók).";
                 }
                 else
                 {
-                    _appState.StatusText = "Minden módosított fájl eredetije már szerepel a listában.";
+                    _appState.StatusText = "Minden módosított fájl és azok eredetijei már szerepelnek a listában.";
                 }
             }
             catch (Exception ex)
@@ -387,6 +393,22 @@ namespace LlmContextCollector.Services
                     }
                     await File.WriteAllTextAsync(fullPath, result.OldContent);
                 }
+            }
+        }
+
+        public async Task PullChangesAsync()
+        {
+            _logService.LogInfo("Git", "Git pull indítása...");
+            var (success, output, error) = await _gitService.RunGitCommandAsync(new[] { "pull" });
+            if (success)
+            {
+                _appState.StatusText = "Git pull sikeres.";
+                _logService.LogInfo("Git", "Pull sikeres", output);
+            }
+            else
+            {
+                _appState.StatusText = "Git pull hiba (részletek a logban).";
+                _logService.LogError("Git", "Pull hiba", error);
             }
         }
     }

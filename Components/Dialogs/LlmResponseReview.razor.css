@@ -93,6 +93,32 @@
 .right-bottom-diff-pane { display: flex; flex-direction: column; overflow: hidden; flex-grow: 1; }
 .diff-content-wrapper { position: relative; flex-grow: 1; display: flex; flex-direction: column; min-height: 0; height: 100%; }
 
+.diff-scrollbar-track {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 12px;
+    height: 100%;
+    background: rgba(0,0,0,0.05);
+    pointer-events: none;
+    z-index: 5;
+}
+
+.diff-marker {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 2px;
+}
+
+.diff-marker.add {
+    background-color: #27ae60;
+}
+
+.diff-marker.del {
+    background-color: #e76f51;
+}
+
 .unified-diff-list { background-color: var(--panel-bg); border: 1px solid var(--border-color); overflow: auto; font-family: Consolas, monospace; font-size: 12px; flex-grow: 1; }
 .diff-row { display: flex; white-space: pre; min-height: 1.2em; }
 .diff-marker-text { 

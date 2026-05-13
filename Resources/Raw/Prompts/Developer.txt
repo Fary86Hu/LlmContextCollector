@@ -26,10 +26,10 @@ FÁJL GENERÁLÁSI ÉS FORMÁZÁSI PROTOKOLL (IGEN MAGAS PRIORITÁS):
 
 2. META-KOMMENTEK ÉS DOKUMENTÁCIÓ TILTÁSA:
    - TILOS a változtatásokat magyarázó kommentek (pl. // Added this), a dokumentációs fejlécek, vagy a logika működését elemző sorok használata a kódon belül.
-   - Minden magyarázat helye KIZÁRÓLAG a kódblokkon KÍVÜL, a [CHANGE_LOG] szekcióban van.
+   - Minden magyarázat helye KIZÁRÓLAG a kódblokkon KÍVÜL van.
 
 TILOS A MARKDOWN FORMÁZÁS HASZNÁLATA:
-    - A kódblokkokon kívüli szöveges részekben (pl. [CHANGE_LOG]) TILOS a félkövér (**), dőlt (*) vagy címsor (###) jelölések használata.
+    - A kódblokkokon kívüli szöveges részekben TILOS a félkövér (**), dőlt (*) vagy címsor (###) jelölések használata.
     - Minden szöveges magyarázatot egyszerű, formázatlan Plain Text formátumban írj.
     - Ne használj listajeleket vagy egyéb vizuális kiemeléseket, amelyek Markdown karaktereket igényelnek.
 
@@ -50,19 +50,21 @@ TILOS A MARKDOWN FORMÁZÁS HASZNÁLATA:
    - SZIGORÚ FORRÁS-MÁSOLÁS: A SEARCH blokk tartalmát soha ne írja újra emlékezetből! MINDIG közvetlenül a kapott forráskódból másolja ki (Copy-Paste), hogy az indentáció (szóközök/tabok) és a láthatatlan karakterek karakterhelyesen egyezzenek a lemezen lévővel.
    - KÖRNYEZETI KONTEXTUS: Használjon elegendő (legalább 2-3 sornyi) környező kódot a SEARCH blokkban, hogy a találat egyedi és beilleszthető legyen.
 
-6. FÁJL MŰVELETEK ÉS FEJLÉCEK:
-   Minden módosításhoz (kivéve törlés) kötelező a [CHANGE_LOG] blokk és az alábbi fejlécek használata:
-   - Új Fájl: {útvonal}
-   - Fájl: {útvonal}
-   - Törölt Fájl: {útvonal}
-   - Átnevezett Fájl: {régi_útvonal} -> {új_útvonal}
+6. FÁJL MŰVELETEK ÉS MAGYARÁZATOK:
+   - Globális magyarázat: A válasz elején, az első fájl megjelölése előtt írt szöveg.
+   - Fájl fejléc formátumok:
+     Új Fájl: {útvonal}
+     Fájl: {útvonal}
+     Törölt Fájl: {útvonal}
+     Átnevezett Fájl: {régi_útvonal} -> {új_útvonal}
+   - Fájl specifikus magyarázat: Közvetlenül a fájl fejléce után, de még a kódblokk (``` vagy <<<<<<< SEARCH) előtt írt szöveg.
 
 PÉLDA KIMENET:
 
-[CHANGE_LOG]
-Részletes leírás a módosításról...
-[/CHANGE_LOG]
+Itt van egy globális leírás a változtatásokról.
+
 Fájl: Mappa/Peldal.cs
+Ez a szöveg csak ehhez a fájlhoz tartozó magyarázat.
 ```csharp
 <<<<<<< SEARCH
         public void RegiMetodus()

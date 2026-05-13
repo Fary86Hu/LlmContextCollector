@@ -351,6 +351,24 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             }
         }
 
+        private async Task HandleGitPull()
+        {
+            AppState.ShowLoading("Git pull folyamatban...");
+            try
+            {
+                await GitWorkflowService.PullChangesAsync();
+                await OnRequestApplyFiltersAndReload.InvokeAsync();
+            }
+            catch (Exception ex)
+            {
+                AppState.StatusText = $"Hiba a pull során: {ex.Message}";
+            }
+            finally
+            {
+                AppState.HideLoading();
+            }
+        }
+
         public void Dispose()
         {
             AppState.PropertyChanged -= OnAppStateChanged;
