@@ -6,21 +6,37 @@
 
 <div class="ado-panel">
     <div class="ado-filters">
-        <div class="filter-row">
-            <label>Státusz:</label>
-            <select @bind="_selectedStatus">
-                <option value="">Mindegyik</option>
-                <option value="Active">Active</option>
-                <option value="Resolved">Resolved</option>
-                <option value="Closed">Closed</option>
-                <option value="New">New</option>
-                <option value="Committed">Committed</option>
-            </select>
+        <div class="filter-group">
+            <label class="group-label">Státuszok:</label>
+            <div class="selection-chips">
+                @foreach (var status in _availableStatuses)
+                {
+                    <div class="chip @(_selectedStatuses.Contains(status) ? "active" : "")" @onclick="() => ToggleStatus(status)">
+                        @status
+                    </div>
+                }
+            </div>
         </div>
-        <div class="filter-row">
-            <label>Felelős:</label>
-            <input type="text" @bind="_assignedTo" placeholder="Név vagy kukac Me" @onkeyup="HandleKeyup" />
+
+        <div class="filter-group">
+            <label class="group-label">Felelősök:</label>
+            <div class="selection-chips members-chips">
+                <div class="chip @(_selectedAssignees.Contains("@Me") ? "active" : "")" @onclick='() => ToggleAssignee("Me")'>
+                    @("@Me")
+                </div>
+                @foreach (var member in _projectMembers)
+                {
+                    <div class="chip @(_selectedAssignees.Contains(member.DisplayName) ? "active" : "")" @onclick="() => ToggleAssignee(member.DisplayName)">
+                        @member.DisplayName
+                    </div>
+                }
+                @if (!_projectMembers.Any() && !_isLoadingMembers)
+                {
+                    <span class="hint-text">Tagok betöltése folyamatban...</span>
+                }
+            </div>
         </div>
+
         <div class="filter-row">
             <label>Típus:</label>
             <select @bind="_selectedType">
@@ -29,11 +45,11 @@
                 <option value="Task">Task</option>
                 <option value="Bug">Bug</option>
             </select>
+            <button class="primary load-btn" @onclick="LoadWorkItems" disabled="@_isLoading">
+                @if (_isLoading) { <span class="spinner-mini"></span> }
+                <span>Keresés</span>
+            </button>
         </div>
-        <button class="primary load-btn" @onclick="LoadWorkItems" disabled="@_isLoading">
-            @if (_isLoading) { <span class="spinner-mini"></span> }
-            <span>Keresés</span>
-        </button>
     </div>
 
     <div class="ado-list-container">
@@ -56,7 +72,7 @@
         }
         else if (!_isLoading)
         {
-            <div class="empty-state">Nincs találat vagy add meg a keresési feltételeket.</div>
+            <div class="empty-state">Nincs találat. Állíts be szűrőket és keress.</div>
         }
     </div>
 </div>

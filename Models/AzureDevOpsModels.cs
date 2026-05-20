@@ -22,6 +22,41 @@ namespace LlmContextCollector.Models
 
     public record WorkItemSearchResult(int Id, string Title, string Type, string State, string AssignedTo);
 
+    public class AdoMember
+    {
+        [JsonPropertyName("identity")]
+        public AdoIdentity? Identity { get; set; }
+    }
+
+    public class AdoIdentity
+    {
+        [JsonPropertyName("displayName")]
+        public string DisplayName { get; set; } = string.Empty;
+
+        [JsonPropertyName("uniqueName")]
+        public string UniqueName { get; set; } = string.Empty;
+    }
+
+    public class AdoMemberListResponse
+    {
+        [JsonPropertyName("value")]
+        public List<AdoMember> Value { get; set; } = new();
+    }
+
+    public class AdoTeamListResponse
+    {
+        [JsonPropertyName("value")]
+        public List<AdoTeam> Value { get; set; } = new();
+    }
+
+    public class AdoTeam
+    {
+        [JsonPropertyName("id")]
+        public Guid Id { get; set; }
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+    }
+
     // Model for batch work item details response
     public class WorkItemListResponse
     {

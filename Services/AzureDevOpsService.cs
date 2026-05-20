@@ -516,7 +516,38 @@ namespace LlmContextCollector.Services
             return HtmlToPlainText(processedHtml);
         }
 
-        public async Task<List<WorkItemSearchResult>> SearchWorkItemsAsync(string? state, string? assignedTo, string? type)
+        public async Task<List<AdoIdentity>> GetProjectMembersAsync()
+        {
+            if (string.IsNullOrWhiteSpace(_appState.AzureDevOpsOrganizationUrl) || string.IsNullOrWhiteSpace(_appState.AzureDevOpsPat)) return new();
+
+            var orgUrl = _appState.AzureDevOpsOrganizationUrl.Trim().TrimEnd('/');
+            var project = _appState.AzureDevOpsProject.Trim();
+            var pat = _appState.AzureDevOpsPat.Trim();
+            var client = _httpClientFactory.CreateClient("AzureDevOps");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes($":{pat}")));
+
+            var teamsResp = await client.GetAsync($"{orgUrl}/_apis/projects/{Uri.EscapeDataString(project)}/teams?api-version=6.0");
+            if (!teamsResp.IsSuccessStatusCode) return new();
+            var teams = await JsonSerializer.DeserializeAsync<AdoTeamListResponse>(await teamsResp.Content.ReadAsStreamAsync(), _jsonOptions);
+
+            var allMembers = new Dictionary<string, AdoIdentity>();
+            foreach (var team in teams?.Value ?? new())
+            {
+                var membersResp = await client.GetAsync($"{orgUrl}/_apis/projects/{Uri.EscapeDataString(project)}/teams/{team.Id}/members?api-version=6.0");
+                if (membersResp.IsSuccessStatusCode)
+                {
+                    var members = await JsonSerializer.DeserializeAsync<AdoMemberListResponse>(await membersResp.Content.ReadAsStreamAsync(), _jsonOptions);
+                    foreach (var m in members?.Value ?? new())
+                    {
+                        if (m.Identity != null && !allMembers.ContainsKey(m.Identity.UniqueName))
+                            allMembers[m.Identity.UniqueName] = m.Identity;
+                    }
+                }
+            }
+            return allMembers.Values.OrderBy(x => x.DisplayName).ToList();
+        }
+
+        public async Task<List<WorkItemSearchResult>> SearchWorkItemsAsync(IEnumerable<string> states, IEnumerable<string> assignedTo, string? type)
         {
             if (string.IsNullOrWhiteSpace(_appState.AzureDevOpsOrganizationUrl) || string.IsNullOrWhiteSpace(_appState.AzureDevOpsPat))
             {
@@ -535,15 +566,16 @@ namespace LlmContextCollector.Services
             var queryBuilder = new StringBuilder();
             queryBuilder.Append($"SELECT [System.Id], [System.Title], [System.WorkItemType], [System.State], [System.AssignedTo] FROM WorkItems WHERE [System.TeamProject] = '{project.Replace("'", "''")}'");
 
-            if (!string.IsNullOrWhiteSpace(state))
-                queryBuilder.Append($" AND [System.State] = '{state.Replace("'", "''")}'");
-
-            if (!string.IsNullOrWhiteSpace(assignedTo))
+            if (states != null && states.Any())
             {
-                if (assignedTo.Equals("@Me", StringComparison.OrdinalIgnoreCase))
-                    queryBuilder.Append(" AND [System.AssignedTo] = @Me");
-                else
-                    queryBuilder.Append($" AND [System.AssignedTo] CONTAINS '{assignedTo.Replace("'", "''")}'");
+                var stateList = string.Join(",", states.Select(s => $"'{s.Replace("'", "''")}'"));
+                queryBuilder.Append($" AND [System.State] IN ({stateList})");
+            }
+
+            if (assignedTo != null && assignedTo.Any())
+            {
+                var userList = string.Join(",", assignedTo.Select(u => u == "@Me" ? "@Me" : $"'{u.Replace("'", "''")}'"));
+                queryBuilder.Append($" AND [System.AssignedTo] IN ({userList})");
             }
 
             if (!string.IsNullOrWhiteSpace(type))
