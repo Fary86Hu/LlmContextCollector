@@ -199,10 +199,10 @@
 }
 
 .ado-details-dialog {
-    width: 700px;
-    max-width: 90vw;
-    height: 600px;
-    max-height: 85vh;
+    width: 1200px;
+    max-width: 95vw;
+    height: 850px;
+    max-height: 90vh;
     display: flex;
     flex-direction: column;
 }

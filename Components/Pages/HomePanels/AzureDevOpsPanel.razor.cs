@@ -95,10 +95,14 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private int _editingItemId;
         private string _editingItemText = string.Empty;
         private List<AttachedImage> _editingItemImages = new();
-        private string _modalActiveTab = "edit";
         private string _editingState = string.Empty;
         private double? _editingRemainingWork;
         private double? _editingCompletedWork;
+        private double? _editingOriginalEstimate;
+        private double? _editingStoryPoints;
+        private int? _editingPriority;
+        private string _editingSeverity = string.Empty;
+        private DateTime? _editingTargetDate;
         private string _newCommentText = string.Empty;
         private bool _isSavingAdo = false;
         private List<AzureDevOpsService.LinkedPrInfo> _linkedPrs = new();
@@ -139,7 +143,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                     _editingItemId = id;
                     _editingItemText = formatted.Text;
                     _editingItemImages = formatted.Images ?? new List<AttachedImage>();
-                    _modalActiveTab = "edit";
                     _newCommentText = string.Empty;
                     _linkedPrs.Clear();
 
@@ -156,6 +159,28 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                             _editingCompletedWork = comp;
                         else
                             _editingCompletedWork = null;
+
+                        if (double.TryParse(GetFieldFromRaw(rawWi, "Microsoft.VSTS.Scheduling.OriginalEstimate"), out var orig))
+                            _editingOriginalEstimate = orig;
+                        else
+                            _editingOriginalEstimate = null;
+
+                        if (double.TryParse(GetFieldFromRaw(rawWi, "Microsoft.VSTS.Scheduling.StoryPoints"), out var sp))
+                            _editingStoryPoints = sp;
+                        else
+                            _editingStoryPoints = null;
+
+                        if (int.TryParse(GetFieldFromRaw(rawWi, "Microsoft.VSTS.Common.Priority"), out var prio))
+                            _editingPriority = prio;
+                        else
+                            _editingPriority = null;
+
+                        _editingSeverity = GetFieldFromRaw(rawWi, "Microsoft.VSTS.Common.Severity");
+
+                        if (DateTime.TryParse(GetFieldFromRaw(rawWi, "Microsoft.VSTS.Scheduling.TargetDate"), out var td))
+                            _editingTargetDate = td;
+                        else
+                            _editingTargetDate = null;
 
                         if (rawWi.Relations != null)
                         {
@@ -258,12 +283,34 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             return "";
         }
 
+        private void OnTargetDateChanged(ChangeEventArgs e)
+        {
+            if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+            {
+                _editingTargetDate = dt;
+            }
+            else
+            {
+                _editingTargetDate = null;
+            }
+        }
+
         private async Task SaveAdoChanges()
         {
             _isSavingAdo = true;
             try
             {
-                var fieldsSuccess = await AdoService.UpdateWorkItemFieldsAsync(_editingItemId, _editingState, _editingRemainingWork, _editingCompletedWork);
+                var fieldsSuccess = await AdoService.UpdateWorkItemFieldsAsync(
+                    _editingItemId, 
+                    _editingState, 
+                    _editingRemainingWork, 
+                    _editingCompletedWork,
+                    _editingOriginalEstimate,
+                    _editingStoryPoints,
+                    _editingPriority,
+                    _editingSeverity,
+                    _editingTargetDate);
+
                 var commentSuccess = true;
 
                 if (!string.IsNullOrWhiteSpace(_newCommentText))

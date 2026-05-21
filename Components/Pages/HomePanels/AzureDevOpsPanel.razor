@@ -106,93 +106,130 @@
                     <h3>Munkaminta #@_editingItemId Részletei</h3>
                     <button class="close-btn" @onclick="CloseDetailsModal">&times;</button>
                 </div>
-                <div class="modal-body" style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">
-                    <div class="modal-tabs" style="display: flex; gap: 15px; border-bottom: 1px solid var(--border-color); margin-bottom: 15px; padding-bottom: 5px; flex-shrink: 0;">
-                        <div class="modal-tab-item @(_modalActiveTab == "edit" ? "active" : "")" style="cursor: pointer; padding: 5px 10px; font-weight: bold;" @onclick='() => _modalActiveTab = "edit"'>ADO Szerkesztés</div>
-                        <div class="modal-tab-item @(_modalActiveTab == "prompt" ? "active" : "")" style="cursor: pointer; padding: 5px 10px; font-weight: bold;" @onclick='() => _modalActiveTab = "prompt"'>Prompt Előnézet</div>
-                    </div>
+                <div class="modal-body" style="display: flex; flex-direction: column; height: 100%; overflow: hidden; padding-top: 10px;">
+                    <div class="ado-details-grid" style="display: grid; grid-template-columns: 1fr 400px; gap: 20px; flex: 1; min-height: 0; overflow: hidden;">
 
-                    @if (_modalActiveTab == "edit")
-                    {
-                        <div class="ado-edit-section" style="display: flex; flex-direction: column; gap: 15px; flex: 1; overflow-y: auto;">
-                            <div class="form-row" style="display: flex; gap: 15px; flex-wrap: wrap;">
-                                <div class="form-group" style="flex: 1; min-width: 150px;">
+                        <div class="ado-details-left" style="display: flex; flex-direction: column; gap: 10px; min-height: 0;">
+                            <div class="form-group" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
+                                <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Prompt Előnézet és Tartalom:</label>
+                                <textarea @bind="_editingItemText" style="width: 100%; flex: 1; resize: none; font-family: Consolas, monospace; background: var(--input-bg-color); color: var(--text-color); border: 1px solid var(--border-color); padding: 8px; border-radius: 4px; min-height: 0;"></textarea>
+                            </div>
+                            @if (_editingItemImages.Any())
+                            {
+                                <div class="attached-images-preview" style="display: flex; gap: 8px; overflow-x: auto; padding: 6px; border: 1px solid var(--border-color); background: var(--toolbar-bg); border-radius: 4px; flex-shrink: 0;">
+                                    @foreach (var img in _editingItemImages)
+                                    {
+                                        <div class="img-wrap" style="position: relative; width: 50px; height: 50px; flex-shrink: 0; border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden;">
+                                            <img src="@img.Base64Thumbnail" style="width: 100%; height: 100%; object-fit: cover;" />
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <div class="ado-details-right" style="display: flex; flex-direction: column; gap: 12px; background: var(--toolbar-bg); padding: 15px; border-radius: 6px; border: 1px solid var(--border-color); overflow-y: auto; min-height: 0;">
+                            <h4 style="margin: 0 0 5px 0; font-size: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; font-weight: bold;">ADO Mezők Szerkesztése</h4>
+
+                            <div class="fields-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; flex-shrink: 0;">
+                                <div class="form-group" style="grid-column: span 2;">
                                     <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Státusz:</label>
-                                    <select @bind="_editingState" style="width: 100%; height: 32px; background: var(--input-bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 0 5px;">
+                                    <select @bind="_editingState" style="width: 100%; height: 30px; background: var(--input-bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 0 5px;">
                                         @foreach (var state in _availableStatuses)
                                         {
                                             <option value="@state">@state</option>
                                         }
                                     </select>
                                 </div>
-                                <div class="form-group" style="flex: 1; min-width: 120px;">
-                                    <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Hátralévő órák:</label>
-                                    <input type="number" step="0.5" min="0" @bind="_editingRemainingWork" style="width: 100%; height: 32px; background: var(--input-bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 5px;" />
+
+                                <div class="form-group">
+                                    <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Story Points:</label>
+                                    <input type="number" step="1" min="0" @bind="_editingStoryPoints" style="width: 100%; height: 30px; background: var(--input-bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 5px;" />
                                 </div>
-                                <div class="form-group" style="flex: 1; min-width: 120px;">
-                                    <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Elvégzett órák:</label>
-                                    <input type="number" step="0.5" min="0" @bind="_editingCompletedWork" style="width: 100%; height: 32px; background: var(--input-bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 5px;" />
+
+                                <div class="form-group">
+                                    <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Prioritás (Priority):</label>
+                                    <select @bind="_editingPriority" style="width: 100%; height: 30px; background: var(--input-bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 0 5px;">
+                                        <option value="">(Nincs)</option>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Súlyosság (Severity):</label>
+                                    <select @bind="_editingSeverity" style="width: 100%; height: 30px; background: var(--input-bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 0 5px;">
+                                        <option value="">(Nincs)</option>
+                                        <option value="1 - Critical">1 - Critical</option>
+                                        <option value="2 - High">2 - High</option>
+                                        <option value="3 - Medium">3 - Medium</option>
+                                        <option value="4 - Low">4 - Low</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Cél dátum:</label>
+                                    <input type="date" value='@_editingTargetDate?.ToString("yyyy-MM-dd")' @onchange="OnTargetDateChanged" style="width: 100%; height: 30px; background: var(--input-bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 5px;" />
+                                </div>
+
+                                <div class="form-group">
+                                    <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Becsült óra (Original):</label>
+                                    <input type="number" step="0.5" min="0" @bind="_editingOriginalEstimate" style="width: 100%; height: 30px; background: var(--input-bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 5px;" />
+                                </div>
+
+                                <div class="form-group">
+                                    <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Hátralévő (Remaining):</label>
+                                    <input type="number" step="0.5" min="0" @bind="_editingRemainingWork" style="width: 100%; height: 30px; background: var(--input-bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 5px;" />
+                                </div>
+
+                                <div class="form-group" style="grid-column: span 2;">
+                                    <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Elvégzett (Completed):</label>
+                                    <input type="number" step="0.5" min="0" @bind="_editingCompletedWork" style="width: 100%; height: 30px; background: var(--input-bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 5px;" />
                                 </div>
                             </div>
 
-                            <div class="form-group" style="display: flex; flex-direction: column; flex: 1; min-height: 150px;">
-                                <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Új hozzászólás / komment hozzáadása:</label>
-                                <textarea @bind="_newCommentText" placeholder="Írj egy kommentet az Azure DevOps-ba..." style="width: 100%; flex: 1; resize: none; background: var(--input-bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 8px; font-family: sans-serif;"></textarea>
+                            <div class="form-group" style="display: flex; flex-direction: column; flex: 1; min-height: 100px; margin-top: 5px;">
+                                <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 4px;">Új hozzászólás / komment:</label>
+                                <textarea @bind="_newCommentText" placeholder="Írj egy kommentet az Azure DevOps-ba..." style="width: 100%; flex: 1; resize: none; background: var(--input-bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; padding: 8px; font-family: sans-serif; min-height: 70px;"></textarea>
                             </div>
 
-                            <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                            <div style="display: flex; justify-content: flex-end; margin-top: 5px; flex-shrink: 0;">
                                 <button class="primary" @onclick="SaveAdoChanges" disabled="@_isSavingAdo" style="padding: 6px 15px; font-size: 11px; height: auto; display: flex; align-items: center; gap: 8px;">
                                     @if (_isSavingAdo) { <span class="spinner-mini"></span> }
                                     <span>Mentés az Azure DevOps-ba</span>
                                 </button>
                             </div>
+                        </div>
 
-                            @if (_linkedPrs.Any())
+                    </div>
+
+                    @if (_linkedPrs.Any())
+                    {
+                        <div class="linked-prs-section" style="margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 10px; flex-shrink: 0;">
+                            <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 6px;">Kapcsolódó Pull Request-ek és Git Diff fájlok:</label>
+                            @foreach (var pr in _linkedPrs)
                             {
-                                <div class="linked-prs-section" style="margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
-                                    <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 8px;">Kapcsolódó Pull Request-ek és Git Diff fájlok:</label>
-                                    @foreach (var pr in _linkedPrs)
-                                    {
-                                        <div class="linked-pr-item" style="background: var(--toolbar-bg); padding: 10px; border-radius: 4px; border: 1px solid var(--border-color); margin-bottom: 8px;">
-                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 10px;">
-                                                <span style="font-weight: bold; font-size: 11px;">PR #@pr.Id: @pr.Title</span>
-                                                <button class="primary btn-mini" style="flex-shrink: 0;" @onclick="() => AddPrFilesToContext(pr)">Fájlok kontextusba tétele</button>
-                                            </div>
-                                            <div style="font-size: 10px; color: var(--text-color-light); margin-bottom: 4px;">Ág: @pr.SourceBranch</div>
-                                            <div style="max-height: 100px; overflow-y: auto; font-size: 10px; font-family: Consolas, monospace; background: var(--input-bg-color); padding: 4px; border-radius: 3px;">
-                                                @foreach (var f in pr.Files)
-                                                {
-                                                    <div>[@f.ChangeType.ToUpper()] @f.Path</div>
-                                                }
-                                            </div>
-                                        </div>
-                                    }
+                                <div class="linked-pr-item" style="background: var(--toolbar-bg); padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); margin-bottom: 5px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 10px;">
+                                        <span style="font-weight: bold; font-size: 11px;">PR #@pr.Id: @pr.Title</span>
+                                        <button class="primary btn-mini" style="flex-shrink: 0;" @onclick="() => AddPrFilesToContext(pr)">Fájlok kontextusba tétele</button>
+                                    </div>
+                                    <div style="font-size: 10px; color: var(--text-color-light); margin-bottom: 3px;">Ág: @pr.SourceBranch</div>
+                                    <div style="max-height: 80px; overflow-y: auto; font-size: 10px; font-family: Consolas, monospace; background: var(--input-bg-color); padding: 4px; border-radius: 3px;">
+                                        @foreach (var f in pr.Files)
+                                        {
+                                            <div>[@f.ChangeType.ToUpper()] @f.Path</div>
+                                        }
+                                    </div>
                                 </div>
                             }
                         </div>
                     }
-                    else
-                    {
-                        <div class="form-group" style="display: flex; flex-direction: column; flex-grow: 1; min-height: 350px; overflow: hidden;">
-                            <label>Tartalom szerkesztése (Promptba küldés előtt):</label>
-                            <textarea @bind="_editingItemText" style="width: 100%; flex-grow: 1; resize: none; font-family: Consolas, monospace; background: var(--input-bg-color); color: var(--text-color); border: 1px solid var(--border-color); padding: 8px;"></textarea>
-                        </div>
-                        @if (_editingItemImages.Any())
-                        {
-                            <div class="attached-images-preview" style="display: flex; gap: 8px; margin-top: 10px; overflow-x: auto; padding: 6px; border: 1px solid var(--border-color); background: var(--toolbar-bg); border-radius: 4px; flex-shrink: 0;">
-                                @foreach (var img in _editingItemImages)
-                                {
-                                    <div class="img-wrap" style="position: relative; width: 50px; height: 50px; flex-shrink: 0; border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden;">
-                                        <img src="@img.Base64Thumbnail" style="width: 100%; height: 100%; object-fit: cover;" />
-                                    </div>
-                                }
-                            </div>
-                        }
-                    }
                 </div>
-                <div class="modal-footer" style="display: flex; justify-content: space-between; gap: 10px;">
+                <div class="modal-footer" style="display: flex; justify-content: space-between; gap: 10px; flex-shrink: 0; padding-top: 10px; border-top: 1px solid var(--border-color);">
                     <button class="secondary" @onclick="CloseDetailsModal">Mégsem</button>
-                    <button class="primary" @onclick="SendEditingToPrompt" disabled="@(_modalActiveTab == "edit")">Küldés a promptba</button>
+                    <button class="primary" @onclick="SendEditingToPrompt">Küldés a promptba</button>
                 </div>
             </div>
         </div>

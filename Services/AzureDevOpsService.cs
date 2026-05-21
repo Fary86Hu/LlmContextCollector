@@ -459,7 +459,16 @@ namespace LlmContextCollector.Services
             return await JsonSerializer.DeserializeAsync<WorkItem>(await response.Content.ReadAsStreamAsync(), _jsonOptions);
         }
 
-        public async Task<bool> UpdateWorkItemFieldsAsync(int workItemId, string? state, double? remainingWork, double? completedWork)
+        public async Task<bool> UpdateWorkItemFieldsAsync(
+            int workItemId, 
+            string? state, 
+            double? remainingWork, 
+            double? completedWork,
+            double? originalEstimate,
+            double? storyPoints,
+            int? priority,
+            string? severity,
+            DateTime? targetDate)
         {
             if (string.IsNullOrWhiteSpace(_appState.AzureDevOpsOrganizationUrl) || string.IsNullOrWhiteSpace(_appState.AzureDevOpsPat))
                 return false;
@@ -478,16 +487,31 @@ namespace LlmContextCollector.Services
             {
                 patchList.Add(new { op = "add", path = "/fields/System.State", value = state });
             }
-            if (remainingWork.HasValue)
+
+            patchList.Add(new { op = "add", path = "/fields/Microsoft.VSTS.Scheduling.RemainingWork", value = remainingWork });
+            patchList.Add(new { op = "add", path = "/fields/Microsoft.VSTS.Scheduling.CompletedWork", value = completedWork });
+            patchList.Add(new { op = "add", path = "/fields/Microsoft.VSTS.Scheduling.OriginalEstimate", value = originalEstimate });
+            patchList.Add(new { op = "add", path = "/fields/Microsoft.VSTS.Scheduling.StoryPoints", value = storyPoints });
+
+            if (priority.HasValue)
             {
-                patchList.Add(new { op = "add", path = "/fields/Microsoft.VSTS.Scheduling.RemainingWork", value = remainingWork.Value });
+                patchList.Add(new { op = "add", path = "/fields/Microsoft.VSTS.Common.Priority", value = priority.Value });
             }
-            if (completedWork.HasValue)
+            else
             {
-                patchList.Add(new { op = "add", path = "/fields/Microsoft.VSTS.Scheduling.CompletedWork", value = completedWork.Value });
+                patchList.Add(new { op = "remove", path = "/fields/Microsoft.VSTS.Common.Priority" });
             }
 
-            if (!patchList.Any()) return true;
+            patchList.Add(new { op = "add", path = "/fields/Microsoft.VSTS.Common.Severity", value = severity ?? "" });
+
+            if (targetDate.HasValue)
+            {
+                patchList.Add(new { op = "add", path = "/fields/Microsoft.VSTS.Scheduling.TargetDate", value = targetDate.Value.ToString("yyyy-MM-ddTHH:mm:ssZ") });
+            }
+            else
+            {
+                patchList.Add(new { op = "remove", path = "/fields/Microsoft.VSTS.Scheduling.TargetDate" });
+            }
 
             var url = $"{orgUrl}/{encodedProject}/_apis/wit/workitems/{workItemId}?api-version=6.0";
             var content = new StringContent(JsonSerializer.Serialize(patchList), Encoding.UTF8, "application/json-patch+json");
