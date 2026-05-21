@@ -38,18 +38,28 @@
             </div>
         </div>
         <div class="chat-messages-area" id="chat-tab-messages">
-            @foreach (var msg in ChatService.Messages.Where(m => m.Role != "system"))
+            @foreach (var msg in ChatService.Messages)
             {
-                <div class="chat-message @(msg.Role)">
-                    <div class="message-header">
-                        <strong>@(msg.Role == "user" ? "Te" : "AI"):</strong>
-                        @if (msg.Role == "assistant" && !ChatService.IsGenerating)
-                        {
-                            <button class="apply-btn" @onclick="() => OnApplyResponse.InvokeAsync(msg.Content)">Alkalmazás</button>
-                        }
+                @if (msg.Role == "system")
+                {
+                    <details class="system-context-details">
+                        <summary>Rendszer Prompt és Kontextus</summary>
+                        <div class="message-content system-message-content">@((MarkupString)GetFormattedResponse(msg.Content, false))</div>
+                    </details>
+                }
+                else
+                {
+                    <div class="chat-message @(msg.Role)">
+                        <div class="message-header">
+                            <strong>@(msg.Role == "user" ? "Te" : "AI"):</strong>
+                            @if (msg.Role == "assistant" && !ChatService.IsGenerating)
+                            {
+                                <button class="apply-btn" @onclick="() => OnApplyResponse.InvokeAsync(msg.Content)">Alkalmazás</button>
+                            }
+                        </div>
+                        <div class="message-content">@((MarkupString)GetFormattedResponse(msg.Content, false))</div>
                     </div>
-                    <div class="message-content">@((MarkupString)GetFormattedResponse(msg.Content, false))</div>
-                </div>
+                }
             }
             @if (ChatService.IsGenerating)
             {

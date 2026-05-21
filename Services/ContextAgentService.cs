@@ -67,13 +67,28 @@ namespace LlmContextCollector.Services
                     if (newlyAdded == 0)
                     {
                         _appState.StatusText = "Agent: Minden kért fájl a kontextusban van.";
+                        _chatService.Messages.Add(new ChatMessage 
+                        { 
+                            Role = "system", 
+                            Content = $"[Agent - Kör {iterations}] Nem találtam új hozzáandó fájlt a kontextushoz. Az ügynök leáll." 
+                        });
+                        await _chatService.SaveHistoryAsync();
                         break;
                     }
+
+                    _chatService.Messages.Add(new ChatMessage 
+                    { 
+                        Role = "system", 
+                        Content = $"[Agent - Kör {iterations}] Automatikusan hozzáadva {newlyAdded} fájl a kontextushoz:\n" + 
+                                  string.Join("\n", requestedFiles.Take(10).Select(f => $"- {f}")) + 
+                                  (requestedFiles.Count > 10 ? "\n..." : "")
+                    });
+                    await _chatService.SaveHistoryAsync();
 
                     _appState.StatusText = $"Agent: {newlyAdded} új fájl hozzáadva (iteráció {iterations})...";
                     currentInput = "A kért fájlokat és azok referenciáit (depth 1) hozzáadtam a kontextushoz. Van még valami, amire szükséged van, vagy folytathatjuk?";
                 }
-                
+
                 _appState.StatusText = "Agent befejezte a kontextus építését.";
                 _appState.RequestWorkbenchFocus(WorkbenchTab.Chat);
             }
