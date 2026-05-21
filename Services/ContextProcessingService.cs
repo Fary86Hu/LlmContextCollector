@@ -427,17 +427,31 @@ namespace LlmContextCollector.Services
         private RobustMatchResult? FindRobustMatch(string content, string searchBlock)
         {
             var contentLines = content.Split('\n');
-            var searchLines = searchBlock.Split('\n').Select(l => l.TrimEnd()).ToArray();
+            var searchLines = searchBlock.Split('\n')
+                .Select(l => l.TrimEnd())
+                .ToList();
 
-            if (searchLines.Length == 0 || (searchLines.Length == 1 && string.IsNullOrWhiteSpace(searchLines[0]))) 
+            while (searchLines.Count > 0 && string.IsNullOrWhiteSpace(searchLines[0]))
+                searchLines.RemoveAt(0);
+            while (searchLines.Count > 0 && string.IsNullOrWhiteSpace(searchLines[^1]))
+                searchLines.RemoveAt(searchLines.Count - 1);
+
+            if (searchLines.Count == 0) 
                 return null;
 
-            for (int i = 0; i <= contentLines.Length - searchLines.Length; i++)
+            string NormalizeLine(string line)
+            {
+                return Regex.Replace(line.Trim(), @"\s+", " ");
+            }
+
+            var normalizedSearchLines = searchLines.Select(NormalizeLine).ToArray();
+
+            for (int i = 0; i <= contentLines.Length - normalizedSearchLines.Length; i++)
             {
                 bool match = true;
-                for (int j = 0; j < searchLines.Length; j++)
+                for (int j = 0; j < normalizedSearchLines.Length; j++)
                 {
-                    if (contentLines[i + j].Trim() != searchLines[j].Trim())
+                    if (NormalizeLine(contentLines[i + j]) != normalizedSearchLines[j])
                     {
                         match = false;
                         break;
@@ -450,7 +464,7 @@ namespace LlmContextCollector.Services
                     for (int k = 0; k < i; k++) charPos += contentLines[k].Length + 1;
 
                     int matchedLength = 0;
-                    for (int k = 0; k < searchLines.Length; k++) matchedLength += contentLines[i + k].Length + 1;
+                    for (int k = 0; k < searchLines.Count; k++) matchedLength += contentLines[i + k].Length + 1;
                     if (matchedLength > 0) matchedLength--; // Utolsó \n korrekció
 
                     string fileBaseIndent = GetIndentation(contentLines[i]);

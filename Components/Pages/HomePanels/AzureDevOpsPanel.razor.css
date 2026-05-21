@@ -183,3 +183,41 @@
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+
+.ado-item-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.btn-mini {
+    padding: 3px 8px;
+    font-size: 10px;
+    height: auto;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.ado-details-dialog {
+    width: 700px;
+    max-width: 90vw;
+    height: 600px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-tab-item {
+    color: var(--text-color-light);
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.modal-tab-item:hover {
+    color: var(--text-color);
+}
+
+.modal-tab-item.active {
+    color: var(--accent-color);
+    border-bottom-color: var(--accent-color);
+}

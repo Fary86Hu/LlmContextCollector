@@ -91,6 +91,7 @@ namespace LlmContextCollector.Services
 
         public record PullRequestFile(string Path, string ChangeType);
         public record PullRequestData(string FormattedText, List<PullRequestFile> Files, string SourceBranch, List<AttachedImage> Images);
+        public record LinkedPrInfo(int Id, string Title, string SourceBranch, List<PullRequestFile> Files);
 
         public async Task<PullRequestData> GetFormattedPullRequestAsync(int prId)
         {
@@ -382,6 +383,155 @@ namespace LlmContextCollector.Services
             }
 
             return (sb.ToString(), finalImagesToReturn, failedImagesCount);
+        }
+
+        public async Task<LinkedPrInfo?> GetPullRequestDetailsAsync(int prId)
+        {
+            if (string.IsNullOrWhiteSpace(_appState.AzureDevOpsOrganizationUrl) || string.IsNullOrWhiteSpace(_appState.AzureDevOpsPat))
+                return null;
+
+            var orgUrl = _appState.AzureDevOpsOrganizationUrl.Trim().TrimEnd('/');
+            var project = _appState.AzureDevOpsProject.Trim();
+            var pat = _appState.AzureDevOpsPat.Trim();
+            var encodedProject = Uri.EscapeDataString(project);
+
+            var client = _httpClientFactory.CreateClient("AzureDevOps");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                Convert.ToBase64String(Encoding.ASCII.GetBytes($":{pat}")));
+
+            var prUrl = $"{orgUrl}/{encodedProject}/_apis/git/pullrequests/{prId}?api-version=6.0";
+            var prResponse = await client.GetAsync(prUrl);
+            if (!prResponse.IsSuccessStatusCode) return null;
+
+            var pr = await JsonSerializer.DeserializeAsync<GitPullRequest>(await prResponse.Content.ReadAsStreamAsync(), _jsonOptions);
+            if (pr == null) return null;
+
+            var repositoryId = pr.Repository?.Id;
+            var lastIterationId = 1;
+
+            var iterationsUrl = $"{orgUrl}/_apis/git/repositories/{repositoryId}/pullRequests/{prId}/iterations?api-version=6.0";
+            var iterResponse = await client.GetAsync(iterationsUrl);
+            if (iterResponse.IsSuccessStatusCode)
+            {
+                var iterationsData = await JsonSerializer.DeserializeAsync<GitPullRequestIterationListResponse>(await iterResponse.Content.ReadAsStreamAsync(), _jsonOptions);
+                lastIterationId = iterationsData?.Value.LastOrDefault()?.Id ?? 1;
+            }
+
+            var affectedFiles = new List<PullRequestFile>();
+            var changesUrl = $"{orgUrl}/_apis/git/repositories/{repositoryId}/pullRequests/{prId}/iterations/{lastIterationId}/changes?api-version=6.0";
+            var changesResponse = await client.GetAsync(changesUrl);
+            if (changesResponse.IsSuccessStatusCode)
+            {
+                var changesData = await JsonSerializer.DeserializeAsync<GitPullRequestChangeListResponse>(await changesResponse.Content.ReadAsStreamAsync(), _jsonOptions);
+                if (changesData?.ChangeEntries != null)
+                {
+                    foreach (var change in changesData.ChangeEntries.Where(c => c.Item != null))
+                    {
+                        affectedFiles.Add(new PullRequestFile(change.Item!.Path, change.ChangeType));
+                    }
+                }
+            }
+
+            var branchName = pr.SourceRefName;
+            if (branchName.StartsWith("refs/heads/")) branchName = branchName.Substring(11);
+
+            return new LinkedPrInfo(prId, pr.Title, branchName, affectedFiles);
+        }
+
+        public async Task<WorkItem?> GetRawWorkItemAsync(int workItemId)
+        {
+            if (string.IsNullOrWhiteSpace(_appState.AzureDevOpsOrganizationUrl) || string.IsNullOrWhiteSpace(_appState.AzureDevOpsPat))
+                return null;
+
+            var orgUrl = _appState.AzureDevOpsOrganizationUrl.Trim().TrimEnd('/');
+            var project = _appState.AzureDevOpsProject.Trim();
+            var pat = _appState.AzureDevOpsPat.Trim();
+            var encodedProject = Uri.EscapeDataString(project);
+
+            var client = _httpClientFactory.CreateClient("AzureDevOps");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                Convert.ToBase64String(Encoding.ASCII.GetBytes($":{pat}")));
+
+            var url = $"{orgUrl}/{encodedProject}/_apis/wit/workitems/{workItemId}?$expand=all&api-version=6.0";
+            var response = await client.GetAsync(url);
+            if (!response.IsSuccessStatusCode) return null;
+
+            return await JsonSerializer.DeserializeAsync<WorkItem>(await response.Content.ReadAsStreamAsync(), _jsonOptions);
+        }
+
+        public async Task<bool> UpdateWorkItemFieldsAsync(int workItemId, string? state, double? remainingWork, double? completedWork)
+        {
+            if (string.IsNullOrWhiteSpace(_appState.AzureDevOpsOrganizationUrl) || string.IsNullOrWhiteSpace(_appState.AzureDevOpsPat))
+                return false;
+
+            var orgUrl = _appState.AzureDevOpsOrganizationUrl.Trim().TrimEnd('/');
+            var project = _appState.AzureDevOpsProject.Trim();
+            var pat = _appState.AzureDevOpsPat.Trim();
+            var encodedProject = Uri.EscapeDataString(project);
+
+            var client = _httpClientFactory.CreateClient("AzureDevOps");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                Convert.ToBase64String(Encoding.ASCII.GetBytes($":{pat}")));
+
+            var patchList = new List<object>();
+            if (!string.IsNullOrEmpty(state))
+            {
+                patchList.Add(new { op = "add", path = "/fields/System.State", value = state });
+            }
+            if (remainingWork.HasValue)
+            {
+                patchList.Add(new { op = "add", path = "/fields/Microsoft.VSTS.Scheduling.RemainingWork", value = remainingWork.Value });
+            }
+            if (completedWork.HasValue)
+            {
+                patchList.Add(new { op = "add", path = "/fields/Microsoft.VSTS.Scheduling.CompletedWork", value = completedWork.Value });
+            }
+
+            if (!patchList.Any()) return true;
+
+            var url = $"{orgUrl}/{encodedProject}/_apis/wit/workitems/{workItemId}?api-version=6.0";
+            var content = new StringContent(JsonSerializer.Serialize(patchList), Encoding.UTF8, "application/json-patch+json");
+
+            var request = new HttpRequestMessage(HttpMethod.Patch, url) { Content = content };
+            var response = await client.SendAsync(request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadAsStringAsync();
+                _logService.LogError("ADO", $"Hiba a WI #{workItemId} mezoinak frissitesekor", err);
+                return false;
+            }
+
+            return true;
+        }
+
+        public async Task<bool> AddWorkItemCommentAsync(int workItemId, string commentText)
+        {
+            if (string.IsNullOrWhiteSpace(_appState.AzureDevOpsOrganizationUrl) || string.IsNullOrWhiteSpace(_appState.AzureDevOpsPat))
+                return false;
+
+            var orgUrl = _appState.AzureDevOpsOrganizationUrl.Trim().TrimEnd('/');
+            var project = _appState.AzureDevOpsProject.Trim();
+            var pat = _appState.AzureDevOpsPat.Trim();
+            var encodedProject = Uri.EscapeDataString(project);
+
+            var client = _httpClientFactory.CreateClient("AzureDevOps");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                Convert.ToBase64String(Encoding.ASCII.GetBytes($":{pat}")));
+
+            var url = $"{orgUrl}/{encodedProject}/_apis/wit/workitems/{workItemId}/comments?api-version=6.0-preview.3";
+            var body = new { text = commentText };
+            var content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+
+            var response = await client.PostAsync(url, content);
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadAsStringAsync();
+                _logService.LogError("ADO", $"Hiba komment hozzaadasakor #{workItemId}", err);
+                return false;
+            }
+
+            return true;
         }
 
         private async Task<AttachedImage?> DownloadAttachmentAsync(HttpClient client, string url, string fileName, int workItemId)
