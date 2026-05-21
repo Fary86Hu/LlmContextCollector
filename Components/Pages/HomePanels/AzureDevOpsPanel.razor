@@ -21,7 +21,7 @@
         <div class="filter-group">
             <label class="group-label">Felelősök:</label>
             <div class="selection-chips members-chips">
-                <div class="chip @(_selectedAssignees.Contains("@Me") ? "active" : "")" @onclick='() => ToggleAssignee("Me")'>
+                <div class="chip @(_selectedAssignees.Contains("@Me") ? "active" : "")" @onclick="@(() => ToggleAssignee("@Me"))">
                     @("@Me")
                 </div>
                 @foreach (var member in _projectMembers)
@@ -37,6 +37,20 @@
             </div>
         </div>
 
+        <div class="filter-group">
+            <label class="group-label">További szűrők:</label>
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 2px;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px;">
+                    <input type="checkbox" @bind="AppState.AdoDownloadOnlyMine" style="width: auto; margin: 0;" />
+                    A kiválasztott felelősök által lezárt vagy feloldott (Resolved/Closed) elemek is
+                </label>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 11px;">Módosítva óta:</span>
+                    <input type="date" value="@AppState.AdoMinChangedDate?.ToString("yyyy-MM-dd")" @onchange="OnMinDateChanged" style="height: 24px; font-size: 11px; flex: 1; padding: 2px;" />
+                </div>
+            </div>
+        </div>
+
         <div class="filter-row">
             <label>Típus:</label>
             <select @bind="_selectedType">
@@ -48,6 +62,10 @@
             <button class="primary load-btn" @onclick="LoadWorkItems" disabled="@_isLoading">
                 @if (_isLoading) { <span class="spinner-mini"></span> }
                 <span>Keresés</span>
+            </button>
+            <button class="secondary load-btn" @onclick="DownloadAllWorkItems" disabled="@_isLoading" title="Összes munkaelem letöltése offline kontextusként">
+                @if (_isLoading) { <span class="spinner-mini"></span> }
+                <span>Letöltés</span>
             </button>
         </div>
     </div>

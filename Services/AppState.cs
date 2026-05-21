@@ -332,6 +332,9 @@ namespace LlmContextCollector.Services
         private bool _adoDownloadOnlyMine = false;
         public bool AdoDownloadOnlyMine { get => _adoDownloadOnlyMine; set => SetField(ref _adoDownloadOnlyMine, value); }
 
+        private DateTime? _adoMinChangedDate;
+        public DateTime? AdoMinChangedDate { get => _adoMinChangedDate; set => SetField(ref _adoMinChangedDate, value); }
+
         private BuildStatus _currentBuildStatus = BuildStatus.Idle;
         public BuildStatus CurrentBuildStatus { get => _currentBuildStatus; set => SetField(ref _currentBuildStatus, value); }
 

@@ -1,4 +1,5 @@
 using LlmContextCollector.Models;
+using LlmContextCollector.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -6,6 +7,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 {
     public partial class AzureDevOpsPanel
     {
+        [Inject] private SettingsService SettingsService { get; set; } = null!;
+
         private List<string> _availableStatuses = new() { "New", "Active", "Resolved", "Closed", "Committed", "Proposed" };
         private List<string> _selectedStatuses = new() { "Active", "Resolved" };
         private List<string> _selectedAssignees = new() { "@Me" };
@@ -46,11 +49,36 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             else _selectedAssignees.Add(name);
         }
 
+        private void OnMinDateChanged(ChangeEventArgs e)
+        {
+            if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+            {
+                AppState.AdoMinChangedDate = dt;
+            }
+            else
+            {
+                AppState.AdoMinChangedDate = null;
+            }
+        }
+
+        private async Task SaveAdoPanelSettingsAsync()
+        {
+            try
+            {
+                var settings = await SettingsService.GetSettingsAsync();
+                settings.AdoDownloadOnlyMine = AppState.AdoDownloadOnlyMine;
+                settings.AdoMinChangedDate = AppState.AdoMinChangedDate;
+                await SettingsService.SaveSettingsAsync(settings);
+            }
+            catch { }
+        }
+
         private async Task LoadWorkItems()
         {
             _isLoading = true;
             try
             {
+                await SaveAdoPanelSettingsAsync();
                 _workItems = await AdoService.SearchWorkItemsAsync(_selectedStatuses, _selectedAssignees, _selectedType);
             }
             catch (Exception ex)
@@ -82,6 +110,39 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             }
             finally
             {
+                AppState.HideLoading();
+            }
+        }
+
+        private async Task DownloadAllWorkItems()
+        {
+            if (string.IsNullOrWhiteSpace(AppState.ProjectRoot)) return;
+
+            _isLoading = true;
+            AppState.ShowLoading("Munkaelemek letöltése...");
+            try
+            {
+                await SaveAdoPanelSettingsAsync();
+                await AdoService.SaveSettingsForCurrentProjectAsync();
+                await AdoService.DownloadWorkItemsAsync(
+                    AppState.AzureDevOpsOrganizationUrl, AppState.AzureDevOpsProject,
+                    AppState.AzureDevOpsPat,
+                    AppState.AzureDevOpsIterationPath, AppState.ProjectRoot,
+                    isIncremental: false,
+                    AppState.AdoDownloadOnlyMine);
+
+                await AdoService.SaveSettingsForCurrentProjectAsync(DateTime.UtcNow);
+                AdoService.UpdateAdoPaths(AppState.ProjectRoot);
+                AppState.StatusText = "Munkaelemek letöltve a helyi kontextusba.";
+            }
+            catch (Exception ex)
+            {
+                LogService.LogError("ADO Panel", "Hiba a letöltéskor", ex.Message);
+                AppState.StatusText = $"Hiba: {ex.Message}";
+            }
+            finally
+            {
+                _isLoading = false;
                 AppState.HideLoading();
             }
         }

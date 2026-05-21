@@ -52,7 +52,6 @@ namespace LlmContextCollector.Components.Pages
         private bool isPromptManagerVisible = false;
 
         private bool _isSettingsDialogVisible = false;
-        private bool _isAzureDevOpsDialogVisible = false;
         private bool _isExclusionsDialogVisible = false;
         private bool _isLocPathDialogVisible = false;
         private DiffResultArgs? _pendingLocDiffArgs;
@@ -541,7 +540,8 @@ namespace LlmContextCollector.Components.Pages
             AppState.AzureDevOpsIterationPath = settings.AzureDevOpsIterationPath;
             AppState.AzureDevOpsPat = settings.AzureDevOpsPat;
             AppState.AdoDownloadOnlyMine = settings.AdoDownloadOnlyMine;
-            
+            AppState.AdoMinChangedDate = settings.AdoMinChangedDate;
+
             AppState.DefaultBuildCommand = settings.BuildCommand ?? "dotnet build";
             AppState.DefaultRunCommand = settings.RunCommand ?? "dotnet run";
             AppState.LogInformationLevel = settings.LogInformationLevel;
@@ -630,41 +630,6 @@ namespace LlmContextCollector.Components.Pages
         {
             _isAttachableDocDialogVisible = false;
             StateHasChanged();
-        }
-
-        private void OnAzureDevOpsDialogClose()
-        {
-            _isAzureDevOpsDialogVisible = false;
-            StateHasChanged();
-        }
-
-        private async Task HandleDownloadWorkItemsAsync(bool isIncremental)
-        {
-            _isAzureDevOpsDialogVisible = false;
-            if (string.IsNullOrWhiteSpace(AppState.ProjectRoot)) return;
-
-            AppState.ShowLoading("Azure DevOps work item-ek letöltése...");
-            try
-            {
-                await AzureDevOpsService.SaveSettingsForCurrentProjectAsync();
-                await AzureDevOpsService.DownloadWorkItemsAsync(
-                    AppState.AzureDevOpsOrganizationUrl, AppState.AzureDevOpsProject,
-                    AppState.AzureDevOpsPat, 
-                    AppState.AzureDevOpsIterationPath, AppState.ProjectRoot,
-                    isIncremental, AppState.AdoDownloadOnlyMine);
-
-                await AzureDevOpsService.SaveSettingsForCurrentProjectAsync(DateTime.UtcNow);
-                AzureDevOpsService.UpdateAdoPaths(AppState.ProjectRoot);
-                AppState.StatusText = "Azure DevOps work item-ek sikeresen letöltve.";
-            }
-            catch (Exception ex)
-            {
-                await JSRuntime.InvokeVoidAsync("alert", $"Hiba a letöltéskor: {ex.Message}");
-            }
-            finally
-            {
-                AppState.HideLoading();
-            }
         }
 
 

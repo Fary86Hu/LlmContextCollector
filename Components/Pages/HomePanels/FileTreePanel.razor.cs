@@ -368,7 +368,6 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 AppState.HideLoading();
             }
         }
-
         public void Dispose()
         {
             AppState.PropertyChanged -= OnAppStateChanged;

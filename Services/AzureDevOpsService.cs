@@ -575,7 +575,43 @@ namespace LlmContextCollector.Services
             if (assignedTo != null && assignedTo.Any())
             {
                 var userList = string.Join(",", assignedTo.Select(u => u == "@Me" ? "@Me" : $"'{u.Replace("'", "''")}'"));
-                queryBuilder.Append($" AND [System.AssignedTo] IN ({userList})");
+
+                if (_appState.AdoMinChangedDate.HasValue)
+                {
+                    var minDateStr = _appState.AdoMinChangedDate.Value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+
+                    if (_appState.AdoDownloadOnlyMine)
+                    {
+                        queryBuilder.Append(" AND (");
+                        queryBuilder.Append($"([System.AssignedTo] IN ({userList}) AND [System.ChangedDate] >= '{minDateStr}') OR ");
+                        queryBuilder.Append($"([Microsoft.VSTS.Common.ResolvedBy] IN ({userList}) AND [Microsoft.VSTS.Common.ResolvedDate] >= '{minDateStr}') OR ");
+                        queryBuilder.Append($"([Microsoft.VSTS.Common.ClosedBy] IN ({userList}) AND [Microsoft.VSTS.Common.ClosedDate] >= '{minDateStr}')");
+                        queryBuilder.Append(")");
+                    }
+                    else
+                    {
+                        queryBuilder.Append($" AND [System.AssignedTo] IN ({userList}) AND [System.ChangedDate] >= '{minDateStr}'");
+                    }
+                }
+                else
+                {
+                    if (_appState.AdoDownloadOnlyMine)
+                    {
+                        queryBuilder.Append($" AND ([System.AssignedTo] IN ({userList}) OR [Microsoft.VSTS.Common.ResolvedBy] IN ({userList}) OR [Microsoft.VSTS.Common.ClosedBy] IN ({userList}))");
+                    }
+                    else
+                    {
+                        queryBuilder.Append($" AND [System.AssignedTo] IN ({userList})");
+                    }
+                }
+            }
+            else
+            {
+                if (_appState.AdoMinChangedDate.HasValue)
+                {
+                    var minDateStr = _appState.AdoMinChangedDate.Value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+                    queryBuilder.Append($" AND [System.ChangedDate] >= '{minDateStr}'");
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(type))
@@ -654,7 +690,30 @@ namespace LlmContextCollector.Services
             queryBuilder.Append(" AND [System.State] NOT IN ('New', 'To Do', 'Proposed', 'Backlog', 'Ötlet', 'New idea')");
             queryBuilder.Append(" AND [System.WorkItemType] IN ('Task','User Story','Bug')");
 
-            if (onlyMine) queryBuilder.Append(" AND [System.AssignedTo] = @Me");
+            if (onlyMine)
+            {
+                if (!isIncremental && _appState.AdoMinChangedDate.HasValue)
+                {
+                    var minDateStr = _appState.AdoMinChangedDate.Value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+                    queryBuilder.Append(" AND (");
+                    queryBuilder.Append($"([System.AssignedTo] = @Me AND [System.ChangedDate] >= '{minDateStr}') OR ");
+                    queryBuilder.Append($"([Microsoft.VSTS.Common.ResolvedBy] = @Me AND [Microsoft.VSTS.Common.ResolvedDate] >= '{minDateStr}') OR ");
+                    queryBuilder.Append($"([Microsoft.VSTS.Common.ClosedBy] = @Me AND [Microsoft.VSTS.Common.ClosedDate] >= '{minDateStr}')");
+                    queryBuilder.Append(")");
+                }
+                else
+                {
+                    queryBuilder.Append(" AND ([System.AssignedTo] = @Me OR [Microsoft.VSTS.Common.ResolvedBy] = @Me OR [Microsoft.VSTS.Common.ClosedBy] = @Me)");
+                }
+            }
+            else
+            {
+                if (!isIncremental && _appState.AdoMinChangedDate.HasValue)
+                {
+                    var minDateStr = _appState.AdoMinChangedDate.Value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+                    queryBuilder.Append($" AND [System.ChangedDate] >= '{minDateStr}'");
+                }
+            }
 
             if (!string.IsNullOrWhiteSpace(iterationPath))
             {

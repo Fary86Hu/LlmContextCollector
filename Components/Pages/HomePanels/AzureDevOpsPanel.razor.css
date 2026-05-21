@@ -1,7 +1,8 @@
 .ado-panel {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    flex-grow: 1;
+    min-height: 0;
     background-color: var(--panel-bg);
 }
 
@@ -106,6 +107,7 @@
 .ado-list {
     display: flex;
     flex-direction: column;
+    padding-bottom: 20px;
 }
 
 .ado-item {
