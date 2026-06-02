@@ -91,6 +91,7 @@ else
                    OnPush="HandlePushAsync" />
 }
 <SystemInspectorDialog />
+<GitMergeReviewDialog IsVisible="AppState.IsMergeDialogVisible" />
 
 <ExclusionsDialog IsVisible="_isExclusionsDialogVisible" 
                   OnClose="OnExclusionsDialogClose" 

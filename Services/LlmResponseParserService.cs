@@ -170,5 +170,64 @@ namespace LlmContextCollector.Services
 
             return results.ToList();
         }
+
+        public List<FileContextRequest> ExtractFileContextRequests(string text, IEnumerable<string> allProjectFiles)
+        {
+            var results = new List<FileContextRequest>();
+            var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var fileSet = new HashSet<string>(allProjectFiles, StringComparer.OrdinalIgnoreCase);
+
+            var lines = text.Replace("\r\n", "\n").Split('\n');
+            foreach (var line in lines)
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                var words = Regex.Split(line, @"[\s`'""*()\[\]\r]+");
+                string? foundPath = null;
+
+                foreach (var word in words)
+                {
+                    var cleanWord = word.Trim().TrimEnd('.', ',', ';', ':').Replace('\\', '/').TrimStart('/');
+                    if (string.IsNullOrEmpty(cleanWord) || cleanWord.Length < 3) continue;
+
+                    if (fileSet.Contains(cleanWord))
+                    {
+                        foundPath = cleanWord;
+                        break;
+                    }
+                    else
+                    {
+                        var fileName = Path.GetFileName(cleanWord);
+                        if (!string.IsNullOrEmpty(fileName) && fileName.Contains('.'))
+                        {
+                            var match = allProjectFiles.FirstOrDefault(f => f.EndsWith(cleanWord, StringComparison.OrdinalIgnoreCase));
+                            if (match != null)
+                            {
+                                foundPath = match;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (foundPath != null)
+                {
+                    if (seenPaths.Add(foundPath))
+                    {
+                        bool includeRefs = line.Contains("[REFS]", StringComparison.OrdinalIgnoreCase) || line.Contains("[REF]", StringComparison.OrdinalIgnoreCase);
+                        bool includeReferencing = line.Contains("[REFERENCING]", StringComparison.OrdinalIgnoreCase) || line.Contains("[BACKREF]", StringComparison.OrdinalIgnoreCase);
+
+                        results.Add(new FileContextRequest
+                        {
+                            Path = foundPath,
+                            IncludeReferences = includeRefs,
+                            IncludeReferencing = includeReferencing
+                        });
+                    }
+                }
+            }
+
+            return results;
+        }
     }
 }

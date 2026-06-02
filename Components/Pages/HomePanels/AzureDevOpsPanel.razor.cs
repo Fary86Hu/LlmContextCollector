@@ -8,8 +8,13 @@ namespace LlmContextCollector.Components.Pages.HomePanels
     public partial class AzureDevOpsPanel
     {
         [Inject] private SettingsService SettingsService { get; set; } = null!;
+        [Inject] private IClipboard Clipboard { get; set; } = null!;
 
         private List<string> _availableStatuses = new() { "New", "Active", "Resolved", "Closed", "Committed", "Proposed" };
+        private bool _isReportModalVisible = false;
+        private string _reportText = string.Empty;
+        private string _reportJson = string.Empty;
+        private bool _isGeneratingReport = false;
         private List<string> _selectedStatuses = new() { "Active", "Resolved" };
         private List<string> _selectedAssignees = new() { "@Me" };
         private List<AdoIdentity> _projectMembers = new();
@@ -29,6 +34,15 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             try
             {
                 _projectMembers = await AdoService.GetProjectMembersAsync();
+                if (!_projectMembers.Any() && !string.IsNullOrWhiteSpace(AppState.AzureDevOpsOrganizationUrl))
+                {
+                    AppState.StatusText = "Nem sikerült betölteni az Azure DevOps projekt tagjait. Ellenőrizze a kapcsolatot és a beállításokat.";
+                }
+            }
+            catch (Exception ex)
+            {
+                LogService.LogError("ADO Panel", "Hiba a tagok betöltésekor", ex.Message);
+                AppState.StatusText = "Hiba történt az Azure DevOps tagok betöltése közben.";
             }
             finally
             {
@@ -398,6 +412,65 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                 _isLoading = false;
                 AppState.HideLoading();
             }
+        }
+
+        private async Task GenerateReportAsync()
+        {
+            _isGeneratingReport = true;
+            AppState.ShowLoading("Riport generálása...");
+            try
+            {
+                await SaveAdoPanelSettingsAsync();
+                var report = await AdoService.GenerateWorkReportAsync(_selectedAssignees, AppState.AdoMinChangedDate);
+                if (report != null)
+                {
+                    _reportText = report.FormattedText;
+                    _reportJson = report.JsonData;
+                    _isReportModalVisible = true;
+                    AppState.StatusText = "Riport sikeresen legenerálva.";
+                }
+                else
+                {
+                    AppState.StatusText = "Nem sikerült a riport generálása.";
+                }
+            }
+            catch (Exception ex)
+            {
+                LogService.LogError("ADO Panel", "Hiba a riport generálásakor", ex.Message);
+                AppState.StatusText = $"Hiba: {ex.Message}";
+            }
+            finally
+            {
+                _isGeneratingReport = false;
+                AppState.HideLoading();
+            }
+        }
+
+        private void CloseReportModal()
+        {
+            _isReportModalVisible = false;
+            _reportText = string.Empty;
+            _reportJson = string.Empty;
+        }
+
+        private async Task CopyReportToClipboard()
+        {
+            if (!string.IsNullOrEmpty(_reportText))
+            {
+                await Clipboard.SetTextAsync(_reportText);
+                AppState.StatusText = "Riport a vágólapra másolva.";
+            }
+        }
+
+        private void SendReportToPromptForAi()
+        {
+            if (!string.IsNullOrEmpty(_reportText))
+            {
+                var analysisTemplate = "Kérlek elemezd az alábbi Azure DevOps és Git integrált riportot. Mivel az ADO-ban az órák és story pointok gyakran pontatlanok, vedd figyelembe a kísérő Git commit számokat, a módosított egyedi fájlok számát és a kódváltozás adatait is a fejlesztők tényleges aktivitásának megértéséhez! Készíts egy tömör, objektív elemzést a munkavégzésről!\n\n";
+                AppState.PromptText = analysisTemplate + _reportText + "\n\n" + AppState.PromptText;
+                AppState.StatusText = "Riport és elemzési felhívás betöltve a promptba.";
+            }
+            CloseReportModal();
         }
     }
 }

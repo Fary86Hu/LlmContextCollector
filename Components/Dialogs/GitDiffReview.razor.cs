@@ -44,6 +44,9 @@ namespace LlmContextCollector.Components.Dialogs
         private double _leftPaneWidthPercent = 35.0;
         private double _windowWidth = 0;
         private CancellationTokenSource? _diffCts;
+        private CancellationTokenSource? _suggestionCts;
+
+        private bool IsSuggestedBranchInvalid => string.IsNullOrEmpty(_suggestedBranch) || _allBranches.Any(b => b.Equals(_suggestedBranch, StringComparison.OrdinalIgnoreCase));
 
         protected override async Task OnParametersSetAsync()
         {
@@ -105,18 +108,33 @@ namespace LlmContextCollector.Components.Dialogs
 
         private async Task RefreshSuggestionsAsync()
         {
+            _suggestionCts?.Cancel();
+            _suggestionCts?.Dispose();
+            _suggestionCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
             _isRefreshingSuggestions = true;
             try 
             {
                 var promptToUse = _includePromptInSuggestions ? AppState.DiffOriginalPrompt : null;
-                var (b, c) = await GitSuggestionService.GetSuggestionsAsync(_localDiffResults, null, promptToUse);
+                var (b, c) = await GitSuggestionService.GetSuggestionsAsync(_localDiffResults, null, promptToUse, _suggestionCts.Token);
                 if (b != "suggestion-not-found") 
                 { 
                     _suggestedBranch = b ?? ""; 
                     _suggestedCommit = c ?? ""; 
                 }
-            } 
-            finally { _isRefreshingSuggestions = false; }
+            }
+            catch (OperationCanceledException)
+            {
+                AppState.StatusText = "A javaslatok lekérése időtúllépés miatt megszakadt.";
+            }
+            catch (Exception ex)
+            {
+                AppState.StatusText = $"Hiba a javaslatok lekérésekor: {ex.Message}";
+            }
+            finally 
+            { 
+                _isRefreshingSuggestions = false; 
+            }
         }
 
         private async Task NavigateHistory(int direction)
@@ -230,6 +248,12 @@ namespace LlmContextCollector.Components.Dialogs
 
         private record DiffMarkerInfo(string Type, double TopPercent);
 
-        public void Dispose() { _diffCts?.Cancel(); _diffCts?.Dispose(); }
+        public void Dispose() 
+        { 
+            _diffCts?.Cancel(); 
+            _diffCts?.Dispose(); 
+            _suggestionCts?.Cancel();
+            _suggestionCts?.Dispose();
+        }
     }
 }

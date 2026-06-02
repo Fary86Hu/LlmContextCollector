@@ -41,11 +41,13 @@ namespace LlmContextCollector.Services
                 {
                     iterations++;
                     var system = "Te egy technikai asszisztens vagy. A feladatod a projekt kontextusának összeállítása a felhasználói kéréshez. " +
-                                 "Elemezd a megadott projektstruktúrát és a meglévő fájlokat. " +
-                                 "Ha további fájlokra van szükséged a feladat megértéséhez vagy megoldásához, listázd ki azokat a pontos relatív útvonalukkal. " +
+                                 "Elemezd a megadott projektstruktúrát és a meglévő fájlokat.\n\n" +
+                                 "HA ÚJ FÁJLRA VAN SZÜKSÉGED, HASZNÁLD AZ ALÁBBI SZINTAXIST:\n" +
+                                 "1. Csak a fájl hozzáadása (alapértelmezett, nincs szükség referenciákra): Írd le simán az útvonalat. Például: Services/UserService.cs\n" +
+                                 "2. Fájl és belső referenciái (függőségei) hozzáadása: Írj [REFS] jelzést a fájl útvonala mellé. Például: Services/UserService.cs [REFS]\n" +
+                                 "3. Egy osztályra / fájlra hivatkozó összes többi fájl hozzáadása (visszahivatkozások): Írj [REFERENCING] jelzést az útvonal mellé. Például: Services/UserService.cs [REFERENCING]\n\n" +
                                  "Ha úgy gondolod, hogy minden szükséges információ megvan, jelezd a felhasználónak.";
 
-                    // Fixen beküldjük a fájlokat és a struktúrát, függetlenül a UI checkboxoktól
                     var filesContext = await _contextProcessingService.BuildContextForClipboardAsync(
                         includePrompt: false, 
                         includeSystemPrompt: false, 
@@ -61,8 +63,16 @@ namespace LlmContextCollector.Services
                     var allProjectPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     Utils.FileTreeHelper.GetAllFilePaths(_appState.FileTree, allProjectPaths, _appState.ProjectRoot);
 
-                    var requestedFiles = _parserService.ExtractPotentialFilePaths(lastResponse, allProjectPaths);
-                    var newlyAdded = await _fileContextService.AddPathsToContextAsync(requestedFiles, referenceDepth: 1);
+                    var requests = _parserService.ExtractFileContextRequests(lastResponse, allProjectPaths);
+                    int newlyAdded = 0;
+
+                    foreach (var req in requests)
+                    {
+                        newlyAdded += await _fileContextService.AddPathsToContextAsync(
+                            new[] { req.Path }, 
+                            referenceDepth: req.IncludeReferences ? 1 : 0, 
+                            includeReferencing: req.IncludeReferencing);
+                    }
 
                     if (newlyAdded == 0)
                     {
@@ -76,17 +86,18 @@ namespace LlmContextCollector.Services
                         break;
                     }
 
+                    var addedPathsInfo = requests.Select(r => $"- {r.Path}" + (r.IncludeReferences ? " [REFS]" : "") + (r.IncludeReferencing ? " [REFERENCING]" : ""));
                     _chatService.Messages.Add(new ChatMessage 
                     { 
                         Role = "system", 
-                        Content = $"[Agent - Kör {iterations}] Automatikusan hozzáadva {newlyAdded} fájl a kontextushoz:\n" + 
-                                  string.Join("\n", requestedFiles.Take(10).Select(f => $"- {f}")) + 
-                                  (requestedFiles.Count > 10 ? "\n..." : "")
+                        Content = $"[Agent - Kör {iterations}] Automatikusan hozzáadva {newlyAdded} fájl/kapcsolat a kontextushoz:\n" + 
+                                  string.Join("\n", addedPathsInfo.Take(10)) + 
+                                  (requests.Count > 10 ? "\n..." : "")
                     });
                     await _chatService.SaveHistoryAsync();
 
-                    _appState.StatusText = $"Agent: {newlyAdded} új fájl hozzáadva (iteráció {iterations})...";
-                    currentInput = "A kért fájlokat és azok referenciáit (depth 1) hozzáadtam a kontextushoz. Van még valami, amire szükséged van, vagy folytathatjuk?";
+                    _appState.StatusText = $"Agent: {newlyAdded} új bejegyzés hozzáadva (iteráció {iterations})...";
+                    currentInput = "A kért fájlokat a kért függőségi beállításokkal sikeresen hozzáadtam a kontextushoz. Van még valami, amire szükséged van, vagy folytathatjuk?";
                 }
 
                 _appState.StatusText = "Agent befejezte a kontextus építését.";

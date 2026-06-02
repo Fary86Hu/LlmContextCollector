@@ -161,6 +161,18 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             finally { AppState.HideLoading(); }
         }
 
+        private AttachedImage? _viewingImage;
+
+        private void OpenImageLightbox(AttachedImage img)
+        {
+            _viewingImage = img;
+        }
+
+        private void CloseImageLightbox()
+        {
+            _viewingImage = null;
+        }
+
         private void OnRemoveItemClick(string filePath)
         {
             if (AppState.SelectedFilesForContext.Contains(filePath))

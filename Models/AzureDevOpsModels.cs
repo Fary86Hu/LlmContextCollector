@@ -213,4 +213,10 @@ namespace LlmContextCollector.Models
         [JsonPropertyName("value")]
         public List<WorkItemReference> Value { get; set; } = new();
     }
+
+    public record GitFileStat(string Path, int Added, int Deleted);
+    public record GitCommitInfo(string Hash, string Author, string Date, string Subject, List<GitFileStat> Files);
+    public record GitTaskActivity(List<GitCommitInfo> Commits, int TotalAdded, int TotalDeleted, int TotalFilesTouched, int CodeAdded, int CodeDeleted, int CodeFilesTouched, int OtherAdded, int OtherDeleted, int OtherFilesTouched);
+    public record AdoReportItem(int Id, string Title, string Type, string State, string AssignedTo, double CompletedWork, double StoryPoints, double OriginalEstimate, GitTaskActivity? GitActivity);
+    public record AdoReportResult(List<AdoReportItem> Items, string FormattedText, string JsonData);
 }

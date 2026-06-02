@@ -387,6 +387,27 @@ namespace LlmContextCollector.Services
         public string DiffOriginalPrompt { get; set; } = string.Empty;
         public List<DiffResult> DiffResults { get; set; } = new();
 
+        private bool _isMergeDialogVisible = false;
+        public bool IsMergeDialogVisible
+        {
+            get => _isMergeDialogVisible;
+            set => SetField(ref _isMergeDialogVisible, value);
+        }
+
+        private string _mergeTargetBranch = string.Empty;
+        public string MergeTargetBranch
+        {
+            get => _mergeTargetBranch;
+            set => SetField(ref _mergeTargetBranch, value);
+        }
+
+        private List<MergeConflictResult> _mergeConflicts = new();
+        public List<MergeConflictResult> MergeConflicts
+        {
+            get => _mergeConflicts;
+            set => SetField(ref _mergeConflicts, value);
+        }
+
         private string _statusText = "Készen áll.";
         public string StatusText
         {

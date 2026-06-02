@@ -1,0 +1,116 @@
+.merge-review-large {
+    width: 95vw;
+    height: 90vh;
+}
+
+.merge-grid {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 15px;
+    height: 100%;
+    overflow: hidden;
+    padding: 10px;
+}
+
+.merge-sidebar {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border-color);
+    padding-right: 10px;
+    overflow-y: auto;
+}
+
+.merge-file-list {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+.merge-file-item {
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+}
+
+.merge-file-item:hover {
+    background-color: var(--hover-bg-color);
+}
+
+.merge-file-item.selected {
+    border-color: var(--accent-color);
+    background-color: var(--hover-bg-color);
+    font-weight: bold;
+}
+
+.resolved-badge {
+    background-color: #27ae60;
+    color: white;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: bold;
+}
+
+.merge-editor-area {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.three-pane-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.2fr;
+    gap: 10px;
+    height: 100%;
+    overflow: hidden;
+}
+
+.source-pane, .resolved-pane {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}
+
+.pane-header {
+    background-color: var(--toolbar-bg);
+    padding: 6px;
+    font-weight: bold;
+    font-size: 11px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.pane-textarea {
+    flex-grow: 1;
+    font-family: Consolas, monospace;
+    font-size: 11px;
+    padding: 8px;
+    resize: none;
+    border: none;
+    background-color: var(--input-disabled-bg-color);
+    color: var(--text-color);
+    overflow: auto;
+    white-space: pre;
+    height: 100%;
+}
+
+.editable-textarea {
+    background-color: var(--input-bg-color);
+}
+
+.merge-branch-info {
+    font-size: 11px;
+    color: var(--text-color-light);
+}

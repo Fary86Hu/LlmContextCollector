@@ -44,7 +44,26 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         [Inject]
         private GitWorkflowService GitWorkflowService { get; set; } = null!;
 
+        [Inject]
+        private GitMergeService GitMergeService { get; set; } = null!;
 
+        private bool _showMergeDropdown = false;
+        private string _branchToMerge = string.Empty;
+
+        private void ToggleMergeDropdown()
+        {
+            _showMergeDropdown = !_showMergeDropdown;
+            _branchToMerge = string.Empty;
+        }
+
+        private async Task StartBranchMerge()
+        {
+            if (string.IsNullOrEmpty(_branchToMerge)) return;
+            var target = _branchToMerge;
+            _showMergeDropdown = false;
+            _branchToMerge = string.Empty;
+            await GitMergeService.StartMergeAsync(target);
+        }
 
         private Timer? _searchTimer;
         private List<FileNode> _searchResults = new();

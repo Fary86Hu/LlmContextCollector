@@ -700,25 +700,41 @@ namespace LlmContextCollector.Services
             var client = _httpClientFactory.CreateClient("AzureDevOps");
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes($":{pat}")));
 
-            var teamsResp = await client.GetAsync($"{orgUrl}/_apis/projects/{Uri.EscapeDataString(project)}/teams?api-version=6.0");
-            if (!teamsResp.IsSuccessStatusCode) return new();
-            var teams = await JsonSerializer.DeserializeAsync<AdoTeamListResponse>(await teamsResp.Content.ReadAsStreamAsync(), _jsonOptions);
-
-            var allMembers = new Dictionary<string, AdoIdentity>();
-            foreach (var team in teams?.Value ?? new())
+            try
             {
-                var membersResp = await client.GetAsync($"{orgUrl}/_apis/projects/{Uri.EscapeDataString(project)}/teams/{team.Id}/members?api-version=6.0");
-                if (membersResp.IsSuccessStatusCode)
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                var teamsResp = await client.GetAsync($"{orgUrl}/_apis/projects/{Uri.EscapeDataString(project)}/teams?api-version=6.0", cts.Token);
+                if (!teamsResp.IsSuccessStatusCode) return new();
+                var teams = await JsonSerializer.DeserializeAsync<AdoTeamListResponse>(await teamsResp.Content.ReadAsStreamAsync(cts.Token), _jsonOptions, cts.Token);
+
+                var allMembers = new Dictionary<string, AdoIdentity>();
+                foreach (var team in teams?.Value ?? new())
                 {
-                    var members = await JsonSerializer.DeserializeAsync<AdoMemberListResponse>(await membersResp.Content.ReadAsStreamAsync(), _jsonOptions);
-                    foreach (var m in members?.Value ?? new())
+                    using var memberCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                    try
                     {
-                        if (m.Identity != null && !allMembers.ContainsKey(m.Identity.UniqueName))
-                            allMembers[m.Identity.UniqueName] = m.Identity;
+                        var membersResp = await client.GetAsync($"{orgUrl}/_apis/projects/{Uri.EscapeDataString(project)}/teams/{team.Id}/members?api-version=6.0", memberCts.Token);
+                        if (membersResp.IsSuccessStatusCode)
+                        {
+                            var members = await JsonSerializer.DeserializeAsync<AdoMemberListResponse>(await membersResp.Content.ReadAsStreamAsync(memberCts.Token), _jsonOptions, memberCts.Token);
+                            foreach (var m in members?.Value ?? new())
+                            {
+                                if (m.Identity != null && !allMembers.ContainsKey(m.Identity.UniqueName))
+                                    allMembers[m.Identity.UniqueName] = m.Identity;
+                            }
+                        }
+                    }
+                    catch
+                    {
                     }
                 }
+                return allMembers.Values.OrderBy(x => x.DisplayName).ToList();
             }
-            return allMembers.Values.OrderBy(x => x.DisplayName).ToList();
+            catch (Exception ex)
+            {
+                _logService.LogError("ADO", "Hiba a projekt tagok lekérésekor", ex.Message);
+                return new();
+            }
         }
 
         public async Task<List<WorkItemSearchResult>> SearchWorkItemsAsync(IEnumerable<string> states, IEnumerable<string> assignedTo, string? type)
@@ -740,7 +756,11 @@ namespace LlmContextCollector.Services
             var queryBuilder = new StringBuilder();
             queryBuilder.Append($"SELECT [System.Id], [System.Title], [System.WorkItemType], [System.State], [System.AssignedTo] FROM WorkItems WHERE [System.TeamProject] = '{project.Replace("'", "''")}'");
 
-            if (states != null && states.Any())
+            if (_appState.AdoDownloadOnlyMine)
+            {
+                queryBuilder.Append(" AND [System.State] IN ('Resolved', 'Closed', 'Done', 'Kész', 'Completed', 'Lezárt')");
+            }
+            else if (states != null && states.Any())
             {
                 var stateList = string.Join(",", states.Select(s => $"'{s.Replace("'", "''")}'"));
                 queryBuilder.Append($" AND [System.State] IN ({stateList})");
@@ -1006,6 +1026,649 @@ namespace LlmContextCollector.Services
 
         private static readonly string _invalidChars = new string(Path.GetInvalidFileNameChars()) + new string(Path.GetInvalidPathChars());
         private static readonly Regex _invalidFileNameRegex = new Regex($"[{Regex.Escape(_invalidChars)}]", RegexOptions.Compiled);
+
+        private async Task<List<GitCommitInfo>> RunGitLogCommandAsync(string projectRoot, string arguments)
+        {
+            var commits = new List<GitCommitInfo>();
+            if (string.IsNullOrWhiteSpace(projectRoot) || !Directory.Exists(projectRoot)) return commits;
+
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = arguments,
+                    WorkingDirectory = projectRoot,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = System.Diagnostics.Process.Start(psi);
+                if (process == null) return commits;
+
+                var output = await process.StandardOutput.ReadToEndAsync();
+                await process.WaitForExitAsync();
+
+                if (string.IsNullOrWhiteSpace(output)) return commits;
+
+                var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                GitCommitInfo? currentCommit = null;
+
+                foreach (var line in lines)
+                {
+                    if (line.StartsWith("COMMIT:"))
+                    {
+                        var parts = line.Substring(7).Split('|');
+                        if (parts.Length >= 4)
+                        {
+                            currentCommit = new GitCommitInfo(
+                                parts[0],
+                                parts[1],
+                                parts[2],
+                                parts[3],
+                                new List<GitFileStat>()
+                            );
+                            commits.Add(currentCommit);
+                        }
+                    }
+                    else
+                    {
+                        var parts = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length >= 3 && currentCommit != null)
+                        {
+                            if (int.TryParse(parts[0], out int added) && int.TryParse(parts[1], out int deleted))
+                            {
+                                var filePath = parts[2];
+                                currentCommit.Files.Add(new GitFileStat(filePath, added, deleted));
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+            return commits;
+        }
+
+        private static bool IsActualCodeFile(string path)
+        {
+            var ext = Path.GetExtension(path).ToLowerInvariant();
+            var codeExtensions = new HashSet<string> { ".cs", ".razor", ".js", ".ts", ".py", ".go", ".rs", ".cpp", ".h", ".fs", ".kt", ".java" };
+            return codeExtensions.Contains(ext);
+        }
+
+        private async Task<string> RunGitCommandAsync(string projectRoot, string arguments)
+        {
+            if (string.IsNullOrWhiteSpace(projectRoot) || !Directory.Exists(projectRoot)) return string.Empty;
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = arguments,
+                    WorkingDirectory = projectRoot,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var process = System.Diagnostics.Process.Start(psi);
+                if (process == null) return string.Empty;
+                var output = await process.StandardOutput.ReadToEndAsync();
+                await process.WaitForExitAsync();
+                return output.Trim();
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private async Task<string> GetLocalGitUserNameAsync(string projectRoot)
+        {
+            return await RunGitCommandAsync(projectRoot, "config user.name");
+        }
+
+        private static bool IsAuthorMatch(string gitAuthor, IEnumerable<string> assignedTo, string localGitUser)
+        {
+            if (assignedTo == null || !assignedTo.Any()) return true;
+            foreach (var assignee in assignedTo)
+            {
+                if (assignee == "@Me" && !string.IsNullOrEmpty(localGitUser))
+                {
+                    if (gitAuthor.Contains(localGitUser, StringComparison.OrdinalIgnoreCase) || localGitUser.Contains(gitAuthor, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+
+                var cleanAssignee = assignee;
+                var parenIndex = assignee.IndexOf('(');
+                if (parenIndex != -1) cleanAssignee = assignee.Substring(0, parenIndex).Trim();
+
+                if (gitAuthor.Contains(cleanAssignee, StringComparison.OrdinalIgnoreCase) || cleanAssignee.Contains(gitAuthor, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
+
+        private async Task<List<GitCommitInfo>> GetCommitWithDiffStatsAsync(string projectRoot, string hash, IEnumerable<string> assignedTo, string localGitUser)
+        {
+            var commits = new List<GitCommitInfo>();
+            if (string.IsNullOrWhiteSpace(projectRoot) || !Directory.Exists(projectRoot)) return commits;
+
+            try
+            {
+                var infoOutput = await RunGitCommandAsync(projectRoot, $"log -1 {hash} --pretty=format:\"COMMIT:%h|%an|%ad|%s\"");
+                if (string.IsNullOrWhiteSpace(infoOutput) || !infoOutput.StartsWith("COMMIT:")) return commits;
+
+                var parts = infoOutput.Substring(7).Split('|');
+                if (parts.Length < 4) return commits;
+
+                var author = parts[1];
+                if (!IsAuthorMatch(author, assignedTo, localGitUser)) return commits;
+
+                var commit = new GitCommitInfo(
+                    parts[0],
+                    parts[1],
+                    parts[2],
+                    parts[3],
+                    new List<GitFileStat>()
+                );
+
+                var diffOutput = await RunGitCommandAsync(projectRoot, $"diff {hash}^1 {hash} --numstat");
+                if (!string.IsNullOrWhiteSpace(diffOutput))
+                {
+                    var lines = diffOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var line in lines)
+                    {
+                        var fileParts = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (fileParts.Length >= 3)
+                        {
+                            if (int.TryParse(fileParts[0], out int added) && int.TryParse(fileParts[1], out int deleted))
+                            {
+                                commit.Files.Add(new GitFileStat(fileParts[2], added, deleted));
+                            }
+                        }
+                    }
+                }
+
+                commits.Add(commit);
+            }
+            catch
+            {
+            }
+            return commits;
+        }
+
+        private async Task<GitTaskActivity?> GetGitActivityForTaskAsync(string projectRoot, int taskId, List<string> linkedBranches, List<string> linkedCommits, List<int> linkedPrIds, IEnumerable<string> assignedTo, string localGitUser)
+        {
+            var commits = new List<GitCommitInfo>();
+            var fileStats = new List<GitFileStat>();
+
+            foreach (var prId in linkedPrIds)
+            {
+                var grepOutput = await RunGitCommandAsync(projectRoot, $"log --all --grep=\"PR {prId}\" --grep=\"PR #{prId}\" --grep=\"PR#{prId}\" --grep=\"Pull Request {prId}\" --grep=\"pull request {prId}\" --pretty=format:\"%h|%an|%ad|%s\"");
+                if (!string.IsNullOrWhiteSpace(grepOutput))
+                {
+                    var lines = grepOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var line in lines)
+                    {
+                        var parts = line.Split('|');
+                        if (parts.Length >= 4)
+                        {
+                            var author = parts[1];
+                            if (IsAuthorMatch(author, assignedTo, localGitUser))
+                            {
+                                commits.Add(new GitCommitInfo(parts[0], parts[1], parts[2], parts[3], new List<GitFileStat>()));
+                            }
+                        }
+                    }
+                }
+            }
+
+            foreach (var branch in linkedBranches)
+            {
+                if (branch.Equals("main", StringComparison.OrdinalIgnoreCase) ||
+                    branch.Equals("master", StringComparison.OrdinalIgnoreCase) ||
+                    branch.Equals("develop", StringComparison.OrdinalIgnoreCase)) continue;
+
+                foreach (var target in new[] { "main", "develop", "master" })
+                {
+                    var authorsOutput = await RunGitCommandAsync(projectRoot, $"log origin/{target}..origin/{branch} --pretty=format:\"%an\"");
+                    if (string.IsNullOrWhiteSpace(authorsOutput))
+                    {
+                        authorsOutput = await RunGitCommandAsync(projectRoot, $"log {target}..{branch} --pretty=format:\"%an\"");
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(authorsOutput))
+                    {
+                        var authors = authorsOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Distinct();
+                        var hasMatch = authors.Any(author => IsAuthorMatch(author, assignedTo, localGitUser));
+
+                        if (hasMatch)
+                        {
+                            var diffArgs = $"diff origin/{target}...origin/{branch} --numstat";
+                            var diffOutput = await RunGitCommandAsync(projectRoot, diffArgs);
+                            if (string.IsNullOrWhiteSpace(diffOutput))
+                            {
+                                diffOutput = await RunGitCommandAsync(projectRoot, $"diff {target}...{branch} --numstat");
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(diffOutput))
+                            {
+                                var diffLines = diffOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                                foreach (var dl in diffLines)
+                                {
+                                    var fileParts = dl.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                                    if (fileParts.Length >= 3)
+                                    {
+                                        if (int.TryParse(fileParts[0], out int added) && int.TryParse(fileParts[1], out int deleted))
+                                        {
+                                            fileStats.Add(new GitFileStat(fileParts[2], added, deleted));
+                                        }
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
+            foreach (var hash in linkedCommits)
+            {
+                var commitInfo = await GetCommitWithDiffStatsAsync(projectRoot, hash, assignedTo, localGitUser);
+                if (commitInfo.Any())
+                {
+                    commits.AddRange(commitInfo);
+                    fileStats.AddRange(commitInfo.SelectMany(c => c.Files));
+                }
+            }
+
+            if (!fileStats.Any())
+            {
+                var grepOutputTask = await RunGitCommandAsync(projectRoot, $"log --all --grep=\"{taskId}\" --pretty=format:\"%h\"");
+                if (!string.IsNullOrWhiteSpace(grepOutputTask))
+                {
+                    var hashes = grepOutputTask.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var hash in hashes)
+                    {
+                        var commitInfo = await GetCommitWithDiffStatsAsync(projectRoot, hash, assignedTo, localGitUser);
+                        if (commitInfo.Any())
+                        {
+                            commits.AddRange(commitInfo);
+                            fileStats.AddRange(commitInfo.SelectMany(c => c.Files));
+                        }
+                    }
+                }
+            }
+
+            if (!fileStats.Any() && !commits.Any()) return null;
+
+            var codeAdded = 0;
+            var codeDeleted = 0;
+            var otherAdded = 0;
+            var otherDeleted = 0;
+
+            var codeFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var otherFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            var totalAdded = 0;
+            var totalDeleted = 0;
+            var totalFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            var uniqueStats = fileStats
+                .GroupBy(s => s.Path)
+                .Select(g => new GitFileStat(g.Key, g.Max(x => x.Added), g.Max(x => x.Deleted)))
+                .ToList();
+
+            foreach (var file in uniqueStats)
+            {
+                totalFiles.Add(file.Path);
+                totalAdded += file.Added;
+                totalDeleted += file.Deleted;
+
+                if (IsActualCodeFile(file.Path))
+                {
+                    codeFiles.Add(file.Path);
+                    codeAdded += file.Added;
+                    codeDeleted += file.Deleted;
+                }
+                else
+                {
+                    otherFiles.Add(file.Path);
+                    otherAdded += file.Added;
+                    otherDeleted += file.Deleted;
+                }
+            }
+
+            var uniqueCommits = commits.GroupBy(c => c.Hash).Select(g => g.First()).ToList();
+
+            return new GitTaskActivity(
+                uniqueCommits,
+                totalAdded,
+                totalDeleted,
+                totalFiles.Count,
+                codeAdded,
+                codeDeleted,
+                codeFiles.Count,
+                otherAdded,
+                otherDeleted,
+                otherFiles.Count
+            );
+        }
+
+        public async Task<AdoReportResult?> GenerateWorkReportAsync(IEnumerable<string> assignedTo, DateTime? minDate)
+        {
+            if (string.IsNullOrWhiteSpace(_appState.AzureDevOpsOrganizationUrl) || string.IsNullOrWhiteSpace(_appState.AzureDevOpsPat))
+            {
+                throw new InvalidOperationException("Az Azure DevOps beállítások hiányoznak.");
+            }
+
+            var orgUrl = _appState.AzureDevOpsOrganizationUrl.Trim().TrimEnd('/');
+            var project = _appState.AzureDevOpsProject.Trim();
+            var pat = _appState.AzureDevOpsPat.Trim();
+            var encodedProject = Uri.EscapeDataString(project);
+
+            var client = _httpClientFactory.CreateClient("AzureDevOps");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                Convert.ToBase64String(Encoding.ASCII.GetBytes($":{pat}")));
+
+            var queryBuilder = new StringBuilder();
+            queryBuilder.Append($"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{project.Replace("'", "''")}'");
+            queryBuilder.Append(" AND [System.State] IN ('Resolved', 'Closed', 'Done', 'Kész', 'Lezárt', 'Completed')");
+
+            if (assignedTo != null && assignedTo.Any())
+            {
+                var userList = string.Join(",", assignedTo.Select(u => u == "@Me" ? "@Me" : $"'{u.Replace("'", "''")}'"));
+                queryBuilder.Append($" AND ([System.AssignedTo] IN ({userList}) OR [Microsoft.VSTS.Common.ResolvedBy] IN ({userList}) OR [Microsoft.VSTS.Common.ClosedBy] IN ({userList}))");
+            }
+
+            if (minDate.HasValue)
+            {
+                var minDateStr = minDate.Value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+                queryBuilder.Append($" AND [System.ChangedDate] >= '{minDateStr}'");
+            }
+
+            queryBuilder.Append(" ORDER BY [System.ChangedDate] DESC");
+
+            var wiqlQuery = new { query = queryBuilder.ToString() };
+            var wiqlContent = new StringContent(JsonSerializer.Serialize(wiqlQuery), Encoding.UTF8, "application/json");
+            var response = await client.PostAsync($"{orgUrl}/{encodedProject}/_apis/wit/wiql?api-version=6.0", wiqlContent);
+
+            if (!response.IsSuccessStatusCode) return null;
+
+            var wiqlResult = await JsonSerializer.DeserializeAsync<WiqlResponse>(await response.Content.ReadAsStreamAsync(), _jsonOptions);
+            if (wiqlResult == null || !wiqlResult.WorkItems.Any()) return new AdoReportResult(new(), "Nincs lezárt vagy feloldott feladat a megadott időszakban.", "[]");
+
+            var localGitUser = await GetLocalGitUserNameAsync(_appState.ProjectRoot);
+            var ids = wiqlResult.WorkItems.Select(wi => wi.Id).ToList();
+            var idsToFetch = ids.Take(200).ToList();
+            var detailsResponse = await client.GetAsync($"{orgUrl}/{encodedProject}/_apis/wit/workitems?ids={string.Join(",", idsToFetch)}&$expand=relations&api-version=6.0");
+
+            if (!detailsResponse.IsSuccessStatusCode) return null;
+
+            var detailsResult = await JsonSerializer.DeserializeAsync<WorkItemListResponse>(await detailsResponse.Content.ReadAsStreamAsync(), _jsonOptions);
+            if (detailsResult == null) return null;
+
+            var items = new List<AdoReportItem>();
+            foreach (var wi in detailsResult.Value)
+            {
+                double completedWork = 0;
+                double storyPoints = 0;
+                double originalEstimate = 0;
+
+                if (wi.Fields.TryGetValue("Microsoft.VSTS.Scheduling.CompletedWork", out var cwVal) && cwVal is JsonElement cwElem && cwElem.ValueKind == JsonValueKind.Number)
+                    completedWork = cwElem.GetDouble();
+
+                if (wi.Fields.TryGetValue("Microsoft.VSTS.Scheduling.StoryPoints", out var spVal) && spVal is JsonElement spElem && spElem.ValueKind == JsonValueKind.Number)
+                    storyPoints = spElem.GetDouble();
+
+                if (wi.Fields.TryGetValue("Microsoft.VSTS.Scheduling.OriginalEstimate", out var oeVal) && oeVal is JsonElement oeElem && oeElem.ValueKind == JsonValueKind.Number)
+                    originalEstimate = oeElem.GetDouble();
+
+                var assignedToName = "Unassigned";
+                if (wi.Fields.TryGetValue("System.AssignedTo", out var a))
+                {
+                    assignedToName = a is JsonElement e && e.TryGetProperty("displayName", out var d) ? d.GetString()! : a.ToString()!;
+                }
+
+                var linkedBranches = new List<string>();
+                var linkedCommits = new List<string>();
+                var linkedPrIds = new List<int>();
+
+                if (wi.Relations != null)
+                {
+                    foreach (var rel in wi.Relations)
+                    {
+                        if (rel.Rel == "ArtifactLink")
+                        {
+                            var decodedUrl = Uri.UnescapeDataString(rel.Url);
+                            if (decodedUrl.Contains("PullRequestId", StringComparison.OrdinalIgnoreCase))
+                            {
+                                var lastSlash = decodedUrl.LastIndexOf('/');
+                                if (lastSlash != -1 && int.TryParse(decodedUrl.Substring(lastSlash + 1), out var prId))
+                                {
+                                    linkedPrIds.Add(prId);
+                                    var prInfo = await GetPullRequestDetailsAsync(prId);
+                                    if (prInfo != null && !string.IsNullOrEmpty(prInfo.SourceBranch))
+                                    {
+                                        linkedBranches.Add(prInfo.SourceBranch);
+                                    }
+                                }
+                            }
+                            else if (decodedUrl.Contains("Commit", StringComparison.OrdinalIgnoreCase))
+                            {
+                                var lastSlash = decodedUrl.LastIndexOf('/');
+                                if (lastSlash != -1)
+                                {
+                                    linkedCommits.Add(decodedUrl.Substring(lastSlash + 1));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                var gitActivity = await GetGitActivityForTaskAsync(_appState.ProjectRoot, wi.Id, linkedBranches, linkedCommits, linkedPrIds, assignedTo, localGitUser);
+
+                items.Add(new AdoReportItem(
+                    wi.Id,
+                    wi.Fields.TryGetValue("System.Title", out var t) ? t.ToString()! : "",
+                    wi.Fields.TryGetValue("System.WorkItemType", out var ty) ? ty.ToString()! : "",
+                    wi.Fields.TryGetValue("System.State", out var s) ? s.ToString()! : "",
+                    assignedToName,
+                    completedWork,
+                    storyPoints,
+                    originalEstimate,
+                    gitActivity
+                ));
+            }
+
+            var sb = new StringBuilder();
+            sb.AppendLine("=== AZURE DEVOPS ÉS GIT INTEGRÁLT MUNKA RIPORT ===");
+            if (minDate.HasValue)
+            {
+                sb.AppendLine($"Időszak kezdete: {minDate.Value:yyyy-MM-dd}");
+            }
+            sb.AppendLine($"Generálva: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            sb.AppendLine();
+
+            var developers = items
+                .Where(i => i.GitActivity != null)
+                .SelectMany(i => i.GitActivity!.Commits.Select(c => c.Author))
+                .Distinct()
+                .ToList();
+
+            sb.AppendLine("ÖSSZESÍTÉS GIT AKTIVITÁS ALAPJÁN (FEJLESZTŐK):");
+            sb.AppendLine("--------------------------------------------------");
+            if (developers.Any())
+            {
+                foreach (var dev in developers)
+                {
+                    var devCommits = items
+                        .Where(i => i.GitActivity != null)
+                        .SelectMany(i => i.GitActivity!.Commits.Where(c => c.Author.Equals(dev, StringComparison.OrdinalIgnoreCase)))
+                        .ToList();
+
+                    var devTasks = items
+                        .Where(i => i.GitActivity != null && i.GitActivity.Commits.Any(c => c.Author.Equals(dev, StringComparison.OrdinalIgnoreCase)))
+                        .ToList();
+
+                    var codeAdded = 0;
+                    var codeDeleted = 0;
+                    var codeFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    var otherAdded = 0;
+                    var otherDeleted = 0;
+                    var otherFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var commit in devCommits)
+                    {
+                        foreach (var file in commit.Files)
+                        {
+                            if (IsActualCodeFile(file.Path))
+                            {
+                                codeFiles.Add(file.Path);
+                                codeAdded += file.Added;
+                                codeDeleted += file.Deleted;
+                            }
+                            else
+                            {
+                                otherFiles.Add(file.Path);
+                                otherAdded += file.Added;
+                                otherDeleted += file.Deleted;
+                            }
+                        }
+                    }
+
+                    sb.AppendLine($"Fejlesztő (Git szerző): {dev}");
+                    sb.AppendLine($"  - Érintett feladatok száma: {devTasks.Count} db");
+                    sb.AppendLine($"  - Összes commit száma: {devCommits.Count} db");
+                    sb.AppendLine($"  - VALÓS KÓD VÁLTOZTATÁSOK (.cs, .razor, .js, .ts stb.):");
+                    sb.AppendLine($"    * Módosított kód fájlok: {codeFiles.Count} db");
+                    sb.AppendLine($"    * Kódváltozás: +{codeAdded} / -{codeDeleted} sor");
+                    sb.AppendLine($"  - EGYÉB VÁLTOZTATÁSOK (szöveg, json, erőforrások, stílusok stb.):");
+                    sb.AppendLine($"    * Módosított egyéb fájlok: {otherFiles.Count} db");
+                    sb.AppendLine($"    * Egyéb változás: +{otherAdded} / -{otherDeleted} sor");
+                    sb.AppendLine();
+                }
+            }
+            else
+            {
+                sb.AppendLine("Nem található Git aktivitás (egyik feladat ID-ja sem szerepel a commit üzenetekben).");
+                sb.AppendLine();
+            }
+
+            sb.AppendLine("ÖSSZESÍTÉS ADO FELELŐSÖK SZERINT (A FEJLÉCEK ALAPJÁN):");
+            sb.AppendLine("--------------------------------------------------");
+            var grouped = items.GroupBy(i => i.AssignedTo).ToList();
+            foreach (var group in grouped)
+            {
+                var count = group.Count();
+                var totalCompleted = group.Sum(g => g.CompletedWork);
+                var totalSp = group.Sum(g => g.StoryPoints);
+                var totalOriginal = group.Sum(g => g.OriginalEstimate);
+
+                sb.AppendLine($"Felelős: {group.Key}");
+                sb.AppendLine($"  - Elvégzett feladatok száma: {count} db");
+                sb.AppendLine($"  - ADO-ba rögzített munkaóra (Completed Work): {totalCompleted} óra");
+                sb.AppendLine($"  - ADO Story Point: {totalSp} SP");
+                sb.AppendLine();
+            }
+
+            sb.AppendLine("RÉSZLETES FELADAT ÉS KÓDVÁLTOZTATÁS LISTA:");
+            sb.AppendLine("--------------------------------------------------");
+            foreach (var item in items)
+            {
+                sb.AppendLine($"#{item.Id} [{item.Type}] {item.Title}");
+                sb.AppendLine($"  ADO Státusz: {item.State} | Felelős: {item.AssignedTo}");
+                sb.AppendLine($"  ADO Logolt óra: {item.CompletedWork} óra | Story Points: {item.StoryPoints}");
+
+                if (item.GitActivity != null)
+                {
+                    sb.AppendLine("  Git Aktivitás:");
+                    sb.AppendLine($"    - Kód fájlok (.cs, .razor, .js...): {item.GitActivity.CodeFilesTouched} db (+{item.GitActivity.CodeAdded} / -{item.GitActivity.CodeDeleted} sor)");
+                    sb.AppendLine($"    - Egyéb fájlok (.json, .resx...): {item.GitActivity.OtherFilesTouched} db (+{item.GitActivity.OtherAdded} / -{item.GitActivity.OtherDeleted} sor)");
+                    sb.AppendLine("    - Commitek részletei:");
+                    foreach (var commit in item.GitActivity.Commits)
+                    {
+                        sb.AppendLine($"      * [{commit.Hash}] {commit.Author}: {commit.Subject}");
+                    }
+                }
+                else
+                {
+                    sb.AppendLine("  Git Aktivitás: Nem található a feladathoz kapcsolt commit.");
+                }
+                sb.AppendLine();
+            }
+
+            var reportData = new
+            {
+                Metadata = new
+                {
+                    ReportType = "ADO_Git_Integrated_Report",
+                    GeneratedAt = DateTime.UtcNow.ToString("o"),
+                    MinDate = minDate,
+                    AssigneesFilter = assignedTo
+                },
+                Summary = grouped.Select(g => new
+                {
+                    Assignee = g.Key,
+                    TaskCount = g.Count(),
+                    TotalCompletedWorkHours = g.Sum(x => x.CompletedWork),
+                    TotalStoryPoints = g.Sum(x => x.StoryPoints),
+                    TotalOriginalEstimateHours = g.Sum(x => x.OriginalEstimate)
+                }).ToList(),
+                GitSummary = developers.Select(dev => {
+                    var devCommits = items
+                        .Where(i => i.GitActivity != null)
+                        .SelectMany(i => i.GitActivity!.Commits.Where(c => c.Author.Equals(dev, StringComparison.OrdinalIgnoreCase)))
+                        .ToList();
+                    return new {
+                        Developer = dev,
+                        CommitCount = devCommits.Count,
+                        LinesAdded = devCommits.Sum(c => c.Files.Sum(f => f.Added)),
+                        LinesDeleted = devCommits.Sum(c => c.Files.Sum(f => f.Deleted))
+                    };
+                }).ToList(),
+                Details = items.Select(i => new
+                {
+                    i.Id,
+                    i.Title,
+                    i.Type,
+                    i.State,
+                    i.AssignedTo,
+                    i.CompletedWork,
+                    i.StoryPoints,
+                    i.OriginalEstimate,
+                    GitActivity = i.GitActivity != null ? new {
+                        CommitCount = i.GitActivity.Commits.Count,
+                        TotalAdded = i.GitActivity.TotalAdded,
+                        TotalDeleted = i.GitActivity.TotalDeleted,
+                        FilesTouchedCount = i.GitActivity.TotalFilesTouched,
+                        CodeAdded = i.GitActivity.CodeAdded,
+                        CodeDeleted = i.GitActivity.CodeDeleted,
+                        CodeFilesTouched = i.GitActivity.CodeFilesTouched,
+                        OtherAdded = i.GitActivity.OtherAdded,
+                        OtherDeleted = i.GitActivity.OtherDeleted,
+                        OtherFilesTouched = i.GitActivity.OtherFilesTouched
+                    } : null
+                }).ToList()
+            };
+
+            var jsonOptionsWithWrite = new JsonSerializerOptions { WriteIndented = true };
+            var jsonData = JsonSerializer.Serialize(reportData, jsonOptionsWithWrite);
+
+            sb.AppendLine("=== AI ELEMZÉSRE ELŐKÉSZÍTETT RAW DATA (JSON) ===");
+            sb.AppendLine("Az alábbi JSON formátumú adatok segítségével az AI pontos és részletes elemzést végezhet a csapat teljesítményéről és a tényleges kódváltoztatásokról:");
+            sb.AppendLine("```json");
+            sb.AppendLine(jsonData);
+            sb.AppendLine("```");
+
+            return new AdoReportResult(items, sb.ToString(), jsonData);
+        }
 
         private string SanitizeFileName(string fileName)
         {

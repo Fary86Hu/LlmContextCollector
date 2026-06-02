@@ -686,7 +686,14 @@ namespace LlmContextCollector.Components.Pages
         private async Task HandleCreateBranchAsync(string branchName)
         {
             AppState.ShowLoading($"'{branchName}' branch létrehozása...");
-            try { await GitWorkflowService.CreateAndCheckoutBranchAsync(branchName); }
+            try 
+            { 
+                await GitWorkflowService.CreateAndCheckoutBranchAsync(branchName); 
+            }
+            catch (Exception ex)
+            {
+                AppState.StatusText = $"Hiba a branch létrehozásakor: {ex.Message}";
+            }
             finally { AppState.HideLoading(); }
         }
 

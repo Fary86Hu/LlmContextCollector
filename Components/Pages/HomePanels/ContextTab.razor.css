@@ -647,3 +647,74 @@
     background-color: #ff9800;
     box-shadow: 0 0 3px rgba(0,0,0,0.5);
 }
+
+.image-thumbnail.clickable {
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.image-thumbnail.clickable:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.image-lightbox-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0,0,0,0.85);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.image-lightbox-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.image-lightbox-content img {
+    max-width: 100%;
+    max-height: 80vh;
+    object-fit: contain;
+    border-radius: 4px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+.lightbox-close {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    color: #fff;
+    font-size: 35px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.lightbox-close:hover {
+    color: var(--accent-color);
+}
+
+.lightbox-caption {
+    color: #fff;
+    font-size: 13px;
+    text-align: center;
+    background-color: rgba(0,0,0,0.6);
+    padding: 4px 12px;
+    border-radius: 12px;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

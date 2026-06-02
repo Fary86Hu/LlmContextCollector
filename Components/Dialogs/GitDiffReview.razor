@@ -115,7 +115,7 @@
             </div>
             <div class="modal-footer">
                 <button @onclick="Close">Bezárás</button>
-                <button class="primary" @onclick="CreateBranch" disabled="@string.IsNullOrEmpty(_suggestedBranch)">Branch Létrehozása</button>
+                <button class="primary" @onclick="CreateBranch" disabled="@IsSuggestedBranchInvalid">Branch Létrehozása</button>
                 <button class="primary" @onclick="Commit" disabled="@(string.IsNullOrEmpty(_suggestedCommit) || !_localDiffResults.Any(r => r.IsSelectedForAccept))">Commit</button>
                 <button class="primary commit-btn" @onclick="Push">Push</button>
             </div>

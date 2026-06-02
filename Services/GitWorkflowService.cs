@@ -305,6 +305,11 @@ namespace LlmContextCollector.Services
         public async Task CreateAndCheckoutBranchAsync(string branchName)
         {
             _logService.LogInfo("Git", "Új branch létrehozása", branchName);
+            var branches = await GetBranchesAsync();
+            if (branches.Any(b => b.Equals(branchName, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidOperationException($"A(z) '{branchName}' ág már létezik.");
+            }
             await _gitService.CreateAndCheckoutBranchAsync(branchName);
             _appState.CurrentGitBranch = branchName;
             _appState.StatusText = $"Átváltva a(z) '{branchName}' branch-re.";

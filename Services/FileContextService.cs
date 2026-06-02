@@ -181,7 +181,7 @@ namespace LlmContextCollector.Services
             }
         }
 
-        public async Task<int> AddPathsToContextAsync(IEnumerable<string> paths, int referenceDepth = 0)
+        public async Task<int> AddPathsToContextAsync(IEnumerable<string> paths, int referenceDepth = 0, bool includeReferencing = false)
         {
             var currentFiles = _appState.SelectedFilesForContext.ToHashSet(StringComparer.OrdinalIgnoreCase);
             var initialCount = currentFiles.Count;
@@ -193,6 +193,12 @@ namespace LlmContextCollector.Services
             {
                 var foundRefs = await _referenceFinder.FindReferencesAsync(paths.ToList(), _appState.FileTree, projectRoot, referenceDepth);
                 currentFiles.UnionWith(foundRefs);
+            }
+
+            if (includeReferencing && paths.Any())
+            {
+                var foundReferencing = await _referenceFinder.FindReferencingFilesAsync(paths.ToList(), _appState.FileTree, projectRoot);
+                currentFiles.UnionWith(foundReferencing);
             }
 
             if (currentFiles.Count != initialCount)

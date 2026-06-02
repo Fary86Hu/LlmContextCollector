@@ -66,9 +66,9 @@
                     <div class="attached-images-strip">
                         @foreach (var img in AppState.AttachedImages)
                         {
-                            <div class="image-thumbnail" title="@img.FileName">
+                            <div class="image-thumbnail clickable" title="@img.FileName" @onclick="() => OpenImageLightbox(img)">
                                 <img src="@img.Base64Thumbnail" />
-                                <button class="remove-img-btn" @onclick="() => AppState.AttachedImages.Remove(img)">&times;</button>
+                                <button class="remove-img-btn" @onclick="() => AppState.AttachedImages.Remove(img)" @onclick:stopPropagation="true">&times;</button>
                             </div>
                         }
                     </div>
@@ -232,3 +232,14 @@
 </div>
 
 <ClarificationDialog IsVisible="_isClarificationDialogVisible" ClipboardText="@_clarificationDialogText" OnClose="OnClarificationDialogClose" OnGenerateRefinedPrompt="HandleGenerateRefinedPrompt" />
+
+@if (_viewingImage != null)
+{
+    <div class="image-lightbox-backdrop" @onclick="CloseImageLightbox">
+        <div class="image-lightbox-content" @onclick:stopPropagation="true">
+            <span class="lightbox-close" @onclick="CloseImageLightbox">&times;</span>
+            <img src="@_viewingImage.Base64Thumbnail" alt="@_viewingImage.FileName" />
+            <div class="lightbox-caption">@_viewingImage.FileName</div>
+        </div>
+    </div>
+}

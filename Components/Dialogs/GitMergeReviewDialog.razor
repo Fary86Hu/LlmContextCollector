@@ -1,0 +1,59 @@
+@using LlmContextCollector.Models
+@using LlmContextCollector.Services
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop">
+        <div class="modal-dialog merge-review-large">
+            <div class="modal-header">
+                <h3>AI Beolvasztási Konfliktus Kezelő</h3>
+                <span class="merge-branch-info">Target Branch: @AppState.MergeTargetBranch</span>
+            </div>
+            <div class="modal-body merge-grid">
+                <div class="merge-sidebar">
+                    <strong>Konfliktusos Fájlok (@AppState.MergeConflicts.Count)</strong>
+                    <div class="merge-file-list">
+                        @foreach (var conflict in AppState.MergeConflicts)
+                        {
+                            <div class="merge-file-item @(SelectedConflict == conflict ? "selected" : "")" @onclick="() => SelectConflict(conflict)">
+                                <span class="file-path">@conflict.Path</span>
+                                @if (conflict.IsResolved)
+                                {
+                                    <span class="resolved-badge">AI OK</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="merge-editor-area">
+                    @if (SelectedConflict != null)
+                    {
+                        <div class="three-pane-layout">
+                            <div class="source-pane">
+                                <div class="pane-header">Aktuális verzió (Ours)</div>
+                                <textarea readonly class="pane-textarea">@SelectedConflict.OursContent</textarea>
+                            </div>
+                            <div class="source-pane">
+                                <div class="pane-header">Bejövő verzió (Theirs)</div>
+                                <textarea readonly class="pane-textarea">@SelectedConflict.TheirsContent</textarea>
+                            </div>
+                            <div class="resolved-pane">
+                                <div class="pane-header">AI javaslat (Szerkeszthető)</div>
+                                <textarea class="pane-textarea editable-textarea" @bind="SelectedConflict.ResolvedContent" @bind:event="oninput"></textarea>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="editor-placeholder">Válassz ki egy konfliktusos fájlt a bal oldali listából az összehasonlításhoz!</div>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="secondary" @onclick="AbortMerge">Merge Megszakítása</button>
+                <div style="flex-grow: 1;"></div>
+                <button class="primary" @onclick="CompleteMerge" disabled="@(!AllResolved())">Merge Véglegesítése</button>
+            </div>
+        </div>
+    </div>
+}

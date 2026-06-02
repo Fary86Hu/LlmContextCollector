@@ -79,3 +79,18 @@
     border-bottom-color: var(--accent-color);
     background-color: var(--panel-bg);
 }
+
+.merge-branch-selector-bar {
+    background-color: var(--suggestion-box-bg);
+    border-bottom: 1px solid var(--border-color);
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.branch-selector-merge {
+    flex-grow: 1;
+    height: 24px;
+    font-size: 11px;
+}

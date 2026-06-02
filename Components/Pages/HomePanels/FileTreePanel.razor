@@ -14,9 +14,24 @@
                     }
                 </select>
                 <button class="icon-btn" @onclick="HandleGitPull" title="Git Pull (Frissítés)">📥</button>
+                <button class="icon-btn" @onclick="ToggleMergeDropdown" title="Beolvasztás (Merge)">🔀</button>
             </div>
         }
     </div>
+    @if (_showMergeDropdown && AppState.AvailableGitBranches.Any())
+    {
+        <div class="toolbar merge-branch-selector-bar">
+            <span style="font-size: 11px;">Melyik ágat akarod beolvasztani?</span>
+            <select class="branch-selector-merge" @bind="_branchToMerge">
+                <option value="">-- válassz ágat --</option>
+                @foreach (var branch in AppState.AvailableGitBranches.Where(b => b != AppState.CurrentGitBranch))
+                {
+                    <option value="@branch">@branch</option>
+                }
+            </select>
+            <button class="primary btn-small" @onclick="StartBranchMerge" disabled="@(string.IsNullOrEmpty(_branchToMerge))">Indítás</button>
+        </div>
+    }
 
     <div class="toolbar panel-switcher-tabs">
         <div class="tab-item @(!AppState.LeftPanelShowAdo ? "active" : "")" @onclick="() => AppState.LeftPanelShowAdo = false">Fájlrendszer</div>
