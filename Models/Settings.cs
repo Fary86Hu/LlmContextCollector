@@ -6,6 +6,7 @@ namespace LlmContextCollector.Models
     public class Settings
     {
         public string Theme { get; set; } = "System";
+        public string Username { get; set; } = string.Empty;
         
         public List<AiModelConfig> AiModels { get; set; } = new();
         

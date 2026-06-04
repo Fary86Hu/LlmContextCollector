@@ -71,9 +71,15 @@ namespace LlmContextCollector.Services
             sb.AppendLine("For CSS files, only the file status is provided.");
             sb.AppendLine("Format:");
             sb.AppendLine("[BRANCH]");
-            sb.AppendLine("type/name");
+            string branchPrefix = !string.IsNullOrWhiteSpace(_appState.Username) ? _appState.Username : "username";
+            sb.AppendLine($"{branchPrefix}/type/name");
             sb.AppendLine("[COMMIT]");
             sb.AppendLine("type: message");
+            sb.AppendLine();
+            sb.AppendLine("CRITICAL BRANCH NAMING RULES:");
+            sb.AppendLine($"- The branch name MUST start with '{branchPrefix}/' followed by the category and the unique name (e.g., '{branchPrefix}/feat/new-feature').");
+            sb.AppendLine("- For the category/folder part of the branch name, you can use 'feat', 'refactor', etc.");
+            sb.AppendLine("- IMPORTANT: Do NOT use 'bug' as a category/folder/prefix. Use 'bugfix' instead (e.g., 'bugfix/some-bug' instead of 'bug/some-bug').");
             sb.AppendLine();
             sb.AppendLine("--- SUMMARY OF AFFECTED FILES ---");
             foreach (var d in diffs)

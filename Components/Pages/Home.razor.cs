@@ -520,7 +520,8 @@ namespace LlmContextCollector.Components.Pages
         {
             var settings = await SettingsService.GetSettingsAsync();
             AppState.Theme = settings.Theme;
-            
+            AppState.Username = settings.Username ?? string.Empty;
+
             AppState.AiModels.Clear();
             if (settings.AiModels != null)
             {

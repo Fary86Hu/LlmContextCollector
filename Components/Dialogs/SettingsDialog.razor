@@ -22,6 +22,10 @@
                         </select>
                     </div>
                     <div class="form-group" style="margin-top: 10px;">
+                        <label>Felhasználónév (branch névhez):</label>
+                        <input type="text" @bind="AppState.Username" />
+                    </div>
+                    <div class="form-group" style="margin-top: 10px;">
                         <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-weight: normal;">
                             <input type="checkbox" @bind="AppState.LogInformationLevel" style="width: auto; margin: 0;" />
                             Info szintű logolás
@@ -204,6 +208,7 @@
         var settings = new Settings
         {
             Theme = AppState.Theme,
+            Username = AppState.Username,
             AiModels = AppState.AiModels.ToList(),
             GitSuggestionModelId = AppState.GitSuggestionModelId,
             ChatModelId = AppState.ChatModelId,

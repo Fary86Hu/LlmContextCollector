@@ -175,6 +175,13 @@ namespace LlmContextCollector.Services
             set => SetField(ref _theme, value);
         }
 
+        private string _username = string.Empty;
+        public string Username
+        {
+            get => _username;
+            set => SetField(ref _username, value);
+        }
+
         private bool _logInformationLevel = false;
         public bool LogInformationLevel
         {
