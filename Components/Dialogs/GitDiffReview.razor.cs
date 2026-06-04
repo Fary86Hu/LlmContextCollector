@@ -113,14 +113,15 @@ namespace LlmContextCollector.Components.Dialogs
             _suggestionCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 
             _isRefreshingSuggestions = true;
-            try 
+            try
             {
                 var promptToUse = _includePromptInSuggestions ? AppState.DiffOriginalPrompt : null;
-                var (b, c) = await GitSuggestionService.GetSuggestionsAsync(_localDiffResults, null, promptToUse, _suggestionCts.Token);
-                if (b != "suggestion-not-found") 
-                { 
-                    _suggestedBranch = b ?? ""; 
-                    _suggestedCommit = c ?? ""; 
+                var selectedDiffs = _localDiffResults.Where(r => r.IsSelectedForAccept).ToList();
+                var (b, c) = await GitSuggestionService.GetSuggestionsAsync(selectedDiffs, null, promptToUse, _suggestionCts.Token);
+                if (b != "suggestion-not-found")
+                {
+                    _suggestedBranch = b ?? "";
+                    _suggestedCommit = c ?? "";
                 }
             }
             catch (OperationCanceledException)
@@ -131,9 +132,9 @@ namespace LlmContextCollector.Components.Dialogs
             {
                 AppState.StatusText = $"Hiba a javaslatok lekérésekor: {ex.Message}";
             }
-            finally 
-            { 
-                _isRefreshingSuggestions = false; 
+            finally
+            {
+                _isRefreshingSuggestions = false;
             }
         }
 

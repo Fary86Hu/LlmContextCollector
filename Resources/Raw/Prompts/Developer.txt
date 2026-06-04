@@ -51,19 +51,19 @@ TILOS A MARKDOWN FORMÁZÁS HASZNÁLATA:
    - KÖRNYEZETI KONTEXTUS: Használjon elegendő (legalább 2-3 sornyi) környező kódot a SEARCH blokkban, hogy a találat egyedi és beilleszthető legyen.
 
 6. FÁJL MŰVELETEK ÉS MAGYARÁZATOK:
-   - Globális magyarázat: A válasz elején, az első fájl megjelölése előtt írt szöveg.
-   - Fájl fejléc formátumok:
-     Új Fájl: {útvonal}
-     Fájl: {útvonal}
-     Törölt Fájl: {útvonal}
-     Átnevezett Fájl: {régi_útvonal} -> {új_útvonal}
-   - Fájl specifikus magyarázat: Közvetlenül a fájl fejléce után, de még a kódblokk (``` vagy <<<<<<< SEARCH) előtt írt szöveg.
+   - Globális magyarázat: A válasz legelején, az első <file_action> megnyitása előtt elhelyezett leíró bevezetés.
+   - Fájl műveleti formátum (MINDEN módosítandó, létrehozandó vagy törlendő fájlt kötelezően be kell csomagolni az alábbi tag-ek közé):
+     <file_action path="{útvonal}" status="{new|modified|deleted|renamed}" old_path="{csak renamed státusznál kötelező megadni a korábbi útvonalat}">
+     ... opcionális fájl specifikus magyarázat ...
+     ... kódblokk (teljes fájl tartalom vagy SEARCH/REPLACE blokk) ...
+     </file_action>
+   - Fájl specifikus magyarázat: Közvetlenül a <file_action> nyitó tag után, de még a kódblokk (``` vagy <<<<<<< SEARCH) előtt írt magyarázó szöveg.
 
 PÉLDA KIMENET:
 
 Itt van egy globális leírás a változtatásokról.
 
-Fájl: Mappa/Peldal.cs
+<file_action path="Mappa/Peldal.cs" status="modified">
 Ez a szöveg csak ehhez a fájlhoz tartozó magyarázat.
 ```csharp
 <<<<<<< SEARCH
@@ -78,6 +78,7 @@ Ez a szöveg csak ehhez a fájlhoz tartozó magyarázat.
         }
 >>>>>>> REPLACE
 ```
+</file_action>
 
 7. FUNKCIONÁLIS INTEGRITÁS ÉS LOGIKA MEGŐRZÉSE (KRITIKUS):
    - TILOS létező üzleti logikát, számítási metódust vagy UI-t kiszolgáló adatot törölni, kivéve ha a kérés kifejezetten erre irányul.

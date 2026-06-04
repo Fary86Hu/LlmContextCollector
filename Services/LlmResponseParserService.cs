@@ -23,58 +23,63 @@ namespace LlmContextCollector.Services
 
             text = text.Replace("\r\n", "\n").Replace("\r", "\n");
 
-            var headerRegex = new Regex(@"^(?:Új Fájl|Fájl|Törölt Fájl|Átnevezett Fájl):\s*(?<path>[^\r\n]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
-            var headerMatches = headerRegex.Matches(text);
+            var fileActionRegex = new Regex(
+                @"(?s)<file_action(?<attrs>[^>]+)>(?<content>.*?)<\/file_action>",
+                RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+            var matches = fileActionRegex.Matches(text);
 
             string globalExplanation = "";
-
-            if (headerMatches.Count > 0)
+            if (matches.Count > 0)
             {
-                globalExplanation = text.Substring(0, headerMatches[0].Index).Trim();
+                globalExplanation = text.Substring(0, matches[0].Index).Trim();
             }
             else
             {
                 globalExplanation = text.Trim();
             }
 
-            for (int i = 0; i < headerMatches.Count; i++)
+            foreach (Match match in matches)
             {
-                var match = headerMatches[i];
-                var fullLine = match.Value;
-                var rawPath = match.Groups["path"].Value.Trim().Replace('\\', '/');
+                var attrs = match.Groups["attrs"].Value;
+                var rawContent = match.Groups["content"].Value.Trim();
 
-                var path = rawPath.StartsWith("./") ? rawPath.Substring(2) : rawPath;
-                path = path.TrimStart('/');
+                var pathMatch = Regex.Match(attrs, @"path=[""'](?<val>[^""']+)[""']", RegexOptions.IgnoreCase);
+                var statusMatch = Regex.Match(attrs, @"status=[""'](?<val>[^""']+)[""']", RegexOptions.IgnoreCase);
+                var oldPathMatch = Regex.Match(attrs, @"old_path=[""'](?<val>[^""']+)[""']", RegexOptions.IgnoreCase);
 
-                var status = DiffStatus.Modified;
-                string? oldPath = null;
-
-                if (fullLine.StartsWith("Új", StringComparison.OrdinalIgnoreCase)) status = DiffStatus.New;
-                else if (fullLine.StartsWith("Törölt", StringComparison.OrdinalIgnoreCase)) status = DiffStatus.Deleted;
-                else if (fullLine.StartsWith("Átnevezett", StringComparison.OrdinalIgnoreCase))
+                if (!pathMatch.Success || !statusMatch.Success)
                 {
-                    status = DiffStatus.Renamed;
-                    var pathParts = rawPath.Split(new[] { "->" }, StringSplitOptions.None);
-                    if (pathParts.Length == 2)
-                    {
-                        oldPath = pathParts[0].Trim().TrimStart('/', '.').Replace('\\', '/');
-                        path = pathParts[1].Trim().TrimStart('/', '.').Replace('\\', '/');
-                    }
+                    continue;
                 }
 
-                int contentStart = match.Index + match.Length;
-                int contentEnd = (i == headerMatches.Count - 1) ? text.Length : headerMatches[i + 1].Index;
+                var path = pathMatch.Groups["val"].Value.Trim().Trim(' ', '\t', '*', '_', '`', '"', '\'').Replace('\\', '/');
+                path = path.StartsWith("./") ? path.Substring(2) : path;
+                path = path.TrimStart('/');
 
-                string rawBlock = text.Substring(contentStart, contentEnd - contentStart).TrimStart();
+                var statusStr = statusMatch.Groups["val"].Value.Trim();
+                var status = DiffStatus.Modified;
+
+                if (statusStr.Equals("new", StringComparison.OrdinalIgnoreCase)) status = DiffStatus.New;
+                else if (statusStr.Equals("deleted", StringComparison.OrdinalIgnoreCase)) status = DiffStatus.Deleted;
+                else if (statusStr.Equals("renamed", StringComparison.OrdinalIgnoreCase)) status = DiffStatus.Renamed;
+
+                string? oldPath = null;
+                if (status == DiffStatus.Renamed && oldPathMatch.Success)
+                {
+                    oldPath = oldPathMatch.Groups["val"].Value.Trim().Trim(' ', '\t', '*', '_', '`', '"', '\'').Replace('\\', '/');
+                    oldPath = oldPath.StartsWith("./") ? oldPath.Substring(2) : oldPath;
+                    oldPath = oldPath.TrimStart('/');
+                }
 
                 string fileExplanation = "";
-                string codePart = rawBlock;
+                string codePart = rawContent;
 
-                var codeStartIdx = FindCodeStart(rawBlock);
+                var codeStartIdx = FindCodeStart(rawContent);
                 if (codeStartIdx != -1)
                 {
-                    fileExplanation = rawBlock.Substring(0, codeStartIdx).Trim();
-                    codePart = rawBlock.Substring(codeStartIdx);
+                    fileExplanation = rawContent.Substring(0, codeStartIdx).Trim();
+                    codePart = rawContent.Substring(codeStartIdx);
                 }
 
                 string cleanCode = status == DiffStatus.Deleted ? string.Empty : RemoveMarkdownFences(codePart);
