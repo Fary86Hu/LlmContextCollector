@@ -10,13 +10,13 @@
             </div>
             <div class="modal-body">
                 <p>
-                    Az LLM válasz lokalizációs adatokat tartalmaz, de a projekthez még nincs beállítva a cél resource fájl (.resx).
+                    Az LLM válasz lokalizációs adatokat tartalmaz, de a projekthez még nincs beállítva a cél resource fájl (.json / .resx).
                     Kérlek, add meg a fájl pontos elérési útját!
                 </p>
                 <div class="ado-form-group">
-                    <label>Resource Fájl (.resx):</label>
+                    <label>Resource Fájl (.json / .resx):</label>
                     <div style="display: flex; gap: 5px;">
-                        <input type="text" style="flex-grow: 1;" @bind="AppState.LocalizationResourcePath" placeholder="C:\...\Resources\Resource.resx" />
+                        <input type="text" style="flex-grow: 1;" @bind="AppState.LocalizationResourcePath" placeholder="C:\...\Resources\Resource.json" />
                         <button class="secondary" @onclick="PickResxFile">Tallózás...</button>
                     </div>
                 </div>
@@ -40,10 +40,10 @@
         {
             var result = await Microsoft.Maui.Storage.FilePicker.Default.PickAsync(new Microsoft.Maui.Storage.PickOptions
             {
-                PickerTitle = "Válassz lokalizációs resource (.resx) fájlt",
+                PickerTitle = "Válassz lokalizációs resource (.json, .resx) fájlt",
                 FileTypes = new Microsoft.Maui.Storage.FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
                 {
-                    { DevicePlatform.WinUI, new[] { ".resx" } }
+                    { DevicePlatform.WinUI, new[] { ".json", ".resx" } }
                 })
             });
 

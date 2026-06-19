@@ -46,13 +46,45 @@ namespace LlmContextCollector.Services
 
             if (!locResults.Any()) return "Nem található használt lokalizációs kulcs a kijelölt fájlokban.";
 
+            var ext = Path.GetExtension(_appState.LocalizationResourcePath).ToLower();
             var sb = new StringBuilder();
             sb.AppendLine("// --- PROJECT LOCALIZATIONS ---");
-            foreach (var loc in locResults)
+
+            if (ext == ".json")
             {
-                var key = loc.Path.Replace("[LOC] ", "");
-                sb.AppendLine($"  <data name=\"{key}\" xml:space=\"preserve\"><value>{loc.NewContent}</value></data>");
+                var dict = new Dictionary<string, Dictionary<string, string>>();
+                foreach (var loc in locResults)
+                {
+                    var key = loc.Path.Replace("[LOC] ", "");
+                    try
+                    {
+                        var values = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(loc.NewContent);
+                        if (values != null)
+                        {
+                            dict[key] = values;
+                        }
+                    }
+                    catch
+                    {
+                        dict[key] = new Dictionary<string, string> { { "en-US", loc.NewContent }, { "hu-HU", loc.NewContent } };
+                    }
+                }
+                var json = System.Text.Json.JsonSerializer.Serialize(dict, new System.Text.Json.JsonSerializerOptions 
+                { 
+                    WriteIndented = true,
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                });
+                sb.AppendLine(json);
             }
+            else
+            {
+                foreach (var loc in locResults)
+                {
+                    var key = loc.Path.Replace("[LOC] ", "");
+                    sb.AppendLine($"  <data name=\"{key}\" xml:space=\"preserve\"><value>{loc.NewContent}</value></data>");
+                }
+            }
+
             sb.AppendLine("// --- END LOCALIZATIONS ---");
             return sb.ToString();
         }
@@ -217,7 +249,7 @@ namespace LlmContextCollector.Services
         {
             var (explanation, parsedFiles) = _llmResponseParserService.ParseResponse(clipboardText);
 
-            var locRegex = new Regex(@"<data name=""(?<name>[^""]+)"" xml:space=""preserve"">\s*<value>(?<value>[\s\S]*?)<\/value>\s*</data>", RegexOptions.IgnoreCase);
+            var locRegex = new Regex(@"<data name=""(?<name>[^""]+)""[^>]*>\s*(?:<value[^>]*>)?(?<value>[\s\S]*?)(?:</value>)?\s*</data>", RegexOptions.IgnoreCase);
             var locMatches = locRegex.Matches(clipboardText);
             var localizationFragment = string.Join("\n", locMatches.Select(m => m.Value));
 
@@ -412,16 +444,27 @@ namespace LlmContextCollector.Services
             try
             {
                 if (!File.Exists(resxPath)) return null;
-                XDocument doc;
-                using (var stream = File.OpenRead(resxPath))
+                var content = await File.ReadAllTextAsync(resxPath);
+                if (string.IsNullOrWhiteSpace(content)) return null;
+
+                if (Path.GetExtension(resxPath).Equals(".json", StringComparison.OrdinalIgnoreCase))
                 {
-                    doc = await Task.Run(() => XDocument.Load(stream));
+                    using var doc = System.Text.Json.JsonDocument.Parse(content);
+                    if (doc.RootElement.TryGetProperty(key, out var valElement))
+                    {
+                        return valElement.GetRawText();
+                    }
                 }
-                return doc.Root?.Elements("data")
-                    .FirstOrDefault(e => e.Attribute("name")?.Value == key)
-                    ?.Element("value")?.Value;
+                else
+                {
+                    XDocument doc = XDocument.Parse(content);
+                    return doc.Root?.Elements("data")
+                        .FirstOrDefault(e => e.Attribute("name")?.Value == key)
+                        ?.Element("value")?.Value;
+                }
             }
-            catch { return null; }
+            catch { }
+            return null;
         }
 
         private RobustMatchResult? FindRobustMatch(string content, string searchBlock)

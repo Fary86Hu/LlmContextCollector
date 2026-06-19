@@ -85,5 +85,9 @@ Ez a szöveg csak ehhez a fájlhoz tartozó magyarázat.
    - REFAKTORÁLÁSI KORLÁT: A kód modernizálása során tilos olyan mellékfunkciókat (pl. számlálók, állapotjelzők, progress bar adatok) megszüntetni, amelyek vizuális elemeket szolgálnak ki.
    - ÖNHATALMÚ DÖNTÉSEK TILALMA: Ha egy logika "elavultnak" vagy "feleslegesnek" tűnik, de nem akadályozza a kért feladatot, maradjon a kódban. Minden strukturális változtatást a kért funkció (pl. lokalizáció) köré kell építeni, nem annak helyére.
 
-Ha új lokalizációkat vett fel, írja le őket az összefoglaló végén:
-<data name="XY" xml:space="preserve"><value>XY</value></data>
+Ha új lokalizációkat vett fel, írja le őket az összefoglaló végén az alábbi formátumban:
+Ha Resx (XML) alapú a projekt:
+<data name="XY" xml:space="preserve"><value>Value</value></data>
+
+Ha JSON alapú a projekt (a fordítások leképezését JSON-ként megadva):
+<data name="XY"><value>{"en-US": "English value", "hu-HU": "Magyar érték"}</value></data>

@@ -3,6 +3,7 @@
 @inject AppState AppState
 @inject BuildManagerService BuildManager
 @inject ProjectSettingsService ProjectSettingsService
+@inject AzureDevOpsService AzureDevOpsService
 @implements IDisposable
 
 <div class="project-footer">
@@ -38,17 +39,17 @@
             <div class="command-info">
                 <div class="command-row">
                     <span class="label">Build parancs:</span>
-                    <input type="text" @bind="AppState.DefaultBuildCommand" class="path-edit-input" />
+                    <input type="text" @bind="AppState.DefaultBuildCommand" @bind:after="UpdateAppStateAndSaveAsync" class="path-edit-input" />
                 </div>
                 <div class="command-row">
                     <span class="label">Futtatási parancs:</span>
-                    <input type="text" @bind="AppState.DefaultRunCommand" class="path-edit-input" />
+                    <input type="text" @bind="AppState.DefaultRunCommand" @bind:after="UpdateAppStateAndSaveAsync" class="path-edit-input" />
                 </div>
                 @if (AppState.LaunchProfiles.Any())
                 {
                     <div class="command-row">
                         <span class="label">Launch Profile:</span>
-                        <select @key="AppState.ProjectRoot" @bind="AppState.SelectedLaunchProfile" class="path-edit-input" style="background: var(--input-bg-color);">
+                        <select @key="AppState.ProjectRoot" @bind="AppState.SelectedLaunchProfile" @bind:after="UpdateAppStateAndSaveAsync" class="path-edit-input" style="background: var(--input-bg-color);">
                             <option value="">(Nincs profil)</option>
                             @foreach (var profile in AppState.LaunchProfiles)
                             {
@@ -58,9 +59,9 @@
                     </div>
                 }
                 <div class="command-row">
-                    <span class="label">Lokalizáció (.resx):</span>
+                    <span class="label">Lokalizáció (.json / .resx):</span>
                     <div style="display: flex; gap: 4px; flex: 1;">
-                        <input type="text" @bind="AppState.LocalizationResourcePath" class="path-edit-input" placeholder="Tallózzon egy .resx fájlt..." />
+                        <input type="text" @bind="AppState.LocalizationResourcePath" @bind:after="UpdateAppStateAndSaveAsync" class="path-edit-input" placeholder="Tallózzon egy .json vagy .resx fájlt..." />
                         <button class="icon-btn-mini" @onclick="PickResxFile" title="Tallózás">📂</button>
                     </div>
                 </div>
@@ -184,10 +185,10 @@
         {
             var result = await Microsoft.Maui.Storage.FilePicker.Default.PickAsync(new Microsoft.Maui.Storage.PickOptions
             {
-                PickerTitle = "Válassz lokalizációs resource (.resx) fájlt",
+                PickerTitle = "Válassz lokalizációs resource (.json, .resx) fájlt",
                 FileTypes = new Microsoft.Maui.Storage.FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
                 {
-                    { DevicePlatform.WinUI, new[] { ".resx" } }
+                    { DevicePlatform.WinUI, new[] { ".json", ".resx" } }
                 })
             });
 

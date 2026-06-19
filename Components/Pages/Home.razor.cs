@@ -579,7 +579,11 @@ namespace LlmContextCollector.Components.Pages
         {
             AppState.LocalizationResourcePath = path;
             _isLocPathDialogVisible = false;
-            await AzureDevOpsService.SaveSettingsForCurrentProjectAsync();
+            try
+            {
+                await ProjectSettingsService.SaveSettingsForProjectAsync(AppState.ProjectRoot);
+            }
+            catch { }
 
             if (_pendingLocDiffArgs != null)
             {
@@ -664,13 +668,20 @@ namespace LlmContextCollector.Components.Pages
             int locAddedCount = 0;
             if (locChanges.Any() && !string.IsNullOrEmpty(AppState.LocalizationResourcePath))
             {
-                var sb = new StringBuilder();
-                foreach (var loc in locChanges)
+                try
                 {
-                    var key = loc.Path.Substring(6);
-                    sb.AppendLine($"  <data name=\"{key}\" xml:space=\"preserve\"><value>{loc.NewContent}</value></data>");
+                    var sb = new StringBuilder();
+                    foreach (var loc in locChanges)
+                    {
+                        var key = loc.Path.Substring(6);
+                        sb.AppendLine($"  <data name=\"{key}\" xml:space=\"preserve\"><value>{loc.NewContent}</value></data>");
+                    }
+                    locAddedCount = await LocalizationService.UpdateResourceFileAsync(AppState.LocalizationResourcePath, sb.ToString());
                 }
-                locAddedCount = await LocalizationService.UpdateResourceFileAsync(AppState.LocalizationResourcePath, sb.ToString());
+                catch (Exception ex)
+                {
+                    AppState.StatusText = $"Hiba a lokalizáció mentésekor: {ex.Message}";
+                }
             }
 
             var (acceptedCount, errorCount) = await GitWorkflowService.AcceptChangesAsync(fileChanges);

@@ -1,7 +1,10 @@
 using System.Xml;
 using System.Xml.Linq;
 using System.Text.RegularExpressions;
+using System.Text.Json;
 using LlmContextCollector.Models;
+using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.Controls;
 
 namespace LlmContextCollector.Services
 {
@@ -19,7 +22,6 @@ namespace LlmContextCollector.Services
         public async Task<List<DiffResult>> ScanLocalizationsInFilesAsync(List<string> filePaths, string projectRoot, string resxPath)
         {
             var foundKeys = new HashSet<string>();
-            var missingKeys = new List<string>();
             var results = new List<DiffResult>();
 
             if (string.IsNullOrEmpty(resxPath) || !File.Exists(resxPath)) return results;
@@ -33,122 +35,141 @@ namespace LlmContextCollector.Services
                 foreach (var pattern in LocalizationPatterns)
                 {
                     var matches = pattern.Matches(content);
-                    foreach (Match match in matches)
-                    {
-                        foundKeys.Add(match.Groups["key"].Value);
-                    }
+                    foreach (Match match in matches) foundKeys.Add(match.Groups["key"].Value);
                 }
             }
 
             if (!foundKeys.Any()) return results;
 
-            XDocument doc;
-            using (var stream = File.OpenRead(resxPath))
+            var ext = Path.GetExtension(resxPath).ToLower();
+            if (ext == ".json")
             {
-                doc = XDocument.Load(stream);
-            }
-
-            var resxEntries = doc.Root?.Elements("data")
-                .ToDictionary(
-                    e => e.Attribute("name")?.Value ?? "",
-                    e => e.Element("value")?.Value ?? ""
-                ) ?? new Dictionary<string, string>();
-
-            foreach (var key in foundKeys)
-            {
-                if (resxEntries.TryGetValue(key, out var val))
+                var content = await File.ReadAllTextAsync(resxPath);
+                var dict = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(content) ?? new();
+                var serializeOptions = new JsonSerializerOptions
                 {
-                    results.Add(new DiffResult
-                    {
-                        Path = $"[LOC] {key}",
-                        NewContent = val,
-                        Status = DiffStatus.New,
-                        IsSelectedForAccept = true,
-                        Explanation = "Kinyert lokalizáció"
-                    });
-                }
-                else
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                };
+                foreach (var key in foundKeys)
                 {
-                    missingKeys.Add(key);
+                    if (dict.TryGetValue(key, out var vals))
+                        results.Add(new DiffResult { Path = $"[LOC] {key}", NewContent = JsonSerializer.Serialize(vals, serializeOptions), Status = DiffStatus.New, IsSelectedForAccept = true });
                 }
             }
-
-            if (missingKeys.Any())
+            else
             {
-                var distinctMissing = missingKeys.Distinct().OrderBy(k => k).ToList();
-                var warning = $"Az alábbi kulcsok szerepelnek a kódban, de nem találhatók a resource fájlban:\n\n" + string.Join("\n", distinctMissing);
-                _ = MainThread.InvokeOnMainThreadAsync(async () => {
-                    if (Application.Current?.MainPage != null)
-                        await Application.Current.MainPage.DisplayAlert("Hiányzó lokalizációk", warning, "OK");
-                });
+                XDocument doc = XDocument.Load(resxPath);
+                var entries = doc.Root?.Elements("data").ToDictionary(e => e.Attribute("name")?.Value ?? "", e => e.Element("value")?.Value ?? "") ?? new();
+                foreach (var key in foundKeys)
+                {
+                    if (entries.TryGetValue(key, out var val))
+                        results.Add(new DiffResult { Path = $"[LOC] {key}", NewContent = val, Status = DiffStatus.New, IsSelectedForAccept = true });
+                }
             }
-
             return results;
         }
 
         public async Task<int> UpdateResourceFileAsync(string filePath, string localizationXml)
         {
-            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
-                throw new FileNotFoundException("A megadott resource fájl nem található.");
+            if (string.IsNullOrWhiteSpace(filePath)) return 0;
 
-            var newElements = ParseLocalizationTags(localizationXml);
-            if (!newElements.Any()) return 0;
-
-            XDocument doc;
-            using (var stream = File.OpenRead(filePath))
+            var dir = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
             {
-                doc = XDocument.Load(stream);
+                Directory.CreateDirectory(dir);
             }
 
-            var root = doc.Root;
-            if (root == null) throw new InvalidOperationException("Érvénytelen resource fájl formátum.");
+            var isJson = Path.GetExtension(filePath).ToLower() == ".json";
 
-            int addedCount = 0;
-            foreach (var newElement in newElements)
+            if (!File.Exists(filePath))
             {
-                var name = newElement.Attribute("name")?.Value;
-                if (string.IsNullOrEmpty(name)) continue;
-
-                // Ellenőrizzük, létezik-e már ilyen nevű bejegyzés
-                var existing = root.Elements("data")
-                    .FirstOrDefault(e => e.Attribute("name")?.Value == name);
-
-                if (existing != null)
+                if (isJson)
                 {
-                    existing.SetElementValue("value", newElement.Element("value")?.Value ?? "");
+                    await File.WriteAllTextAsync(filePath, "{}");
                 }
                 else
                 {
-                    root.Add(newElement);
-                    addedCount++;
+                    await File.WriteAllTextAsync(filePath, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<root>\n</root>");
                 }
             }
 
+            if (isJson)
+            {
+                var content = await File.ReadAllTextAsync(filePath);
+                Dictionary<string, Dictionary<string, string>> dict;
+                try
+                {
+                    dict = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(content) ?? new();
+                }
+                catch
+                {
+                    dict = new();
+                }
+
+                var newItems = ParseLocalizationTags(localizationXml);
+                int added = 0;
+                foreach (var item in newItems)
+                {
+                    var key = item.Attribute("name")?.Value ?? "";
+                    var val = item.Element("value")?.Value ?? "";
+                    try { dict[key] = JsonSerializer.Deserialize<Dictionary<string, string>>(val) ?? new(); }
+                    catch { dict[key] = new Dictionary<string, string> { { "en-US", val }, { "hu-HU", val } }; }
+                    added++;
+                }
+                var serializeOptions = new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                };
+                await File.WriteAllTextAsync(filePath, JsonSerializer.Serialize(dict, serializeOptions));
+                return added;
+            }
+            else
+            {
+                return await UpdateResxFileAsync(filePath, localizationXml);
+            }
+        }
+
+        private async Task<int> UpdateResxFileAsync(string filePath, string xml)
+        {
+            XDocument doc;
+            try
+            {
+                doc = XDocument.Load(filePath);
+            }
+            catch
+            {
+                doc = XDocument.Parse("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<root>\n</root>");
+            }
+
+            if (doc.Root == null)
+            {
+                doc = XDocument.Parse("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<root>\n</root>");
+            }
+
+            var newElements = ParseLocalizationTags(xml);
+            int added = 0;
+            foreach (var el in newElements)
+            {
+                var name = el.Attribute("name")?.Value;
+                if (doc.Root?.Elements("data").Any(e => e.Attribute("name")?.Value == name) == false)
+                {
+                    doc.Root.Add(el);
+                    added++;
+                }
+            }
             doc.Save(filePath);
-            return addedCount;
+            return added;
         }
 
         private List<XElement> ParseLocalizationTags(string xmlFragment)
         {
             var results = new List<XElement>();
-            // Mivel az LLM válaszban több <data> tag is lehet egymás után, egyenként dolgozzuk fel őket
-            var regex = new System.Text.RegularExpressions.Regex(@"<data name=""(?<name>[^""]+)"" xml:space=""preserve"">\s*<value>(?<value>[\s\S]*?)<\/value>\s*</data>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            
-            var matches = regex.Matches(xmlFragment);
-            foreach (System.Text.RegularExpressions.Match match in matches)
+            var regex = new Regex(@"<data name=""(?<name>[^""]+)""[^>]*>\s*<value>(?<value>[\s\S]*?)<\/value>\s*</data>", RegexOptions.IgnoreCase);
+            foreach (Match match in regex.Matches(xmlFragment))
             {
-                try
-                {
-                    var element = new XElement("data",
-                        new XAttribute("name", match.Groups["name"].Value),
-                        new XAttribute(XNamespace.Xml + "space", "preserve"),
-                        new XElement("value", match.Groups["value"].Value)
-                    );
-                    results.Add(element);
-                }
-                catch { }
+                results.Add(new XElement("data", new XAttribute("name", match.Groups["name"].Value), new XElement("value", match.Groups["value"].Value)));
             }
-
             return results;
         }
     }

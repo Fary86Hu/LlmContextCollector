@@ -49,7 +49,6 @@ namespace LlmContextCollector.Services
 
             // A kapcsolódási adatokat már globálisan tároljuk, csak a projekt-specifikus infókat töltjük be innen
             _appState.AdoLastDownloadDate = settings.LastFullDownloadUtc;
-            _appState.LocalizationResourcePath = settings.LocalizationResourcePath;
         }
 
         public async Task SaveSettingsForCurrentProjectAsync(DateTime? newDownloadTimestamp = null)
@@ -60,8 +59,7 @@ namespace LlmContextCollector.Services
             var settings = new AdoProjectSettings
             {
                 // A kapcsolódási adatok a globális settings-be kerültek, ide csak a státusz infók
-                LastFullDownloadUtc = newDownloadTimestamp ?? _appState.AdoLastDownloadDate,
-                LocalizationResourcePath = _appState.LocalizationResourcePath
+                LastFullDownloadUtc = newDownloadTimestamp ?? _appState.AdoLastDownloadDate
             };
             var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(path, json);
