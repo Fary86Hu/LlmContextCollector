@@ -53,6 +53,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private long _charCount = 0;
         private long _tokenCount = 0;
         private string _previewContent = string.Empty;
+        private System.Threading.CancellationTokenSource? _debounceCts;
         private MarkupString _previewContentMarkup;
         private string _contextSearchTerm = string.Empty;
         private int _currentPreviewMatchIndex = 0;
@@ -63,7 +64,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private bool _isBottomDropdownOpen = false;
         private bool _isDocsDropdownOpen = false;
         private List<ContextListItem> _sortedFiles = new();
-        private string _currentSortKey = "path";
+        private string _currentSortKey = "sequence";
         private bool _isSortAscending = true;
         private string? _lastInteractionPath;
         private int? _adoWorkItemIdToLoad;
@@ -72,7 +73,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private string _clarificationDialogText = string.Empty;
         private Dictionary<string, long> _originalSizeCache = new();
 
-        private record ContextListItem(string RelativePath, string DisplayPath, string FileName, long Size);
+        private record ContextListItem(string RelativePath, string DisplayPath, string FileName, long Size, int SequenceNumber);
 
         protected override async Task OnInitializedAsync()
         {
@@ -121,10 +122,23 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         private void OnSelectedFilesChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            _ = UpdateCountsAsync();
-            UpdateSortedFiles();
-            SortFiles();
-            InvokeAsync(StateHasChanged);
+            _debounceCts?.Cancel();
+            _debounceCts = new System.Threading.CancellationTokenSource();
+            var token = _debounceCts.Token;
+
+            System.Threading.Tasks.Task.Delay(50, token).ContinueWith(async t =>
+            {
+                if (!t.IsCanceled)
+                {
+                    await InvokeAsync(async () =>
+                    {
+                        await UpdateCountsAsync();
+                        UpdateSortedFiles();
+                        SortFiles();
+                        StateHasChanged();
+                    });
+                }
+            }, System.Threading.Tasks.TaskScheduler.Default);
         }
 
         public async Task ScrollToPath(string relPath)
@@ -302,6 +316,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private void UpdateSortedFiles()
         {
             _sortedFiles.Clear();
+            AppState.SyncSequenceNumbers();
             foreach (var fileRelPath in AppState.SelectedFilesForContext)
             {
                 if (!string.IsNullOrWhiteSpace(_contextSearchTerm) && !fileRelPath.Contains(_contextSearchTerm, StringComparison.OrdinalIgnoreCase)) continue;
@@ -314,7 +329,11 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                     string fullPath = fileRelPath.StartsWith("[ADO]") ? Path.Combine(AppState.AdoDocsPath, fileRelPath.Substring(5)) : Path.Combine(AppState.ProjectRoot, fileRelPath.Replace('/', Path.DirectorySeparatorChar));
                     if (File.Exists(fullPath)) size = new FileInfo(fullPath).Length;
                 }
-                _sortedFiles.Add(new ContextListItem(fileRelPath, displayPath, fileName, size));
+                if (!AppState.SelectedFilesSequence.TryGetValue(fileRelPath, out int seq))
+                {
+                    seq = 0;
+                }
+                _sortedFiles.Add(new ContextListItem(fileRelPath, displayPath, fileName, size, seq));
             }
         }
 
@@ -324,6 +343,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             {
                 "name" => _isSortAscending ? _sortedFiles.OrderBy(f => f.FileName).ToList() : _sortedFiles.OrderByDescending(f => f.FileName).ToList(),
                 "size" => _isSortAscending ? _sortedFiles.OrderBy(f => f.Size).ToList() : _sortedFiles.OrderByDescending(f => f.Size).ToList(),
+                "sequence" => _isSortAscending ? _sortedFiles.OrderBy(f => f.SequenceNumber).ToList() : _sortedFiles.OrderByDescending(f => f.SequenceNumber).ToList(),
                 _ => _isSortAscending ? _sortedFiles.OrderBy(f => f.RelativePath).ToList() : _sortedFiles.OrderByDescending(f => f.RelativePath).ToList()
             };
         }
@@ -632,7 +652,14 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             } 
         }
 
-        public void Dispose() { AppState.SelectedFilesForContext.CollectionChanged -= OnSelectedFilesChanged; AppState.PropertyChanged -= OnAppStateChanged; _objRef?.Dispose(); }
+        public void Dispose() 
+        { 
+            _debounceCts?.Cancel();
+            _debounceCts?.Dispose();
+            AppState.SelectedFilesForContext.CollectionChanged -= OnSelectedFilesChanged; 
+            AppState.PropertyChanged -= OnAppStateChanged; 
+            _objRef?.Dispose(); 
+        }
     }
 
     public class DiffResultArgs

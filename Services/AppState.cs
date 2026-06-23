@@ -14,6 +14,44 @@ namespace LlmContextCollector.Services
     {
         private readonly PromptService _promptService;
 
+        public Dictionary<string, int> SelectedFilesSequence { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public void SyncSequenceNumbers()
+        {
+            if (SelectedFilesForContext.Count == 0)
+            {
+                SelectedFilesSequence.Clear();
+                return;
+            }
+
+            int maxSeq = SelectedFilesSequence.Values.Any() ? SelectedFilesSequence.Values.Max() : 0;
+            foreach (var file in SelectedFilesForContext)
+            {
+                if (!SelectedFilesSequence.ContainsKey(file))
+                {
+                    SelectedFilesSequence[file] = ++maxSeq;
+                }
+            }
+
+            var currentFiles = new HashSet<string>(SelectedFilesForContext, StringComparer.OrdinalIgnoreCase);
+            var keysToRemove = SelectedFilesSequence.Keys.Where(k => !currentFiles.Contains(k)).ToList();
+            foreach (var key in keysToRemove)
+            {
+                SelectedFilesSequence.Remove(key);
+            }
+
+            var orderedPairs = SelectedFilesSequence
+                .OrderBy(kvp => kvp.Value)
+                .ToList();
+
+            SelectedFilesSequence.Clear();
+            int nextSeq = 1;
+            foreach (var pair in orderedPairs)
+            {
+                SelectedFilesSequence[pair.Key] = nextSeq++;
+            }
+        }
+
         public AppState(PromptService promptService)
         {
             _promptService = promptService;

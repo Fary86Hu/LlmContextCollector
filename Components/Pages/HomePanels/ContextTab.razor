@@ -91,6 +91,7 @@
             <table class="context-table">
                 <thead>
                     <tr>
+                        <th class="sortable @GetSortClass("sequence")" @onclick='() => SortBy("sequence")' style="text-align: center;">#</th>
                         <th class="sortable @GetSortClass("path")" @onclick='() => SortBy("path")'>Elérési út</th>
                         <th class="sortable @GetSortClass("name")" @onclick='() => SortBy("name")'>Fájlnév</th>
                         <th class="sortable @GetSortClass("size")" @onclick='() => SortBy("size")'>Méret</th>
@@ -101,6 +102,7 @@
                     @foreach (var fileInfo in _sortedFiles)
                     {
                         <tr @key="fileInfo.RelativePath" id="@GetRowId(fileInfo.RelativePath)" class="@(SelectedItems.Contains(fileInfo.RelativePath) ? "selected" : "")" @onclick="(e) => OnFileRowClick(e, fileInfo.RelativePath)" @oncontextmenu="(e) => ShowContextMenuForRow(e, fileInfo.RelativePath)" @oncontextmenu:preventDefault>
+                            <td style="text-align: center;">@fileInfo.SequenceNumber</td>
                             <td>@if (fileInfo.RelativePath.StartsWith("[ORIGINAL]")) {
                             <span class="ref-badge ref-original">ORIG</span>
                         }
