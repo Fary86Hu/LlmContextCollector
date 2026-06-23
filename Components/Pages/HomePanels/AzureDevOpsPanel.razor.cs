@@ -9,6 +9,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
     {
         [Inject] private SettingsService SettingsService { get; set; } = null!;
         [Inject] private IClipboard Clipboard { get; set; } = null!;
+        [Inject] private GitWorkflowService GitWorkflowService { get; set; } = null!;
+        [Inject] private ProjectService ProjectService { get; set; } = null!;
 
         private List<string> _availableStatuses = new() { "New", "Active", "Resolved", "Closed", "Committed", "Proposed" };
         private bool _isReportModalVisible = false;
@@ -22,10 +24,42 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private bool _isLoading = false;
         private bool _isLoadingMembers = false;
         private List<WorkItemSearchResult> _workItems = new();
+        private List<GitPullRequest> _activePrs = new();
+        private bool _showPrList = false;
 
         protected override async Task OnInitializedAsync()
         {
             await LoadMembers();
+        }
+
+        private async Task ToggleMode(bool showPrs)
+        {
+            _showPrList = showPrs;
+            if (_showPrList)
+            {
+                await LoadActivePullRequests();
+            }
+            else
+            {
+                await LoadWorkItems();
+            }
+        }
+
+        private async Task LoadActivePullRequests()
+        {
+            _isLoading = true;
+            try
+            {
+                _activePrs = await AdoService.GetActivePullRequestsAsync();
+            }
+            catch (Exception ex)
+            {
+                LogService.LogError("ADO Panel", "Hiba az aktív PR-ek betöltésekor", ex.Message);
+            }
+            finally
+            {
+                _isLoading = false;
+            }
         }
 
         private async Task LoadMembers()
@@ -238,21 +272,30 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         private void AddPrFilesToContext(AzureDevOpsService.LinkedPrInfo pr)
         {
+            if (pr == null || pr.Files == null || string.IsNullOrEmpty(AppState.ProjectRoot))
+            {
+                return;
+            }
+
             int addedCount = 0;
             foreach (var file in pr.Files)
             {
+                if (file == null || string.IsNullOrEmpty(file.Path)) continue;
+
                 var cleanPath = file.Path.TrimStart('/');
                 var node = AppState.FindNodeByPath(Path.Combine(AppState.ProjectRoot, cleanPath));
 
                 if (node == null)
                 {
                     var fileName = Path.GetFileName(cleanPath);
+                    if (string.IsNullOrEmpty(fileName)) continue;
+
                     var flatNodes = new List<FileNode>();
                     Utils.FileTreeHelper.GetAllFileNodes(AppState.FileTree, flatNodes);
-                    node = flatNodes.FirstOrDefault(n => n.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
+                    node = flatNodes.FirstOrDefault(n => n != null && n.Name != null && n.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
                 }
 
-                if (node != null)
+                if (node != null && !string.IsNullOrEmpty(node.FullPath))
                 {
                     var relPath = Path.GetRelativePath(AppState.ProjectRoot, node.FullPath).Replace('\\', '/');
                     var originalPath = $"[ORIGINAL]{relPath}";
@@ -263,7 +306,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                         addedCount++;
                     }
 
-                    bool isNew = file.ChangeType.Equals("add", StringComparison.OrdinalIgnoreCase);
+                    bool isNew = string.Equals(file.ChangeType, "add", StringComparison.OrdinalIgnoreCase);
                     if (!isNew && !AppState.SelectedFilesForContext.Contains(originalPath))
                     {
                         AppState.SelectedFilesForContext.Add(originalPath);
@@ -280,6 +323,115 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             else
             {
                 AppState.StatusText = "A fájlok már a kontextusban vannak vagy nem találhatók a helyi projektben.";
+            }
+        }
+
+        private async Task StartCodeReviewForPr(AzureDevOpsService.LinkedPrInfo pr)
+        {
+            AppState.ShowLoading($"PR #{pr.Id} lekérése Code Review-hoz...");
+            try
+            {
+                var result = await AdoService.GetFormattedPullRequestAsync(pr.Id);
+                if (result == null || string.IsNullOrEmpty(result.FormattedText))
+                {
+                    AppState.StatusText = "A Pull Request lekérése nem adott eredményt.";
+                    return;
+                }
+
+                AppState.PromptText = result.FormattedText + "\n\n" + AppState.PromptText;
+
+                if (result.Images != null)
+                {
+                    foreach (var img in result.Images) AppState.AttachedImages.Add(img);
+                }
+
+                if (!string.IsNullOrEmpty(result.SourceBranch) && AppState.CurrentGitBranch != result.SourceBranch)
+                {
+                    AppState.StatusText = $"Átváltás a(z) {result.SourceBranch} ágra...";
+                    try
+                    {
+                        await GitWorkflowService.CheckoutBranchAsync(result.SourceBranch);
+                        await ProjectService.ReloadProjectAsync(preserveSelection: true);
+                    }
+                    catch (Exception ex)
+                    {
+                        AppState.StatusText = $"Ágváltás sikertelen: {ex.Message}. Folytatás a jelenlegi ágon.";
+                    }
+                }
+
+                var reviewerTemplate = AppState.PromptTemplates.FirstOrDefault(t => t.Title.Contains("Reviewer", StringComparison.OrdinalIgnoreCase));
+                if (reviewerTemplate != null)
+                {
+                    AppState.ActiveGlobalPromptId = reviewerTemplate.Id;
+                }
+
+                AddPrFilesToContext(pr);
+                AppState.StatusText = $"PR #{pr.Id} sikeresen előkészítve Code Review-hoz.";
+                CloseDetailsModal();
+            }
+            catch (Exception ex)
+            {
+                AppState.StatusText = $"Hiba a Code Review előkészítésekor: {ex.Message}";
+            }
+            finally
+            {
+                AppState.HideLoading();
+            }
+        }
+
+        private async Task StartCodeReviewForPr(GitPullRequest pr)
+        {
+            AppState.ShowLoading($"PR #{pr.PullRequestId} lekérése Code Review-hoz...");
+            try
+            {
+                var result = await AdoService.GetFormattedPullRequestAsync(pr.PullRequestId);
+                if (result == null || string.IsNullOrEmpty(result.FormattedText))
+                {
+                    AppState.StatusText = "A Pull Request lekérése nem adott eredményt.";
+                    return;
+                }
+
+                AppState.PromptText = result.FormattedText + "\n\n" + AppState.PromptText;
+
+                if (result.Images != null)
+                {
+                    foreach (var img in result.Images) AppState.AttachedImages.Add(img);
+                }
+
+                var sourceBranchClean = pr.SourceRefName;
+                if (sourceBranchClean.StartsWith("refs/heads/")) sourceBranchClean = sourceBranchClean.Substring(11);
+
+                if (!string.IsNullOrEmpty(sourceBranchClean) && AppState.CurrentGitBranch != sourceBranchClean)
+                {
+                    AppState.StatusText = $"Átváltás a(z) {sourceBranchClean} ágra...";
+                    try
+                    {
+                        await GitWorkflowService.CheckoutBranchAsync(sourceBranchClean);
+                        await ProjectService.ReloadProjectAsync(preserveSelection: true);
+                    }
+                    catch (Exception ex)
+                    {
+                        AppState.StatusText = $"Ágváltás sikertelen: {ex.Message}. Folytatás a jelenlegi ágon.";
+                    }
+                }
+
+                var reviewerTemplate = AppState.PromptTemplates.FirstOrDefault(t => t.Title.Contains("Reviewer", StringComparison.OrdinalIgnoreCase));
+                if (reviewerTemplate != null)
+                {
+                    AppState.ActiveGlobalPromptId = reviewerTemplate.Id;
+                }
+
+                var prInfo = new AzureDevOpsService.LinkedPrInfo(pr.PullRequestId, pr.Title, sourceBranchClean, result.Files);
+                AddPrFilesToContext(prInfo);
+                AppState.StatusText = $"PR #{pr.PullRequestId} sikeresen előkészítve Code Review-hoz.";
+            }
+            catch (Exception ex)
+            {
+                AppState.StatusText = $"Hiba a Code Review előkészítésekor: {ex.Message}";
+            }
+            finally
+            {
+                AppState.HideLoading();
             }
         }
 

@@ -5,102 +5,146 @@
 @inject AppLogService LogService
 
 <div class="ado-panel">
-    <div class="ado-filters">
-        <div class="filter-group" style="@(AppState.AdoDownloadOnlyMine ? "opacity: 0.5; pointer-events: none;" : "")" title="@(AppState.AdoDownloadOnlyMine ? "A lezárt/feloldott szűrő aktív, a státuszok most nem módosíthatóak" : "")">
-            <label class="group-label">Státuszok:</label>
-            <div class="selection-chips">
-                @foreach (var status in _availableStatuses)
-                {
-                    <div class="chip @(_selectedStatuses.Contains(status) ? "active" : "")" @onclick="() => ToggleStatus(status)">
-                        @status
-                    </div>
-                }
-            </div>
-        </div>
-
-        <div class="filter-group">
-            <label class="group-label">Felelősök:</label>
-            <div class="selection-chips members-chips">
-                <div class="chip @(_selectedAssignees.Contains("@Me") ? "active" : "")" @onclick="@(() => ToggleAssignee("@Me"))">
-                    @("@Me")
-                </div>
-                @foreach (var member in _projectMembers)
-                {
-                    <div class="chip @(_selectedAssignees.Contains(member.DisplayName) ? "active" : "")" @onclick="() => ToggleAssignee(member.DisplayName)">
-                        @member.DisplayName
-                    </div>
-                }
-                @if (!_projectMembers.Any() && !_isLoadingMembers)
-                {
-                    <span class="hint-text">Tagok betöltése folyamatban...</span>
-                }
-            </div>
-        </div>
-
-        <div class="filter-group">
-            <label class="group-label">További szűrők:</label>
-            <div style="display: flex; flex-direction: column; gap: 6px; padding: 2px;">
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px;">
-                    <input type="checkbox" @bind="AppState.AdoDownloadOnlyMine" style="width: auto; margin: 0;" />
-                    A kiválasztott felelősök által lezárt vagy feloldott (Resolved/Closed) elemek is
-                </label>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 11px;">Módosítva óta:</span>
-                    <input type="date" value="@AppState.AdoMinChangedDate?.ToString("yyyy-MM-dd")" @onchange="OnMinDateChanged" style="height: 24px; font-size: 11px; flex: 1; padding: 2px;" />
-                </div>
-            </div>
-        </div>
-
-        <div class="filter-row">
-            <label>Típus:</label>
-            <select @bind="_selectedType">
-                <option value="">Összes</option>
-                <option value="User Story">User Story</option>
-                <option value="Task">Task</option>
-                <option value="Bug">Bug</option>
-            </select>
-            <button class="primary load-btn" @onclick="LoadWorkItems" disabled="@(_isLoading || _isGeneratingReport)">
-                @if (_isLoading) { <span class="spinner-mini"></span> }
-                <span>Keresés</span>
-            </button>
-            <button class="secondary load-btn" @onclick="DownloadAllWorkItems" disabled="@(_isLoading || _isGeneratingReport)" title="Összes munkaelem letöltése offline kontextusként">
-                @if (_isLoading) { <span class="spinner-mini"></span> }
-                <span>Letöltés</span>
-            </button>
-            <button class="secondary load-btn" @onclick="GenerateReportAsync" disabled="@(_isLoading || _isGeneratingReport)" title="Munka riport készítése és AI elemzés előkészítése">
-                @if (_isGeneratingReport) { <span class="spinner-mini"></span> }
-                <span>Riport</span>
-            </button>
-        </div>
+    <div class="panel-switcher-tabs" style="margin-bottom: 5px;">
+        <div class="tab-item @(!_showPrList ? "active" : "")" @onclick="() => ToggleMode(false)">Feladatok</div>
+        <div class="tab-item @(_showPrList ? "active" : "")" @onclick="() => ToggleMode(true)">Aktív PR-ek</div>
     </div>
 
-    <div class="ado-list-container">
-        @if (_workItems.Any())
-        {
-            <div class="ado-list">
-                @foreach (var item in _workItems)
-                {
-                    <div class="ado-item">
-                        <div class="item-header">
-                            <span class="item-id">#@item.Id</span>
-                            <span class="item-type @item.Type.ToLower().Replace(" ", "-")">@item.Type</span>
-                            <span class="item-state">@item.State</span>
+    @if (!_showPrList)
+    {
+        <div class="ado-filters">
+            <div class="filter-group" style="@(AppState.AdoDownloadOnlyMine ? "opacity: 0.5; pointer-events: none;" : "")" title="@(AppState.AdoDownloadOnlyMine ? "A lezárt/feloldott szűrő aktív, a státuszok most nem módosíthatóak" : "")">
+                <label class="group-label">Státuszok:</label>
+                <div class="selection-chips">
+                    @foreach (var status in _availableStatuses)
+                    {
+                        <div class="chip @(_selectedStatuses.Contains(status) ? "active" : "")" @onclick="() => ToggleStatus(status)">
+                            @status
                         </div>
-                        <div class="item-title">@item.Title</div>
-                        <div class="item-assignee">👤 @item.AssignedTo</div>
-                        <div class="ado-item-actions">
-                            <button class="primary btn-mini" @onclick="() => SendToPromptDirectly(item.Id)">Küldés a promptba</button>
-                            <button class="secondary btn-mini" @onclick="() => OpenDetailsDialog(item.Id)">Részletek / Szerkesztés</button>
-                        </div>
-                    </div>
-                }
+                    }
+                </div>
             </div>
-        }
-        else if (!_isLoading)
-        {
-            <div class="empty-state">Nincs találat. Állíts be szűrőket és keress.</div>
-        }
-    </div>
+
+            <div class="filter-group">
+                <label class="group-label">Felelősök:</label>
+                <div class="selection-chips members-chips">
+                    <div class="chip @(_selectedAssignees.Contains("@Me") ? "active" : "")" @onclick="@(() => ToggleAssignee("@Me"))">
+                        @("@Me")
+                    </div>
+                    @foreach (var member in _projectMembers)
+                    {
+                        <div class="chip @(_selectedAssignees.Contains(member.DisplayName) ? "active" : "")" @onclick="() => ToggleAssignee(member.DisplayName)">
+                            @member.DisplayName
+                        </div>
+                    }
+                    @if (!_projectMembers.Any() && !_isLoadingMembers)
+                    {
+                        <span class="hint-text">Tagok betöltése folyamatban...</span>
+                    }
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <label class="group-label">További szűrők:</label>
+                <div style="display: flex; flex-direction: column; gap: 6px; padding: 2px;">
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px;">
+                        <input type="checkbox" @bind="AppState.AdoDownloadOnlyMine" style="width: auto; margin: 0;" />
+                        A kiválasztott felelősök által lezárt vagy feloldott (Resolved/Closed) elemek is
+                    </label>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 11px;">Módosítva óta:</span>
+                        <input type="date" value="@AppState.AdoMinChangedDate?.ToString("yyyy-MM-dd")" @onchange="OnMinDateChanged" style="height: 24px; font-size: 11px; flex: 1; padding: 2px;" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-row">
+                <label>Típus:</label>
+                <select @bind="_selectedType">
+                    <option value="">Összes</option>
+                    <option value="User Story">User Story</option>
+                    <option value="Task">Task</option>
+                    <option value="Bug">Bug</option>
+                </select>
+                <button class="primary load-btn" @onclick="LoadWorkItems" disabled="@(_isLoading || _isGeneratingReport)">
+                    @if (_isLoading) { <span class="spinner-mini"></span> }
+                    <span>Keresés</span>
+                </button>
+                <button class="secondary load-btn" @onclick="DownloadAllWorkItems" disabled="@(_isLoading || _isGeneratingReport)" title="Összes munkaelem letöltése offline kontextusként">
+                    @if (_isLoading) { <span class="spinner-mini"></span> }
+                    <span>Letöltés</span>
+                </button>
+                <button class="secondary load-btn" @onclick="GenerateReportAsync" disabled="@(_isLoading || _isGeneratingReport)" title="Munka riport készítése és AI elemzés előkészítése">
+                    @if (_isGeneratingReport) { <span class="spinner-mini"></span> }
+                    <span>Riport</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="ado-list-container">
+            @if (_workItems.Any())
+            {
+                <div class="ado-list">
+                    @foreach (var item in _workItems)
+                    {
+                        <div class="ado-item">
+                            <div class="item-header">
+                                <span class="item-id">#@item.Id</span>
+                                <span class="item-type @item.Type.ToLower().Replace(" ", "-")">@item.Type</span>
+                                <span class="item-state">@item.State</span>
+                            </div>
+                            <div class="item-title">@item.Title</div>
+                            <div class="item-assignee">👤 @item.AssignedTo</div>
+                            <div class="ado-item-actions">
+                                <button class="primary btn-mini" @onclick="() => SendToPromptDirectly(item.Id)">Küldés a promptba</button>
+                                <button class="secondary btn-mini" @onclick="() => OpenDetailsDialog(item.Id)">Részletek / Szerkesztés</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else if (!_isLoading)
+            {
+                <div class="empty-state">Nincs találat. Állíts be szűrőket és keress.</div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="ado-filters">
+            <div class="filter-row" style="border-top: none; padding-top: 0;">
+                <button class="primary load-btn" @onclick="LoadActivePullRequests" disabled="@_isLoading">
+                    @if (_isLoading) { <span class="spinner-mini"></span> }
+                    <span>Frissítés</span>
+                </button>
+            </div>
+        </div>
+        <div class="ado-list-container">
+            @if (_activePrs.Any())
+            {
+                <div class="ado-list">
+                    @foreach (var pr in _activePrs)
+                    {
+                        <div class="ado-item">
+                            <div class="item-header">
+                                <span class="item-id">PR #@pr.PullRequestId</span>
+                                <span class="item-state">Aktív</span>
+                            </div>
+                            <div class="item-title">@pr.Title</div>
+                            <div class="item-assignee">📁 Repo: @(pr.Repository?.Name ?? "Ismeretlen")</div>
+                            <div class="ado-item-actions">
+                                <button class="primary btn-mini" style="background-color: #2a9d8f;" @onclick="() => StartCodeReviewForPr(pr)">Code Review indítása</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else if (!_isLoading)
+            {
+                <div class="empty-state">Nincs aktív Pull Request a projektben.</div>
+            }
+        </div>
+    }
 
     @if (_isDetailsModalVisible)
     {
@@ -217,7 +261,10 @@
                                 <div class="linked-pr-item" style="background: var(--toolbar-bg); padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); margin-bottom: 5px;">
                                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 10px;">
                                         <span style="font-weight: bold; font-size: 11px;">PR #@pr.Id: @pr.Title</span>
-                                        <button class="primary btn-mini" style="flex-shrink: 0;" @onclick="() => AddPrFilesToContext(pr)">Fájlok kontextusba tétele</button>
+                                        <div style="display: flex; gap: 4px;">
+                                            <button class="primary btn-mini" style="flex-shrink: 0;" @onclick="() => AddPrFilesToContext(pr)">Fájlok kontextusba tétele</button>
+                                            <button class="primary btn-mini" style="flex-shrink: 0; background-color: #2a9d8f;" @onclick="() => StartCodeReviewForPr(pr)">Code Review indítása</button>
+                                        </div>
                                     </div>
                                     <div style="font-size: 10px; color: var(--text-color-light); margin-bottom: 3px;">Ág: @pr.SourceBranch</div>
                                     <div style="max-height: 80px; overflow-y: auto; font-size: 10px; font-family: Consolas, monospace; background: var(--input-bg-color); padding: 4px; border-radius: 3px;">

@@ -208,6 +208,12 @@ namespace LlmContextCollector.Models
         public string Path { get; set; } = string.Empty;
     }
 
+    public class GitPullRequestListResponse
+    {
+        [JsonPropertyName("value")]
+        public List<GitPullRequest> Value { get; set; } = new();
+    }
+
     public class GitPullRequestWorkItemReferenceListResponse
     {
         [JsonPropertyName("value")]

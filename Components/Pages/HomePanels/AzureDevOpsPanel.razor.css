@@ -221,3 +221,33 @@
     color: var(--accent-color);
     border-bottom-color: var(--accent-color);
 }
+
+.panel-switcher-tabs {
+    display: flex;
+    padding: 0;
+    background-color: var(--toolbar-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tab-item {
+    flex: 1;
+    padding: 8px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    color: var(--text-color-light);
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.tab-item:hover {
+    background-color: var(--hover-bg-color);
+    color: var(--text-color);
+}
+
+.tab-item.active {
+    color: var(--accent-color);
+    border-bottom-color: var(--accent-color);
+    background-color: var(--panel-bg);
+}

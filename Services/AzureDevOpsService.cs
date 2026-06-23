@@ -383,6 +383,28 @@ namespace LlmContextCollector.Services
             return (sb.ToString(), finalImagesToReturn, failedImagesCount);
         }
 
+        public async Task<List<GitPullRequest>> GetActivePullRequestsAsync()
+        {
+            if (string.IsNullOrWhiteSpace(_appState.AzureDevOpsOrganizationUrl) || string.IsNullOrWhiteSpace(_appState.AzureDevOpsPat))
+                return new List<GitPullRequest>();
+
+            var orgUrl = _appState.AzureDevOpsOrganizationUrl.Trim().TrimEnd('/');
+            var project = _appState.AzureDevOpsProject.Trim();
+            var pat = _appState.AzureDevOpsPat.Trim();
+            var encodedProject = Uri.EscapeDataString(project);
+
+            var client = _httpClientFactory.CreateClient("AzureDevOps");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                Convert.ToBase64String(Encoding.ASCII.GetBytes($":{pat}")));
+
+            var url = $"{orgUrl}/{encodedProject}/_apis/git/pullrequests?searchCriteria.status=active&api-version=6.0";
+            var response = await client.GetAsync(url);
+            if (!response.IsSuccessStatusCode) return new List<GitPullRequest>();
+
+            var result = await JsonSerializer.DeserializeAsync<GitPullRequestListResponse>(await response.Content.ReadAsStreamAsync(), _jsonOptions);
+            return result?.Value ?? new List<GitPullRequest>();
+        }
+
         public async Task<LinkedPrInfo?> GetPullRequestDetailsAsync(int prId)
         {
             if (string.IsNullOrWhiteSpace(_appState.AzureDevOpsOrganizationUrl) || string.IsNullOrWhiteSpace(_appState.AzureDevOpsPat))
