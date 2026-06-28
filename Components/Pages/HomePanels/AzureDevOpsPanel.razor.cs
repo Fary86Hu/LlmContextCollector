@@ -140,6 +140,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         }
 
         private bool _isDetailsModalVisible = false;
+        private string _activeModalTab = "details";
         private int _editingItemId;
         private string _editingItemText = string.Empty;
         private List<AttachedImage> _editingItemImages = new();
@@ -193,6 +194,7 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                     _editingItemImages = formatted.Images ?? new List<AttachedImage>();
                     _newCommentText = string.Empty;
                     _linkedPrs.Clear();
+                    _activeModalTab = "details";
 
                     if (rawWi != null)
                     {
@@ -359,7 +361,11 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                     }
                 }
 
-                var reviewerTemplate = AppState.PromptTemplates.FirstOrDefault(t => t.Title.Contains("Reviewer", StringComparison.OrdinalIgnoreCase));
+                var reviewerTemplate = AppState.PromptTemplates.FirstOrDefault(t => t.Title.Equals("Code Reviewer", StringComparison.OrdinalIgnoreCase))
+                    ?? AppState.PromptTemplates.FirstOrDefault(t => t.Title.Contains("Code Reviewer", StringComparison.OrdinalIgnoreCase))
+                    ?? AppState.PromptTemplates.FirstOrDefault(t => t.Title.Contains("Reviewer", StringComparison.OrdinalIgnoreCase) && !t.Title.Contains("Blazor", StringComparison.OrdinalIgnoreCase))
+                    ?? AppState.PromptTemplates.FirstOrDefault(t => t.Title.Contains("Reviewer", StringComparison.OrdinalIgnoreCase));
+
                 if (reviewerTemplate != null)
                 {
                     AppState.ActiveGlobalPromptId = reviewerTemplate.Id;
@@ -415,7 +421,11 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                     }
                 }
 
-                var reviewerTemplate = AppState.PromptTemplates.FirstOrDefault(t => t.Title.Contains("Reviewer", StringComparison.OrdinalIgnoreCase));
+                var reviewerTemplate = AppState.PromptTemplates.FirstOrDefault(t => t.Title.Equals("Code Reviewer", StringComparison.OrdinalIgnoreCase))
+                    ?? AppState.PromptTemplates.FirstOrDefault(t => t.Title.Contains("Code Reviewer", StringComparison.OrdinalIgnoreCase))
+                    ?? AppState.PromptTemplates.FirstOrDefault(t => t.Title.Contains("Reviewer", StringComparison.OrdinalIgnoreCase) && !t.Title.Contains("Blazor", StringComparison.OrdinalIgnoreCase))
+                    ?? AppState.PromptTemplates.FirstOrDefault(t => t.Title.Contains("Reviewer", StringComparison.OrdinalIgnoreCase));
+
                 if (reviewerTemplate != null)
                 {
                     AppState.ActiveGlobalPromptId = reviewerTemplate.Id;
