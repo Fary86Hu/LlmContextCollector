@@ -21,6 +21,8 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         private FileTreeFilterService FileTreeFilterService { get; set; } = null!;
         [Inject]
         private ProjectSettingsService ProjectSettingsService { get; set; } = null!;
+        [Inject]
+        private HistoryService HistoryService { get; set; } = null!;
 
         [Parameter]
         public EventCallback OnRequestApplyFiltersAndReload { get; set; }
@@ -49,11 +51,34 @@ namespace LlmContextCollector.Components.Pages.HomePanels
 
         private bool _showMergeDropdown = false;
         private string _branchToMerge = string.Empty;
+        private bool _isProjectDropdownOpen = false;
 
         private void ToggleMergeDropdown()
         {
             _showMergeDropdown = !_showMergeDropdown;
             _branchToMerge = string.Empty;
+        }
+
+        private void ToggleProjectDropdown()
+        {
+            _isProjectDropdownOpen = !_isProjectDropdownOpen;
+        }
+
+        private async Task SelectRecentProject(string folder)
+        {
+            _isProjectDropdownOpen = false;
+            if (!string.IsNullOrEmpty(folder) && folder != AppState.ProjectRoot)
+            {
+                AppState.ProjectRoot = folder;
+                await ProjectSettingsService.LoadSettingsForProjectAsync(folder);
+                await OnRequestApplyFiltersAndReload.InvokeAsync();
+            }
+        }
+
+        private async Task DeleteProjectHistory(string folder)
+        {
+            _isProjectDropdownOpen = false;
+            await HistoryService.DeleteHistoryForProjectAsync(folder);
         }
 
         private async Task StartBranchMerge()
@@ -106,15 +131,39 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         {
             var promptPreview = string.IsNullOrWhiteSpace(entry.PromptText) ? "(üres prompt)" : entry.PromptText.ReplaceLineEndings(" ").Trim();
             if (promptPreview.Length > 80) promptPreview = promptPreview.Substring(0, 80) + "...";
-            return $"{entry.Timestamp:yy-MM-dd HH:mm} | {promptPreview} | {Path.GetFileName(entry.RootFolder)} ({entry.SelectedFiles.Count}f)";
+            return $"{entry.Timestamp:yy-MM-dd HH:mm} | {promptPreview} ({entry.SelectedFiles.Count}f)";
         }
 
         protected async Task LoadSelectedHistory(ChangeEventArgs e)
         {
-            if (int.TryParse(e.Value?.ToString(), out int index) && index >= 0)
+            if (Guid.TryParse(e.Value?.ToString(), out Guid id))
             {
-                var entry = AppState.HistoryEntries[index];
-                await OnLoadHistoryEntry.InvokeAsync(entry);
+                var entry = AppState.HistoryEntries.FirstOrDefault(x => x.Id == id);
+                if (entry != null)
+                {
+                    await OnLoadHistoryEntry.InvokeAsync(entry);
+                }
+            }
+        }
+
+        private IEnumerable<string> GetProjectFolders()
+        {
+            var folders = AppState.HistoryEntries.Select(e => e.RootFolder).Where(f => !string.IsNullOrEmpty(f)).Distinct().ToList();
+            if (!string.IsNullOrEmpty(AppState.ProjectRoot) && !folders.Contains(AppState.ProjectRoot))
+            {
+                folders.Insert(0, AppState.ProjectRoot);
+            }
+            return folders;
+        }
+
+        private async Task LoadRecentProject(ChangeEventArgs e)
+        {
+            var folder = e.Value?.ToString();
+            if (!string.IsNullOrEmpty(folder) && folder != AppState.ProjectRoot)
+            {
+                AppState.ProjectRoot = folder;
+                await ProjectSettingsService.LoadSettingsForProjectAsync(folder);
+                await OnRequestApplyFiltersAndReload.InvokeAsync();
             }
         }
 

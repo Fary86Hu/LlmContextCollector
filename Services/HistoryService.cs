@@ -5,7 +5,6 @@ namespace LlmContextCollector.Services
     public class HistoryService
     {
         private const string HistoryFileName = ".llm_context_collector_history.json";
-        private const int HistoryLimit = 30;
 
         private readonly JsonStorageService _storage;
         private readonly AppState _appState;
@@ -19,6 +18,13 @@ namespace LlmContextCollector.Services
         public async Task LoadHistoryAsync()
         {
             var history = await _storage.ReadFromFileAsync<List<HistoryEntry>>(HistoryFileName);
+            if (history != null)
+            {
+                foreach(var h in history)
+                {
+                    if (h.Id == Guid.Empty) h.Id = Guid.NewGuid();
+                }
+            }
             _appState.HistoryEntries = history ?? new List<HistoryEntry>();
             _appState.NotifyStateChanged(nameof(AppState.HistoryEntries));
         }
@@ -32,6 +38,7 @@ namespace LlmContextCollector.Services
 
             var currentState = new HistoryEntry
             {
+                Id = Guid.NewGuid(),
                 Timestamp = DateTime.Now,
                 RootFolder = _appState.ProjectRoot,
                 SelectedFiles = _appState.SelectedFilesForContext.ToList(),
@@ -44,10 +51,46 @@ namespace LlmContextCollector.Services
 
             var history = _appState.HistoryEntries;
             history.Insert(0, currentState);
-            _appState.HistoryEntries = history.Take(HistoryLimit).ToList();
+
+            var projectEntries = history.Where(e => e.RootFolder == _appState.ProjectRoot).ToList();
+            if (projectEntries.Count > 20)
+            {
+                var toRemove = projectEntries.Skip(20).ToList();
+                foreach(var rm in toRemove) history.Remove(rm);
+            }
+
+            if (history.Count > 200)
+            {
+                history = history.Take(200).ToList();
+            }
+
+            _appState.HistoryEntries = history;
 
             await _storage.WriteToFileAsync(HistoryFileName, _appState.HistoryEntries);
             _appState.NotifyStateChanged(nameof(AppState.HistoryEntries));
+        }
+
+        public async Task DeleteHistoryForProjectAsync(string projectRoot)
+        {
+            if (string.IsNullOrEmpty(projectRoot)) return;
+
+            var history = _appState.HistoryEntries.ToList();
+            history.RemoveAll(e => e.RootFolder == projectRoot);
+
+            _appState.HistoryEntries = history;
+            _appState.NotifyStateChanged(nameof(AppState.HistoryEntries));
+
+            await _storage.WriteToFileAsync(HistoryFileName, _appState.HistoryEntries);
+
+            if (_appState.ProjectRoot == projectRoot)
+            {
+                _appState.ProjectRoot = string.Empty;
+                _appState.SelectedFilesForContext.Clear();
+                _appState.ResetContextListHistory();
+                _appState.SetFileTree(new List<FileNode>());
+                _appState.CurrentGitBranch = string.Empty;
+                _appState.AvailableGitBranches.Clear();
+            }
         }
     }
 }

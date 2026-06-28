@@ -2,6 +2,7 @@ namespace LlmContextCollector.Models
 {
     public class HistoryEntry
     {
+        public Guid Id { get; set; } = Guid.NewGuid();
         public DateTime Timestamp { get; set; }
         public string RootFolder { get; set; } = string.Empty;
         public List<string> SelectedFiles { get; set; } = new();

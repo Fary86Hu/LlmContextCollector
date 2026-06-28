@@ -1,7 +1,28 @@
 <div class="panel panel-left">
     <div class="toolbar">
         <button @onclick="SelectProjectFolder" disabled="@(AppState.CurrentBuildStatus == BuildStatus.Running)" title="@(AppState.CurrentBuildStatus == BuildStatus.Running ? "Futtatás alatt nem váltható projekt" : "")">Projekt Mappa...</button>
-        <input type="text" class="path-display" placeholder="Nincs mappa kiválasztva" @bind="AppState.ProjectRoot" @bind:event="oninput" readonly="@(AppState.CurrentBuildStatus == BuildStatus.Running)" />
+        <div class="custom-dropdown-container project-dropdown">
+            <div class="custom-dropdown-trigger" @onclick="ToggleProjectDropdown" disabled="@(AppState.CurrentBuildStatus == BuildStatus.Running)">
+                <span class="truncate">@(string.IsNullOrEmpty(AppState.ProjectRoot) ? "Nincs mappa kiválasztva" : AppState.ProjectRoot)</span>
+                <span class="dropdown-arrow">▼</span>
+            </div>
+            @if (_isProjectDropdownOpen && AppState.CurrentBuildStatus != BuildStatus.Running)
+            {
+                <div class="custom-dropdown-list project-dropdown-list">
+                    @if (string.IsNullOrEmpty(AppState.ProjectRoot))
+                    {
+                        <div class="custom-dropdown-item disabled">Nincs mappa kiválasztva</div>
+                    }
+                    @foreach (var folder in GetProjectFolders())
+                    {
+                        <div class="custom-dropdown-item @(folder == AppState.ProjectRoot ? "active" : "")" @onclick="() => SelectRecentProject(folder)">
+                            <span class="item-text" title="@folder">@folder</span>
+                            <button class="delete-project-btn" @onclick:stopPropagation="true" @onclick="() => DeleteProjectHistory(folder)" title="Mappa és összes előzményének törlése">🗑️</button>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
     </div>
     <div class="toolbar">
         @if (AppState.IsGitRepository && AppState.AvailableGitBranches.Any())
@@ -43,10 +64,10 @@
         <div class="toolbar">
             <label for="history-select" style="white-space: nowrap; margin-right: 5px;">Előzmények:</label>
             <select id="history-select" @onchange="LoadSelectedHistory" style="flex-grow: 1;" disabled="@(AppState.CurrentBuildStatus == BuildStatus.Running)">
-                <option value="-1" selected>Válassz egy előzményt...</option>
-                @foreach (var (entry, index) in AppState.HistoryEntries.Select((entry, index) => (entry, index)))
+                <option value="" selected>Válassz egy előzményt...</option>
+                @foreach (var entry in AppState.HistoryEntries.Where(e => e.RootFolder == AppState.ProjectRoot))
                 {
-                    <option value="@index">@FormatHistoryEntry(entry)</option>
+                    <option value="@entry.Id">@FormatHistoryEntry(entry)</option>
                 }
             </select>
         </div>
