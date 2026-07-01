@@ -96,29 +96,45 @@ namespace LlmContextCollector.Services
         {
             if (string.IsNullOrEmpty(_appState.ProjectRoot) || !_appState.IsGitRepository) return;
 
-            _appState.StatusText = "Módosított fájlok keresése...";
+            _appState.StatusText = "Módosított és új fájlok keresése...";
 
             try
             {
                 var uncommitted = await GetDiffsAsync(DiffMode.Uncommitted);
                 var inBranch = await GetDiffsAsync(DiffMode.SinceBranchCreation);
+                var allDiffs = uncommitted.Concat(inBranch).ToList();
 
-                var allModifiedPaths = uncommitted.Concat(inBranch)
+                var newPaths = allDiffs
+                    .Where(d => d.Status == DiffStatus.New)
+                    .Select(d => d.Path)
+                    .Distinct()
+                    .ToList();
+
+                var modifiedPaths = allDiffs
                     .Where(d => d.Status != DiffStatus.New)
                     .Select(d => d.Path)
                     .Distinct()
                     .ToList();
 
-                if (!allModifiedPaths.Any())
+                if (!newPaths.Any() && !modifiedPaths.Any())
                 {
-                    _appState.StatusText = "Nincs módosított fájl (vagy csak új fájlok vannak).";
+                    _appState.StatusText = "Nincs módosított vagy új fájl.";
                     return;
                 }
 
                 int addedCount = 0;
                 await MainThread.InvokeOnMainThreadAsync(() =>
                 {
-                    foreach (var path in allModifiedPaths)
+                    foreach (var path in newPaths)
+                    {
+                        if (!_appState.SelectedFilesForContext.Contains(path))
+                        {
+                            _appState.SelectedFilesForContext.Add(path);
+                            addedCount++;
+                        }
+                    }
+
+                    foreach (var path in modifiedPaths)
                     {
                         if (!_appState.SelectedFilesForContext.Contains(path))
                         {
@@ -138,11 +154,11 @@ namespace LlmContextCollector.Services
                 if (addedCount > 0)
                 {
                     _appState.SaveContextListState();
-                    _appState.StatusText = $"{addedCount} új bejegyzés hozzáadva (aktuális és eredeti verziók).";
+                    _appState.StatusText = $"{addedCount} új bejegyzés hozzáadva (módosított, eredeti és új fájlok).";
                 }
                 else
                 {
-                    _appState.StatusText = "Minden módosított fájl és azok eredetijei már szerepelnek a listában.";
+                    _appState.StatusText = "Minden változás (módosított, eredeti és új fájlok) már szerepel a listában.";
                 }
             }
             catch (Exception ex)

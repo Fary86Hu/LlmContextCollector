@@ -315,6 +315,7 @@
             width: 5%;
         }
 
+
     .context-table tbody tr:hover {
         background-color: var(--hover-bg-color);
     }
