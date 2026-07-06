@@ -160,7 +160,7 @@ namespace LlmContextCollector.Services
 
             if (threadsData?.Value != null)
             {
-                var threadsWithComments = threadsData.Value.Where(t => t.Comments != null && t.Comments.Any(c => !string.IsNullOrWhiteSpace(c.Text))).ToList();
+                var threadsWithComments = threadsData.Value.Where(t => t.Comments != null && t.Comments.Any(c => !string.IsNullOrWhiteSpace(c.Content))).ToList();
                 if (threadsWithComments.Any())
                 {
                     sb.AppendLine("\n## Megjegyzések és szálak:");
@@ -169,8 +169,8 @@ namespace LlmContextCollector.Services
                         var firstComment = thread.Comments.First();
                         var context = thread.ThreadContext != null ? $" (Fájl: {thread.ThreadContext.Path})" : "";
                         sb.AppendLine($"\n[{thread.Status}]{context} {firstComment.CreatedBy?.DisplayName}:");
-                        sb.AppendLine(HtmlToPlainText(firstComment.Text));
-                        foreach (var reply in thread.Comments.Skip(1)) sb.AppendLine($"  > {reply.CreatedBy?.DisplayName}: {HtmlToPlainText(reply.Text)}");
+                        sb.AppendLine(HtmlToPlainText(firstComment.Content));
+                        foreach (var reply in thread.Comments.Skip(1)) sb.AppendLine($"  > {reply.CreatedBy?.DisplayName}: {HtmlToPlainText(reply.Content)}");
                     }
                 }
             }
@@ -1040,7 +1040,11 @@ namespace LlmContextCollector.Services
             text = Regex.Replace(text, "<br.*?>", "\n", RegexOptions.IgnoreCase);
             text = Regex.Replace(text, "</li>", "\n", RegexOptions.IgnoreCase);
             text = Regex.Replace(text, "<.*?>", " ");
-            text = Regex.Replace(text, @"\s+", " ").Trim();
+            text = Regex.Replace(text, @"[ \t]+", " ");
+            text = Regex.Replace(text, @"\r\n|\r", "\n");
+            text = Regex.Replace(text, @"\n[ \t]+", "\n");
+            text = Regex.Replace(text, @"[ \t]+\n", "\n");
+            text = Regex.Replace(text, @"\n{3,}", "\n\n").Trim();
             return text;
         }
 

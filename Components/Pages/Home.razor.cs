@@ -596,7 +596,8 @@ namespace LlmContextCollector.Components.Pages
                     foreach (var loc in locChanges)
                     {
                         var key = loc.Path.Substring(6);
-                        sb.AppendLine($"  <data name=\"{key}\" xml:space=\"preserve\"><value>{loc.NewContent}</value></data>");
+                        var escapedContent = System.Security.SecurityElement.Escape(loc.NewContent);
+                        sb.AppendLine($"  <data name=\"{key}\" xml:space=\"preserve\"><value>{escapedContent}</value></data>");
                     }
                     added = await LocalizationService.UpdateResourceFileAsync(path, sb.ToString());
                 }
@@ -674,7 +675,8 @@ namespace LlmContextCollector.Components.Pages
                     foreach (var loc in locChanges)
                     {
                         var key = loc.Path.Substring(6);
-                        sb.AppendLine($"  <data name=\"{key}\" xml:space=\"preserve\"><value>{loc.NewContent}</value></data>");
+                        var escapedContent = System.Security.SecurityElement.Escape(loc.NewContent);
+                        sb.AppendLine($"  <data name=\"{key}\" xml:space=\"preserve\"><value>{escapedContent}</value></data>");
                     }
                     locAddedCount = await LocalizationService.UpdateResourceFileAsync(AppState.LocalizationResourcePath, sb.ToString());
                 }

@@ -30,18 +30,18 @@ namespace LlmContextCollector
         {
             var btn = (Button)sender;
             if (btn.CommandParameter == null) return;
-            
+
             var target = btn.CommandParameter.ToString();
 
             TabChatBtn.TextColor = target == "Chat" ? Color.FromArgb("#0090ff") : Color.FromArgb("#9e9e9e");
             TabStudioBtn.TextColor = target == "Studio" ? Color.FromArgb("#0090ff") : Color.FromArgb("#9e9e9e");
 
-            AiBlazorView.IsVisible = (target == "Chat" || target == "Logs");
+            AiBlazorView.IsVisible = (target == "Chat");
             AiStudioWebView.IsVisible = (target == "Studio");
 
             if (AiBlazorView.IsVisible && _appState != null)
             {
-                _appState.ActiveTab = target == "Chat" ? WorkbenchTab.Chat : WorkbenchTab.AgentLog;
+                _appState.ActiveTab = WorkbenchTab.Chat;
             }
         }
 

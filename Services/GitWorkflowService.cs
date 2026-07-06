@@ -167,6 +167,87 @@ namespace LlmContextCollector.Services
             }
         }
 
+        public async Task AddUncommittedFilesToContextAsync()
+        {
+            if (string.IsNullOrEmpty(_appState.ProjectRoot) || !_appState.IsGitRepository) return;
+
+            _appState.StatusText = "Helyi el nem mentett változások keresése...";
+
+            try
+            {
+                var uncommitted = await GetDiffsAsync(DiffMode.Uncommitted);
+
+                var newPaths = uncommitted
+                    .Where(d => d.Status == DiffStatus.New)
+                    .Select(d => d.Path)
+                    .Distinct()
+                    .ToList();
+
+                var modifiedPaths = uncommitted
+                    .Where(d => d.Status != DiffStatus.New)
+                    .Select(d => d.Path)
+                    .Distinct()
+                    .ToList();
+
+                if (!newPaths.Any() && !modifiedPaths.Any())
+                {
+                    _appState.StatusText = "Nincs helyi el nem mentett változás.";
+                    return;
+                }
+
+                int addedCount = 0;
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    foreach (var path in newPaths)
+                    {
+                        if (!_appState.SelectedFilesForContext.Contains(path))
+                        {
+                            _appState.SelectedFilesForContext.Add(path);
+                            addedCount++;
+                        }
+
+                        var originalPath = $"[HEAD]{path}";
+                        if (!_appState.SelectedFilesForContext.Contains(originalPath))
+                        {
+                            _appState.SelectedFilesForContext.Add(originalPath);
+                            addedCount++;
+                        }
+                    }
+
+                    foreach (var path in modifiedPaths)
+                    {
+                        if (!_appState.SelectedFilesForContext.Contains(path))
+                        {
+                            _appState.SelectedFilesForContext.Add(path);
+                            addedCount++;
+                        }
+
+                        var originalPath = $"[HEAD]{path}";
+                        if (!_appState.SelectedFilesForContext.Contains(originalPath))
+                        {
+                            _appState.SelectedFilesForContext.Add(originalPath);
+                            addedCount++;
+                        }
+                    }
+                });
+
+                if (addedCount > 0)
+                {
+                    _appState.SaveContextListState();
+                    _appState.StatusText = $"{addedCount} helyi változás hozzáadva a kontextushoz.";
+                }
+                else
+                {
+                    _appState.StatusText = "Minden helyi változás már szerepel a listában.";
+                }
+
+            }
+            catch (Exception ex)
+            {
+                _appState.StatusText = $"Git hiba: {ex.Message}";
+            }
+        }
+
         public async Task<List<DiffResult>> GetDiffsAsync(DiffMode mode, string? targetBranch = null)
         {
             if (mode == DiffMode.Uncommitted)
@@ -273,6 +354,10 @@ namespace LlmContextCollector.Services
                 {
                     var fullPath = Path.GetFullPath(Path.Combine(_appState.ProjectRoot, result.Path.Replace('/', Path.DirectorySeparatorChar)));
                     var fullRoot = Path.GetFullPath(_appState.ProjectRoot);
+                    if (!fullRoot.EndsWith(Path.DirectorySeparatorChar))
+                    {
+                        fullRoot += Path.DirectorySeparatorChar;
+                    }
                     if (!fullPath.StartsWith(fullRoot))
                     {
                         throw new UnauthorizedAccessException("Path traversal attempt detected.");
@@ -396,6 +481,10 @@ namespace LlmContextCollector.Services
             {
                 var fullPath = Path.GetFullPath(Path.Combine(_appState.ProjectRoot, result.Path.Replace('/', Path.DirectorySeparatorChar)));
                 var fullRoot = Path.GetFullPath(_appState.ProjectRoot);
+                if (!fullRoot.EndsWith(Path.DirectorySeparatorChar))
+                {
+                    fullRoot += Path.DirectorySeparatorChar;
+                }
                 if (!fullPath.StartsWith(fullRoot)) continue;
 
                 if (result.Status == DiffStatus.New || result.Status == DiffStatus.NewFromModified)

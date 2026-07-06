@@ -103,6 +103,8 @@ namespace LlmContextCollector.Services
             _logService.LogInfo(logSource, $"Indítás helye: {targetWorkingDir}");
             _logService.LogInfo(logSource, $"Parancs: {command}");
 
+            StartFlushTimer();
+
             try
             {
                 var parts = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -154,6 +156,7 @@ namespace LlmContextCollector.Services
             }
             finally
             {
+                StopFlushTimer();
                 if (_appState.CurrentBuildStatus == BuildStatus.Running)
                 {
                     SetStatus(BuildStatus.Idle);
@@ -166,6 +169,7 @@ namespace LlmContextCollector.Services
         public void CancelBuild()
         {
             _buildCts?.Cancel();
+            StopFlushTimer();
 
             if (_appState.CurrentBuildStatus == BuildStatus.Running)
             {
@@ -210,15 +214,55 @@ namespace LlmContextCollector.Services
             }
         }
 
+        private readonly StringBuilder _buildOutputBuffer = new();
+        private readonly object _bufferLock = new();
+        private System.Timers.Timer? _flushTimer;
+
+        private void StartFlushTimer()
+        {
+            _flushTimer?.Dispose();
+            _flushTimer = new System.Timers.Timer(150);
+            _flushTimer.Elapsed += (s, e) => FlushBuffer();
+            _flushTimer.AutoReset = true;
+            _flushTimer.Start();
+        }
+
+        private void StopFlushTimer()
+        {
+            _flushTimer?.Stop();
+            _flushTimer?.Dispose();
+            _flushTimer = null;
+            FlushBuffer();
+        }
+
+        private void FlushBuffer()
+        {
+            string contentToFlush;
+            lock (_bufferLock)
+            {
+                if (_buildOutputBuffer.Length == 0) return;
+                contentToFlush = _buildOutputBuffer.ToString();
+                _buildOutputBuffer.Clear();
+            }
+
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                _appState.BuildOutput += contentToFlush;
+            });
+        }
+
         private void ProcessLine(string? line, StringBuilder fullOutput, bool parseErrors)
         {
             if (line == null) return;
             fullOutput.AppendLine(line);
-            
+
+            lock (_bufferLock)
+            {
+                _buildOutputBuffer.AppendLine(line);
+            }
+
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                _appState.BuildOutput += line + Environment.NewLine;
-                
                 if (line.Contains("address already in use", StringComparison.OrdinalIgnoreCase) || 
                     line.Contains("Az összes szoftvercsatorna-cím használatának általában csak egy módja", StringComparison.OrdinalIgnoreCase))
                 {

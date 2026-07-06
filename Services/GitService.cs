@@ -115,6 +115,9 @@ namespace LlmContextCollector.Services
 
         public async Task<string> GetFileContentAtBranchAsync(string branch, string filePath)
         {
+            bool exists = await FileExistsInRefAsync(branch, filePath);
+            if (!exists) return string.Empty;
+
             var (success, output, error) = await RunGitCommandAsync(new[] { "show", $"{branch}:{filePath}" });
             if (!success) return $"[HIBA: Nem sikerült beolvasni az eredeti verziót ({branch}). Hiba: {error}]";
             return output;

@@ -86,7 +86,7 @@ namespace LlmContextCollector.Services
         public ObservableCollection<string> SelectedFilesForContext { get; } = new();
         public List<string> AvailableGitBranches { get; set; } = new();
 
-        public Dictionary<string, string> TypeToFileMap { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public System.Collections.Concurrent.ConcurrentDictionary<string, string> TypeToFileMap { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         private bool _isContextDirty = false;
         public bool IsContextDirty

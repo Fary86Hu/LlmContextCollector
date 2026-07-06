@@ -108,19 +108,26 @@
     }
     private async void HandleAppStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(AppState.ProjectRoot))
+        try
         {
-            await ChatService.LoadSessionsAsync();
+            if (e.PropertyName == nameof(AppState.ProjectRoot))
+            {
+                await ChatService.LoadSessionsAsync();
+            }
+            if (e.PropertyName == nameof(AppState.OllamaShowThinking) ||
+                e.PropertyName == nameof(AppState.ChatModelId) ||
+                e.PropertyName == nameof(ChatService.IsGenerating) ||
+                e.PropertyName == "CurrentResponseSnippet" ||
+                e.PropertyName == "Messages" ||
+                e.PropertyName == "Sessions")
+            {
+                await InvokeAsync(StateHasChanged);
+                await ScrollToBottom();
+            }
         }
-        if (e.PropertyName == nameof(AppState.OllamaShowThinking) ||
-            e.PropertyName == nameof(AppState.ChatModelId) ||
-            e.PropertyName == nameof(ChatService.IsGenerating) ||
-            e.PropertyName == "CurrentResponseSnippet" ||
-            e.PropertyName == "Messages" ||
-            e.PropertyName == "Sessions")
+        catch (Exception ex)
         {
-            await InvokeAsync(StateHasChanged);
-            await ScrollToBottom();
+            AppState.StatusText = $"Hiba a chat betoltesekor: {ex.Message}";
         }
     }
 
@@ -177,14 +184,54 @@
                 else text = text.Substring(0, start);
             }
         }
-        var escaped = System.Web.HttpUtility.HtmlEncode(text);
 
-        escaped = System.Text.RegularExpressions.Regex.Replace(escaped, "```([\\s\\S]*?)```", m =>
-            $"<pre class=\"chat-code-block\"><code>{m.Groups[1].Value.Trim()}</code></pre>");
+        var blocks = new List<(string Content, bool IsCode)>();
+        var remainingText = text;
+        var codeRegex = new System.Text.RegularExpressions.Regex("```([\\s\\S]*?)```");
+        var matches = codeRegex.Matches(remainingText);
+        int lastIndex = 0;
 
-        escaped = System.Text.RegularExpressions.Regex.Replace(escaped, "\\*\\*(.*?)\\*\\*", "<strong>$1</strong>");
-        escaped = escaped.Replace("&lt;think&gt;", "<div class=\"thinking-block\">").Replace("&lt;/think&gt;", "</div>");
-        var displayHtml = escaped.Replace("\n", "<br />");
+        foreach (System.Text.RegularExpressions.Match match in matches)
+        {
+            if (match.Index > lastIndex)
+            {
+                blocks.Add((remainingText.Substring(lastIndex, match.Index - lastIndex), false));
+            }
+            blocks.Add((match.Groups[1].Value, true));
+            lastIndex = match.Index + match.Length;
+        }
+
+        if (lastIndex < remainingText.Length)
+        {
+            blocks.Add((remainingText.Substring(lastIndex), false));
+        }
+
+        var sb = new StringBuilder();
+        foreach (var block in blocks)
+        {
+            if (block.IsCode)
+            {
+                var codeLines = block.Content.Split('\n');
+                var firstLine = codeLines.FirstOrDefault()?.Trim();
+                var rawCode = block.Content;
+                if (!string.IsNullOrEmpty(firstLine) && (firstLine == "csharp" || firstLine == "cs" || firstLine == "json" || firstLine == "xml" || firstLine == "javascript" || firstLine == "js" || firstLine == "css" || firstLine == "html"))
+                {
+                    rawCode = string.Join("\n", codeLines.Skip(1));
+                }
+                var escapedCode = System.Web.HttpUtility.HtmlEncode(rawCode.Trim());
+                sb.Append($"<pre class=\"chat-code-block\"><code>{escapedCode}</code></pre>");
+            }
+            else
+            {
+                var escapedText = System.Web.HttpUtility.HtmlEncode(block.Content);
+                escapedText = System.Text.RegularExpressions.Regex.Replace(escapedText, "\\*\\*(.*?)\\*\\*", "<strong>$1</strong>");
+                escapedText = escapedText.Replace("&lt;think&gt;", "<div class=\"thinking-block\">").Replace("&lt;/think&gt;", "</div>");
+                escapedText = escapedText.Replace("\n", "<br />");
+                sb.Append(escapedText);
+            }
+        }
+
+        var displayHtml = sb.ToString();
         if (isGenerating) displayHtml += "<span class=\"cursor-blink\">|</span>";
 
         return displayHtml;

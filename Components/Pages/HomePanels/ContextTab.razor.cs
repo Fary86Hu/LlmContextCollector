@@ -265,6 +265,13 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                     var devBranch = await GitWorkflowService.GetDevelopmentBranchNameAsync();
                     _previewContent = await GitService.GetFileContentAtBranchAsync(devBranch, purePath);
                 }
+                else if (fileRelPath.StartsWith("[HEAD]"))
+                {
+                    var purePath = fileRelPath.Substring(6);
+                    var currentBranch = AppState.CurrentGitBranch;
+                    if (string.IsNullOrEmpty(currentBranch)) currentBranch = "HEAD";
+                    _previewContent = await GitService.GetFileContentAtBranchAsync(currentBranch, purePath);
+                }
                 else
                 {
                     string fullPath = fileRelPath.StartsWith("[ADO]")
@@ -299,6 +306,18 @@ namespace LlmContextCollector.Components.Pages.HomePanels
                         currentChars += content.Length;
                     }
                 }
+                else if (fileRelPath.StartsWith("[HEAD]"))
+                {
+                    if (_originalSizeCache.TryGetValue(fileRelPath, out long sz)) currentChars += sz;
+                    else
+                    {
+                        var currentBranch = AppState.CurrentGitBranch;
+                        if (string.IsNullOrEmpty(currentBranch)) currentBranch = "HEAD";
+                        var content = await GitService.GetFileContentAtBranchAsync(currentBranch, fileRelPath.Substring(6));
+                        _originalSizeCache[fileRelPath] = content.Length;
+                        currentChars += content.Length;
+                    }
+                }
                 else
                 {
                     string fullPath = fileRelPath.StartsWith("[ADO]") ? Path.Combine(AppState.AdoDocsPath, fileRelPath.Substring(5)) : Path.Combine(AppState.ProjectRoot, fileRelPath.Replace('/', Path.DirectorySeparatorChar));
@@ -321,9 +340,12 @@ namespace LlmContextCollector.Components.Pages.HomePanels
             {
                 if (!string.IsNullOrWhiteSpace(_contextSearchTerm) && !fileRelPath.Contains(_contextSearchTerm, StringComparison.OrdinalIgnoreCase)) continue;
                 string fileName = Path.GetFileName(fileRelPath);
-                string displayPath = fileRelPath.StartsWith("[ORIGINAL]") ? fileRelPath.Substring(10) : fileRelPath;
+                string displayPath = fileRelPath;
+                if (fileRelPath.StartsWith("[ORIGINAL]")) displayPath = fileRelPath.Substring(10);
+                else if (fileRelPath.StartsWith("[HEAD]")) displayPath = fileRelPath.Substring(6);
+
                 long size = 0;
-                if (fileRelPath.StartsWith("[ORIGINAL]")) _originalSizeCache.TryGetValue(fileRelPath, out size);
+                if (fileRelPath.StartsWith("[ORIGINAL]") || fileRelPath.StartsWith("[HEAD]")) _originalSizeCache.TryGetValue(fileRelPath, out size);
                 else
                 {
                     string fullPath = fileRelPath.StartsWith("[ADO]") ? Path.Combine(AppState.AdoDocsPath, fileRelPath.Substring(5)) : Path.Combine(AppState.ProjectRoot, fileRelPath.Replace('/', Path.DirectorySeparatorChar));
@@ -578,6 +600,23 @@ namespace LlmContextCollector.Components.Pages.HomePanels
         {
             var args = await GitWorkflowService.PrepareGitDiffForReviewAsync(AppState.PromptText);
             await OnShowDiffDialog.InvokeAsync(args);
+        }
+
+        private async Task AddUncommittedDifferencesToContextAsync()
+        {
+            AppState.ShowLoading("Helyi változások keresése...");
+            try
+            {
+                await GitWorkflowService.AddUncommittedFilesToContextAsync();
+            }
+            catch (Exception ex)
+            {
+                AppState.StatusText = $"Hiba a helyi változások lekérésekor: {ex.Message}";
+            }
+            finally
+            {
+                AppState.HideLoading();
+            }
         }
 
         private async Task ProcessChangesFromClipboardAsync() { var t = await Clipboard.GetTextAsync(); if (!string.IsNullOrEmpty(t)) await RouteResponseAsync(t); }

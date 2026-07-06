@@ -187,13 +187,25 @@ namespace LlmContextCollector.Models
         public List<GitPullRequestCommentThread> Value { get; set; } = new();
     }
 
+    public class PullRequestComment
+    {
+        [JsonPropertyName("content")]
+        public string Content { get; set; } = string.Empty;
+
+        [JsonPropertyName("createdBy")]
+        public WorkItemUser? CreatedBy { get; set; }
+
+        [JsonPropertyName("createdDate")]
+        public DateTime CreatedDate { get; set; }
+    }
+
     public class GitPullRequestCommentThread
     {
         [JsonPropertyName("id")]
         public int Id { get; set; }
 
         [JsonPropertyName("comments")]
-        public List<WorkItemComment> Comments { get; set; } = new();
+        public List<PullRequestComment> Comments { get; set; } = new();
 
         [JsonPropertyName("status")]
         public string Status { get; set; } = string.Empty;

@@ -32,6 +32,8 @@ namespace LlmContextCollector.Services
             _logService = logService;
         }
 
+        private string _lastLoadedProjectRoot = string.Empty;
+
         public async Task ReloadProjectAsync(bool preserveSelection)
         {
             _logService.LogInfo("Project", "Projekt újratöltése indítva", _appState.ProjectRoot);
@@ -40,13 +42,41 @@ namespace LlmContextCollector.Services
                 _appState.StatusText = "Érvénytelen vagy nem létező mappa.";
                 return;
             }
-            
+
             // Build log és státusz ürítése projektváltáskor
             _appState.BuildOutput = string.Empty;
             _appState.CurrentBuildErrors.Clear();
             _appState.CurrentBuildStatus = BuildStatus.Idle;
 
             var filesToPreserve = preserveSelection ? _appState.SelectedFilesForContext.ToList() : new List<string>();
+
+            bool isProjectSwitch = _appState.ProjectRoot != _lastLoadedProjectRoot;
+            _lastLoadedProjectRoot = _appState.ProjectRoot;
+
+            if (isProjectSwitch)
+            {
+                var lastEntry = _appState.HistoryEntries.FirstOrDefault(e => e.RootFolder == _appState.ProjectRoot);
+                if (lastEntry != null)
+                {
+                    _appState.PromptText = lastEntry.PromptText;
+                    filesToPreserve = lastEntry.SelectedFiles.ToList();
+
+                    if (!string.IsNullOrEmpty(lastEntry.SelectedTemplateTitle))
+                    {
+                        var template = _appState.PromptTemplates.FirstOrDefault(t => t.Title == lastEntry.SelectedTemplateTitle);
+                        if (template != null)
+                        {
+                            _appState.ActiveGlobalPromptId = template.Id;
+                        }
+                    }
+                }
+                else
+                {
+                    _appState.PromptText = string.Empty;
+                    filesToPreserve = new List<string>();
+                }
+            }
+
             _appState.SelectedFilesForContext.Clear();
             _appState.TypeToFileMap.Clear();
             _appState.ResetContextListHistory();

@@ -163,7 +163,32 @@ namespace LlmContextCollector.Services
                         var purePath = fileRelPath.Substring(OriginalFilePrefix.Length);
                         var devBranch = await _gitWorkflowService.GetDevelopmentBranchNameAsync();
                         var originalContent = await _gitService.GetFileContentAtBranchAsync(devBranch, purePath);
-                        header = $"// --- Fájl: {purePath} (EREDETI VERZIÓ a(z) {devBranch} ágról) ---";
+                        if (string.IsNullOrEmpty(originalContent))
+                        {
+                            header = $"// --- Fájl: {purePath} (ÚJ FÁJL, korábban nem létezett a(z) {devBranch} ágon) ---";
+                        }
+                        else
+                        {
+                            header = $"// --- Fájl: {purePath} (EREDETI VERZIÓ a(z) {devBranch} ágról) ---";
+                        }
+                        sb.AppendLine(header);
+                        sb.AppendLine(originalContent);
+                        sb.AppendLine();
+                    }
+                    else if (fileRelPath.StartsWith("[HEAD]"))
+                    {
+                        var purePath = fileRelPath.Substring(6);
+                        var currentBranch = _appState.CurrentGitBranch;
+                        if (string.IsNullOrEmpty(currentBranch)) currentBranch = "HEAD";
+                        var originalContent = await _gitService.GetFileContentAtBranchAsync(currentBranch, purePath);
+                        if (string.IsNullOrEmpty(originalContent))
+                        {
+                            header = $"// --- Fájl: {purePath} (ÚJ FÁJL, korábban nem létezett a(z) {currentBranch} ágon) ---";
+                        }
+                        else
+                        {
+                            header = $"// --- Fájl: {purePath} (EREDETI VERZIÓ a(z) {currentBranch} ágról) ---";
+                        }
                         sb.AppendLine(header);
                         sb.AppendLine(originalContent);
                         sb.AppendLine();
@@ -172,6 +197,10 @@ namespace LlmContextCollector.Services
                     {
                         fullPath = Path.GetFullPath(Path.Combine(_appState.ProjectRoot, fileRelPath.Replace('/', Path.DirectorySeparatorChar)));
                         var fullRoot = Path.GetFullPath(_appState.ProjectRoot);
+                        if (!fullRoot.EndsWith(Path.DirectorySeparatorChar))
+                        {
+                            fullRoot += Path.DirectorySeparatorChar;
+                        }
                         if (!fullPath.StartsWith(fullRoot)) continue;
 
                         header = $"// --- Fájl: {fileRelPath.Replace('\\', '/')} ---";

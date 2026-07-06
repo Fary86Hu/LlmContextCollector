@@ -12,52 +12,13 @@ namespace LlmContextCollector.Services
             _appState = appState;
         }
 
-        private static readonly Regex CSharpKeywordsRegex = new Regex(@"\b(public|private|protected|internal|static|class|struct|interface|enum|void|string|int|bool|double|float|decimal|long|short|byte|var|get|set|new|using|namespace|return|if|else|for|foreach|while|do|switch|case|default|break|continue|try|catch|finally|throw|lock|using|yield|base|this|true|false|null|async|await|partial|readonly|virtual|override|sealed|abstract|as|is|in|out|ref|params|checked|unchecked|unsafe|fixed|stackalloc)\b", RegexOptions.Compiled);
+        private static readonly Regex CSharpKeywordsRegex = new Regex(@"\b(public|private|protected|internal|static|class|struct|interface|enum|void|string|int|bool|double|float|decimal|long|short|byte|var|get|set|new|namespace|return|if|else|for|foreach|while|do|switch|case|default|break|continue|try|catch|finally|throw|lock|using|yield|base|this|true|false|null|async|await|partial|readonly|virtual|override|sealed|abstract|as|is|in|out|ref|params|checked|unchecked|unsafe|fixed|stackalloc)\b", RegexOptions.Compiled);
         private static readonly Regex CSharpCommonTypesRegex = new Regex(@"\b(object|string|int|bool|double|float|decimal|long|short|byte|List|Dictionary|IEnumerable|Task|IActionResult|ICollection|Exception|PageModel|ComponentBase|DbContext|WebApplication|Program|HttpContext|IServiceCollection|IConfiguration|ILogger|Activator|Attribute|EventArgs|Console|Math|DateTime|Guid|CancellationToken|TaskCompletionSource|Action|Func|Predicate|Tuple|ValueTuple)\b", RegexOptions.Compiled);
         
         private static readonly Regex PotentialTypeRegex = new Regex(@"(?<![\w.])(?<!\b(?:string|int|bool|var|double|float|decimal|long|short|byte|char|object|dynamic|void|sbyte|uint|ushort|ulong)\s+)[A-Z][a-zA-Z0-9_]*\b(?:<[A-Za-z0-9_,\s<>]+>)?(?!\s*\{\s*(?:get|set|init)\b)(?!\s*=>)(?!\s*[-+*/%&|^!<>]?=)", RegexOptions.Compiled);
         
         private static readonly Regex TypeNamePartRegex = new Regex(@"\b[A-Z][a-zA-Z0-9_]*\b", RegexOptions.Compiled);
 
-
-        public List<string> GetRelatedFilesByConvention(string sourceRelPath, List<FileNode> allNodes, string projectRoot)
-        {
-            var relatedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var allProjectFiles = new List<FileNode>();
-            Utils.FileTreeHelper.GetAllFileNodes(allNodes, allProjectFiles);
-            
-            var allProjectPaths = new HashSet<string>(
-                allProjectFiles.Select(f => Path.GetRelativePath(projectRoot, f.FullPath).Replace('\\', '/')), 
-                StringComparer.OrdinalIgnoreCase
-            );
-
-            if (sourceRelPath.EndsWith(".razor", StringComparison.OrdinalIgnoreCase))
-            {
-                var candidates = new[] { sourceRelPath + ".cs", sourceRelPath + ".css" };
-                foreach (var candidate in candidates)
-                {
-                    if (allProjectPaths.Contains(candidate))
-                    {
-                        relatedFiles.Add(candidate);
-                    }
-                }
-            }
-            
-            var fileName = Path.GetFileName(sourceRelPath);
-            if (fileName.Length > 3 && fileName.StartsWith('I') && char.IsUpper(fileName[1]) && fileName.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
-            {
-                var implName = fileName.Substring(1); // "UserService.cs"
-                // Keressük meg ezt a fájlt a projektben (bárhol lehet, nem feltétlenül ugyanott)
-                var implNode = allProjectFiles.FirstOrDefault(f => f.Name.Equals(implName, StringComparison.OrdinalIgnoreCase));
-                if (implNode != null)
-                {
-                    var implRelPath = Path.GetRelativePath(projectRoot, implNode.FullPath).Replace('\\', '/');
-                    relatedFiles.Add(implRelPath);
-                }
-            }
-
-            return relatedFiles.ToList();
-        }
 
         public async Task<List<string>> FindReferencesAsync(List<string> startingFilesRel, List<FileNode> allNodes, string projectRoot, int depth)
         {
