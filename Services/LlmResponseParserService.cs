@@ -120,6 +120,22 @@ namespace LlmContextCollector.Services
         {
             code = code.Trim('\n', '\r');
 
+            if (code.Contains("<<<<<<< SEARCH"))
+            {
+                var lines = code.Split('\n');
+                var cleanLines = new List<string>();
+                foreach (var line in lines)
+                {
+                    var trimmed = line.Trim();
+                    if (trimmed.StartsWith("```"))
+                    {
+                        continue;
+                    }
+                    cleanLines.Add(line.TrimEnd('\r'));
+                }
+                return string.Join("\n", cleanLines).Trim('\n', '\r', ' ', '\t');
+            }
+
             if (code.StartsWith("```"))
             {
                 int firstNewLine = code.IndexOf('\n');

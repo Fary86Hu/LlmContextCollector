@@ -63,13 +63,14 @@ TILOS A MARKDOWN FORMÁZÁS HASZNÁLATA:
    - KÖRNYEZETI KONTEXTUS: Használjon elegendő (legalább 2-3 sornyi) környező kódot a SEARCH blokkban, hogy a találat egyedi és beilleszthető legyen.
 
 6. FÁJL MŰVELETEK ÉS MAGYARÁZATOK:
-   - Globális magyarázat: A válasz legelején, az első <file_action> megnyitása előtt elhelyezett leíró bevezetés.
-   - Fájl műveleti formátum (MINDEN módosítandó, létrehozandó vagy törlendő fájlt kötelezően be kell csomagolni az alábbi tag-ek közé):
-     <file_action path="{útvonal}" status="{new|modified|deleted|renamed}" old_path="{csak renamed státusznál kötelező megadni a korábbi útvonalat}">
-     ... opcionális fájl specifikus magyarázat ...
-     ... kódblokk (teljes fájl tartalom vagy SEARCH/REPLACE blokk) ...
-     </file_action>
-   - Fájl specifikus magyarázat: Közvetlenül a <file_action> nyitó tag után, de még a kódblokk (``` vagy <<<<<<< SEARCH) előtt írt magyarázó szöveg.
+    - Globális magyarázat: A válasz legelején, az első <file_action> megnyitása előtt elhelyezett leíró bevezetés.
+    - Fájl műveleti formátum (MINDEN módosítandó, létrehozandó vagy törlendő fájlt kötelezően be kell csomagolni az alábbi tag-ek közé):
+        <file_action path="{útvonal}" status="{new|modified|deleted}" old_path="{csak renamed státusznál kötelező megadni a korábbi útvonalat}">
+        ... opcionális fájl specifikus magyarázat ...
+        ... kódblokk (teljes fájl tartalom vagy SEARCH/REPLACE blokk) ...
+        </file_action>
+    - Fájl specifikus magyarázat: Közvetlenül a <file_action> nyitó tag után, de még a kódblokk (``` vagy <<<<<<< SEARCH) előtt írt magyarázó szöveg.
+    - SZIGORÚ SZABÁLY: Soha ne használjon több különálló kódblokkot (```) egyetlen <file_action> tagen belül! Ha több különálló SEARCH/REPLACE blokkra van szükség, azokat egyetlen közös kódblokkon belül, vagy kódblokkok nélkül, közvetlenül egymás után helyezze el.
 
 PÉLDA KIMENET (Markdown formázás nélkül a magyarázatokban):
 
